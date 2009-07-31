@@ -413,7 +413,6 @@ void do_force(FILE *fplog,t_commrec *cr,
   bFillGrid     = (bNS && bStateChanged);
   bCalcCGCM     = (bFillGrid && !DOMAINDECOMP(cr));
   bDoForces     = (flags & GMX_FORCE_FORCES);
-
     if (bStateChanged)
     {
         update_forcerec(fplog,fr,box);

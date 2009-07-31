@@ -99,6 +99,20 @@ energyhistory_t;
 
 typedef struct
 {
+ int start;
+ int end;
+ int nr;
+ rvec delta_x;
+ rvec delta_phi;
+ real delta_v;
+ real bolt;
+ bool update_box;
+ rvec xcm;
+ t_block mols;
+} gmx_mc_move;
+
+typedef struct
+{
   int           natoms;
   int           ngtc;
   int           nrng;
@@ -131,6 +145,11 @@ typedef struct
   int           ncg_gl; /* The number of local charge groups            */
   int           *cg_gl; /* The global cg number of the local cgs        */
   int           cg_gl_nalloc; /* Allocation size of cg_gl;              */
+  gmx_mc_move   mc_move;
+  int           step_ac;
+  int           step_tot;
+  int           vol_ac;
+  int           vol_tot;
 } t_state;
 
 #endif /* _state_h_ */

@@ -226,6 +226,8 @@ extern void ns(FILE       *fplog,
 	       bool       bDoForces);
 /* Call the neighborsearcher */
 
+void copy_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2);
+
 extern void do_force_lowlevel(FILE         *fplog,  
 			      gmx_step_t   step,
 			      t_forcerec   *fr,

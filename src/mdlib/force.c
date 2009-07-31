@@ -1690,6 +1690,25 @@ void ns(FILE *fp,
   GMX_MPE_LOG(ev_ns_finish);
 }
 
+void copy_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2)
+{
+ int i,n2,j;
+    
+    for(i=0; i<F_NRE; i++)
+    {
+        enerd2->term[i] = enerd1->term[i];
+    }
+    n2 = enerd1->grpp.nener;
+
+    if (n2 != enerd2->grpp.nener) 
+     gmx_fatal(FARGS,"Trying to copy gmx_enerdata_t structures with different grpp.nener");
+
+    for(i=0; (i<egNR); i++)
+    {
+     for (j=0;j<n2;j++)
+      enerd2->grpp.ener[i][j] = enerd1->grpp.ener[i][j];
+    }
+}
 void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                        t_forcerec *fr,      t_inputrec *ir,
                        t_idef     *idef,    t_commrec  *cr,
@@ -1736,7 +1755,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 #define PRINT_SEPDVDL(s,v,dvdl) if (bSepDVDL) fprintf(fplog,sepdvdlformat,s,v,dvdl);
     
     GMX_MPE_LOG(ev_force_start);
-    
     /* Reset box */
     for(i=0; (i<DIM); i++)
     {

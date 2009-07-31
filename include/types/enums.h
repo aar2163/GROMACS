@@ -47,7 +47,7 @@ enum {
 }; /* yes is an alias for berendsen */
 
 enum {
-  epcNO, epcBERENDSEN, epcPARRINELLORAHMAN, epcISOTROPIC, epcNR
+  epcNO, epcBERENDSEN, epcPARRINELLORAHMAN, epcISOTROPIC, epcMC, epcNR
 }; /* isotropic is an alias for berendsen */
 
 enum {
@@ -99,15 +99,16 @@ enum {
 };
 
 enum {
-  eiMD, eiSteep, eiCG, eiBD, eiSD2, eiNM, eiLBFGS, eiTPI, eiTPIC, eiSD1, eiNR
+  eiMD, eiSteep, eiCG, eiBD, eiSD2, eiNM, eiLBFGS, eiTPI, eiTPIC, eiSD1, eiMC, eiNR
 };
 
 #define EI_SD(e) ((e) == eiSD1 || (e) == eiSD2)
 #define EI_RANDOM(e) (EI_SD(e) || (e) == eiBD)
 /*above integrators may not conserve momenta*/
-#define EI_DYNAMICS(e) ((e) == eiMD || EI_SD(e) || (e) == eiBD)
+#define EI_DYNAMICS(e) ((e) == eiMD || EI_SD(e) || (e) == eiBD || (e) == eiMC)
 #define EI_ENERGY_MINIMIZATION(e) ((e) == eiSteep || (e) == eiCG || (e) == eiLBFGS)
 #define EI_TPI(e) ((e) == eiTPI || (e) == eiTPIC)
+#define EI_MC(e) ((e) == eiMC)
 
 #define EI_STATE_VELOCITY(e) ((e) == eiMD || EI_SD(e))
 

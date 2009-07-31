@@ -349,6 +349,72 @@ void berendsen_pcoupl(FILE *fplog,gmx_step_t step,
   }
 }
 
+void mc_pscale(t_inputrec *ir,matrix mu,
+		      matrix box,matrix box_rel,
+		      int start,int nr_atoms,
+		      rvec x[],unsigned short cFREEZE[],
+		      t_nrnb *nrnb,t_block *mols)
+{
+  ivec   *nFreeze=ir->opts.nFreeze;
+  int    n,m,d,g=0,natoms;
+  real  dv; 
+  rvec xcm,dxcm;
+
+
+  //only isotropic for now
+
+
+  /* Scale the positions */
+  for (n=0; n<mols->nr; n++) {
+   clear_rvec(xcm);
+   clear_rvec(dxcm);
+   natoms = mols->index[n+1]-mols->index[n];
+
+   for(m=mols->index[n];m<mols->index[n+1];m++) {
+    for (d=0;d<DIM;d++)
+     xcm[d]+=x[m][d]/natoms;   /* get center of mass of one molecule  */
+   }
+   // if (cFREEZE)
+   //   g = cFREEZE[n];
+    
+  //  if (!nFreeze[g][XX])
+      dxcm[XX] = mu[XX][XX]*xcm[XX]+mu[YY][XX]*xcm[YY]+mu[ZZ][XX]*xcm[ZZ];
+  //  if (!nFreeze[g][YY])
+      dxcm[YY] = mu[YY][YY]*xcm[YY]+mu[ZZ][YY]*xcm[ZZ];
+  //  if (!nFreeze[g][ZZ])
+      dxcm[ZZ] = mu[ZZ][ZZ]*xcm[ZZ];
+   rvec_sub(dxcm,xcm,dxcm);
+   for(m=mols->index[n];m<mols->index[n+1];m++) {
+    rvec_add(dxcm,x[m],x[m]);
+   }
+  }
+ /* for (n=start; n<start+nr_atoms; n++) {
+    if (cFREEZE)
+      g = cFREEZE[n];
+    
+    if (!nFreeze[g][XX])
+      x[n][XX] = mu[XX][XX]*x[n][XX]+mu[YY][XX]*x[n][YY]+mu[ZZ][XX]*x[n][ZZ];
+    if (!nFreeze[g][YY])
+      x[n][YY] = mu[YY][YY]*x[n][YY]+mu[ZZ][YY]*x[n][ZZ];
+    if (!nFreeze[g][ZZ])
+      x[n][ZZ] = mu[ZZ][ZZ]*x[n][ZZ];
+  }*/
+  /* compute final boxlengths */
+
+  
+
+  for (d=0; d<DIM; d++) {
+    box[d][XX] = mu[XX][XX]*box[d][XX]+mu[YY][XX]*box[d][YY]+mu[ZZ][XX]*box[d][ZZ];
+    box[d][YY] = mu[YY][YY]*box[d][YY]+mu[ZZ][YY]*box[d][ZZ];
+    box[d][ZZ] = mu[ZZ][ZZ]*box[d][ZZ];
+  }      
+
+  preserve_box_shape(ir,box_rel,box);
+  /* (un)shifting should NOT be done after this,
+   * since the box vectors might have changed
+   */
+  inc_nrnb(nrnb,eNR_PCOUPL,nr_atoms);
+}
 void berendsen_pscale(t_inputrec *ir,matrix mu,
 		      matrix box,matrix box_rel,
 		      int start,int nr_atoms,

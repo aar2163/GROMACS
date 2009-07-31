@@ -762,6 +762,12 @@ void get_ir(char *mdparin,char *mdparout,
   CTYPE ("The default value (2.092) corresponds to 0.005 kcal/mol/Angstrom^2.");
   RTYPE ("sa_surface_tension", ir->sa_surface_tension, 2.092);
 		 
+  /* MC stuff */
+  ITYPE ("nst_p",	ir->nst_p,	0);
+  RTYPE ("delta_v",	ir->delta_v,	0);
+  RTYPE ("delta_r",	ir->delta_r,	0.01);
+  RTYPE ("delta_phi",	ir->delta_phi,	5.0);
+
   /* Coupling stuff */
   CCTYPE ("OPTIONS FOR WEAK COUPLING ALGORITHMS");
   CTYPE ("Temperature coupling");

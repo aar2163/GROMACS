@@ -135,6 +135,7 @@ void init_gtc_state(t_state *state,int ngtc);
 void init_state(t_state *state,int natoms,int ngtc);
 
 void copy_blocka(const t_blocka *src,t_blocka *dest);
+void copy_block(const t_block *src,t_block *dest);
 
 void done_block(t_block *block);
 void done_blocka(t_blocka *block);

@@ -114,6 +114,7 @@ typedef struct gmx_global_stat *gmx_global_stat_t;
 
 extern gmx_integrator_t do_md;
 
+extern gmx_integrator_t do_mc;
 /* ROUTINES from minimize.c */
 
 extern gmx_integrator_t do_steep;
@@ -157,6 +158,8 @@ extern void global_stat(FILE *log,gmx_global_stat_t gs,
 			int *nabnsb,real *chkpt,real *terminate,
 			gmx_mtop_t *top_global, t_state *state_local);
 /* Communicate statistics over cr->mpi_comm_mysim */
+
+extern void mc_stat(t_commrec *cr, rvec xcm); 
 
 void write_traj(FILE *fplog,t_commrec *cr,
 		int fp_trn,bool bX,bool bV,bool bF,

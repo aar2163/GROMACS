@@ -177,6 +177,11 @@ typedef struct {
   real tau_p;		/* pressure coupling time (ps)			*/
   tensor ref_p;		/* reference pressure (kJ/(mol nm^3))		*/
   tensor compress;	/* compressability ((mol nm^3)/kJ) 		*/
+  int  nst_p;            /* number of steps after which volume is       */
+                        /* changed when doing MC simulations            */
+  real delta_v;         /* Maximum Volume change for NPT MC simulations */
+  real delta_r;         /* Maximum translation for molecules in MC sims */
+  real delta_phi;       /* Maximum angle for rotations in MC sims       */         
   int  refcoord_scaling;/* How to scale absolute reference coordinates  */
   rvec posres_com;      /* The COM of the posres atoms                  */
   rvec posres_comB;     /* The B-state COM of the posres atoms          */

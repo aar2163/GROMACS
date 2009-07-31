@@ -95,6 +95,25 @@ void global_stat_destroy(gmx_global_stat_t gs)
     sfree(gs);
 }
 
+void mc_stat(t_commrec *cr, rvec xcm) 
+{
+  static t_bin *rb=NULL; 
+  int ixcm;
+  if (rb==NULL) {
+    rb=mk_bin();
+  }
+  else
+    reset_bin(rb);
+
+  ixcm = add_binr(rb,DIM,xcm);
+  where();
+  
+  sum_bin(rb,cr);
+  where();
+
+  extract_binr(rb,ixcm,DIM,xcm);
+}
+
 void global_stat(FILE *fplog,gmx_global_stat_t gs,
 		 t_commrec *cr,gmx_enerdata_t *enerd,
 		 tensor fvir,tensor svir,rvec mu_tot,

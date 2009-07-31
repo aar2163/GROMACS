@@ -229,6 +229,18 @@ void copy_blocka(const t_blocka *src,t_blocka *dest)
   }
 }
 
+void copy_block(const t_block *src,t_block *dest)
+{
+  int i;
+
+  dest->nr = src->nr;
+  dest->nalloc_index = dest->nr + 1;
+  snew(dest->index,dest->nalloc_index);
+  for(i=0; i<dest->nr+1; i++) {
+    dest->index[i] = src->index[i];
+  }
+}
+
 void done_block(t_block *block)
 {
   block->nr    = 0;

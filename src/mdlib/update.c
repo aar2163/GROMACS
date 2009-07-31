@@ -66,6 +66,7 @@
 #include "disre.h"
 #include "orires.h"
 #include "gmx_wallcycle.h"
+#include "3dview.h"
 
 typedef struct {
   double gdt;
@@ -106,6 +107,53 @@ typedef struct gmx_update
     matrix     deformref_box;
 } t_gmx_update;
 
+
+void rand_rot_mc(rvec x,vec4 xrot,
+                     rvec delta,rvec xcm)
+{
+  mat4 mt1,mt2,mr[DIM],mtemp1,mtemp2,mtemp3,mxtot,mvtot;
+  real phi;
+  int  i,m;
+  
+  
+  translate(-xcm[XX],-xcm[YY],-xcm[ZZ],mt1);  /* move c.o.ma to origin */
+
+  for(m=0; (m<DIM); m++) {
+    rotate(m,delta[m],mr[m]);
+  }
+
+  translate(xcm[XX],xcm[YY],xcm[ZZ],mt2);
+
+  /* For mult_matrix we need to multiply in the opposite order
+   * compared to normal mathematical notation.
+   */
+  mult_matrix(mtemp1,mt1,mr[XX]);
+  mult_matrix(mtemp2,mr[YY],mr[ZZ]);
+  mult_matrix(mtemp3,mtemp1,mtemp2);
+  mult_matrix(mxtot,mtemp3,mt2);
+  mult_matrix(mvtot,mr[XX],mtemp2);
+  
+  m4_op(mxtot,x,xrot);
+}
+static void do_update_mc(rvec x,gmx_mc_move *mc_move)
+{
+  real   vn,vv,va,vb,vnrel;
+  real   lg,u;
+  rvec dx,v1,v2,v3,v4,v5,q,xcm,dxcm[3];
+  int    n,d,k;
+  real z,theta,phi,q0;
+  t_atom *atom;
+  t_atom array[3];
+  vec4 xrot;
+  rvec maxrot,rand;
+
+     rand_rot_mc(x,xrot,mc_move->delta_phi,mc_move->xcm);
+
+     for(k=0;k<DIM;k++)
+      x[k]=xrot[k];
+
+     rvec_add(x,mc_move->delta_x,x);
+}
 static void do_update_md(int start,int homenr,double dt,
                          t_grp_tcstat *tcstat,t_grp_acc *gstat,real nh_xi[],
                          rvec accel[],ivec nFreeze[],real invmass[],
@@ -804,6 +852,7 @@ void update(FILE         *fplog,
             matrix       *scale_tot,
             t_commrec    *cr,
             t_nrnb       *nrnb,
+            t_block      *mols,
             gmx_wallcycle_t wcycle,
             gmx_update_t upd,
             gmx_constr_t constr,
@@ -819,6 +868,7 @@ void update(FILE         *fplog,
     matrix           pcoupl_mu,M;
     tensor           vir_con;
     rvec             *xprime;
+    real             vnew,vfrac;
     
     start  = md->start;
     homenr = md->homenr;
@@ -945,6 +995,28 @@ void update(FILE         *fplog,
 		 inputrec->bd_fric,
 		 inputrec->opts.ngtc,inputrec->opts.tau_t,inputrec->opts.ref_t,
 		 upd->sd->bd_rf,upd->sd->gaussrand);
+  } else if (inputrec->eI == eiMC) {
+     for(i=0;i<state->natoms;i++)
+      copy_rvec(state->x[i],xprime[i]);
+
+     if (!(state->mc_move.update_box)) {
+      if(PAR(cr)) { 
+       if(DOMAINDECOMP(cr)) {
+       }
+      else {
+       for(i=md->start;i<(md->start+md->homenr);i++) {
+        if(i >= state->mc_move.start && i <state->mc_move.end) {
+         do_update_mc(xprime[i],&(state->mc_move));
+        }
+       }
+      }
+     }
+     else {
+      for(i=state->mc_move.start;i<state->mc_move.end;i++) {
+       do_update_mc(xprime[i],&(state->mc_move));
+      }
+     }
+    }
   } else {
     gmx_fatal(FARGS,"Don't know how to update coordinates");
   }
@@ -1061,6 +1133,16 @@ void update(FILE         *fplog,
     if (inputrec->epc == epcBERENDSEN) {
         berendsen_pscale(inputrec,pcoupl_mu,state->box,state->box_rel,
                          start,homenr,state->x,md->cFREEZE,nrnb);
+    } else if(inputrec->epc == epcMC && state->mc_move.update_box) {
+
+     vnew = det(state->box) + state->mc_move.delta_v;
+     vfrac = pow(vnew,1.0/3.0)/pow(det(state->box),1.0/3.0);
+
+     pcoupl_mu[XX][XX]=vfrac;    pcoupl_mu[XX][YY] = 0;          pcoupl_mu[XX][ZZ] = 0;
+     pcoupl_mu[YY][XX]=0;        pcoupl_mu[YY][YY] = vfrac;      pcoupl_mu[YY][ZZ] = 0;
+     pcoupl_mu[ZZ][XX]=0;        pcoupl_mu[ZZ][YY] = 0;          pcoupl_mu[ZZ][ZZ] = vfrac;
+     mc_pscale(inputrec,pcoupl_mu,state->box,state->box_rel,
+		       start,homenr,state->x,md->cFREEZE,nrnb,mols);
     } else if (inputrec->epc == epcPARRINELLORAHMAN) {
       /* The box velocities were updated in do_pr_pcoupl in the update
        * iteration, but we dont change the box vectors until we get here
