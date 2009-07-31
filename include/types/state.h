@@ -108,7 +108,6 @@ typedef struct
  real bolt;
  bool update_box;
  rvec xcm;
- t_block mols;
 } gmx_mc_move;
 
 typedef struct
