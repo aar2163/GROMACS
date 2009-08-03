@@ -166,6 +166,12 @@ extern void berendsen_pscale(t_inputrec *ir,matrix mu,
 			     rvec x[],unsigned short cFREEZE[],
 			     t_nrnb *nrnb);
 
+extern void mc_pscale(t_inputrec *ir,matrix mu,
+			     matrix box,matrix box_rel,
+			     int start,int nr_atoms,
+			     rvec x[],unsigned short cFREEZE[],
+			     t_nrnb *nrnb,t_block *mols);
+
 extern void correct_ekin(FILE *log,int start,int end,rvec v[],
 			 rvec vcm,real mass[],real tmass,tensor ekin);
 /* Correct ekin for vcm */
