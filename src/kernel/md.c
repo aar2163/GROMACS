@@ -193,6 +193,11 @@ int mdrunner(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         snew(state,1);
         init_single(fplog,inputrec,ftp2fn(efTPX,nfile,fnm),mtop,state);
     }
+    
+    if(inputrec->eI == eiMC) {
+     Flags = Flags | MD_PARTDEC;
+    }
+
     if (!EEL_PME(inputrec->coulombtype) || (Flags & MD_PARTDEC))
     {
         cr->npmenodes = 0;
@@ -293,7 +298,7 @@ int mdrunner(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         fprintf(stderr,"Loaded with Money\n\n");
     }
     
-    if (PAR(cr) && !((Flags & MD_PARTDEC) || EI_TPI(inputrec->eI)))
+    if (PAR(cr) && !((Flags & MD_PARTDEC) || EI_TPI(inputrec->eI) || EI_MC(inputrec->eI)))
     {
         cr->dd = init_domain_decomposition(fplog,cr,Flags,ddxyz,rdd,rconstr,
                                            dddlb_opt,dlb_scale,
@@ -2995,8 +3000,22 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
                      GMX_FORCE_STATECHANGED | (bNS ? GMX_FORCE_NS : 0) |
-                     GMX_FORCE_ALLFORCES | 0 | 0);
+                     GMX_FORCE_ALLFORCES | (bCalcEner ? GMX_FORCE_VIRIAL : 0) |
+                     (bDoDHDL ? GMX_FORCE_DHDL : 0));
+
+           if (MASTER(cr) && ((bGStat || !PAR(cr) || EI_MC(ir->eI)) &&
+                           cpt_period >= 0 &&
+                           (cpt_period == 0 || 
+                            run_time >= nchkpt*cpt_period*60.0))) {
+              if (chkpt == 0)
+              {
+                nchkpt++;
+              }
+              chkpt = 1;
+          }
+
           if (PAR(cr)) {
+
            wallcycle_start(wcycle,ewcMoveE);
            /* Globally (over all NODEs) sum energy, virial etc. 
 	   * This includes communication 
@@ -3049,10 +3068,10 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
            deltaH = epot_delta;
            if(update_box) {
               deltaH += ir->ref_p[XX][XX]*volume_delta/PRESFAC;
-              deltaH -= top_global->mols.nr*BOLTZ*300*log(det(state->box)/det(boxcopy));
+              deltaH -= top_global->mols.nr*BOLTZ*ir->opts.ref_t[0]*log(det(state->box)/det(boxcopy));
            }
          if(bBOXok) {
-          if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*300)) > state->mc_move.bolt) || !step_rel) {
+          if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > state->mc_move.bolt) || !step_rel) {
            if (step_rel) {
             epot_base=enerd->term[F_EPOT];
             copy_enerdata(enerd,enerd_base);
@@ -3268,7 +3287,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             }
             wallcycle_stop(wcycle,ewcVSITECONSTR);
         }
-        
+
         /* Non-equilibrium MD:  this is parallellized,
          * but only does communication when there really is NEMD.
          */
@@ -3278,7 +3297,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         }
         
         debug_gmx();
-        calc_ke_part(state,&(ir->opts),mdatoms,ekind,nrnb);
+        //calc_ke_part(state,&(ir->opts),mdatoms,ekind,nrnb);
         
         /* since we use the new coordinates in calc_ke_part_visc, we should use
          * the new box too. Still, won't this be offset by one timestep in the
@@ -3287,11 +3306,11 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         
         debug_gmx();
         /* Calculate center of mass velocity if necessary, also parallellized */
-        if (bStopCM && !bFFscan && !bRerunMD)
+       /* if (bStopCM && !bFFscan && !bRerunMD)
         {
             calc_vcm_grp(fplog,mdatoms->start,mdatoms->homenr,mdatoms,
                          state->x,state->v,vcm);
-        }
+        }*/
         
         /* Determine the wallclock run time up till now */
         run_time = (double)time(NULL) - (double)runtime->real;
@@ -3372,16 +3391,16 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
          * where we do global communication,
          *  otherwise the other nodes don't know.
          */
-        if (MASTER(cr) && ((bGStat || !PAR(cr)) &&
+        if (MASTER(cr) && ((bGStat || !PAR(cr) || EI_MC(ir->eI)) &&
                            cpt_period >= 0 &&
                            (cpt_period == 0 || 
                             run_time >= nchkpt*cpt_period*60.0)))
         {
-            if (chkpt == 0)
+           /* if (chkpt == 0)
             {
                 nchkpt++;
             }
-            chkpt = 1;
+            chkpt = 1;*/
         }
         
         if (!bGStat)
@@ -3389,24 +3408,43 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             /* We will not sum ekinh_old,
              * so signal that we still have to do it.
              */
-            bSumEkinhOld = TRUE;
+ //           bSumEkinhOld = TRUE;
         }
         else
         {
             
+           // if (PAR(cr))
+           // {
+           //     wallcycle_start(wcycle,ewcMoveE);
+                /* Globally (over all NODEs) sum energy, virial etc. 
+                 * This includes communication 
+                 */
+           /*     global_stat(fplog,gstat,cr,enerd,force_vir,shake_vir,mu_tot,
+                            ir,ekind,bSumEkinhOld,constr,vcm,
+                            ir->nstlist==-1 ? &nabnsb : NULL,&chkpt,&terminate,
+                            top_global, state);
+                if (terminate != 0)
+                {
+                    terminate_now = terminate;
+                    terminate = 0;
+                }
+                
+                wallcycle_stop(wcycle,ewcMoveE);
+                bSumEkinhOld = FALSE;
+            }*/
             /* This is just for testing. Nothing is actually done to Ekin
              * since that would require extra communication.
              */
-            if (!bNEMD && debug && (vcm->nr > 0))
+            /*if (!bNEMD && debug && (vcm->nr > 0))
             {
                 correct_ekin(debug,
                              mdatoms->start,mdatoms->start+mdatoms->homenr,
                              state->v,vcm->group_p[0],
                              mdatoms->massT,mdatoms->tmass,ekin);
-            }
+            }*/
             
             /* Do center of mass motion removal */
-            if (bStopCM && !bFFscan && !bRerunMD)
+            /*if (bStopCM && !bFFscan && !bRerunMD)
             {
                 check_cm_grp(fplog,vcm,ir,1);
                 do_stopcm_grp(fplog,mdatoms->start,mdatoms->homenr,mdatoms->cVCM,
@@ -3418,7 +3456,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                   do_stopcm_grp(fplog,START(nsb),HOMENR(nsb),x,v,vcm);
                   check_cm_grp(fplog,vcm,ir);
                 */
-            }
+            //}
             
             /* Add force and shake contribution to the virial */
            // m_add(force_vir,shake_vir,total_vir);
@@ -3451,7 +3489,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             
             //sum_dhdl(enerd,state->lambda,ir);
             
-            //enerd->term[F_ETOT] = enerd->term[F_EPOT] + enerd->term[F_EKIN];
+            enerd->term[F_ETOT] = enerd->term[F_EPOT] + enerd->term[F_EKIN];
             
             switch (ir->etc) {
             case etcNO:
@@ -3499,6 +3537,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                 }
             }
         }
+        
         
         /* The coordinates (x) were unshifted in update */
         if (bFFscan && (shellfc==NULL || bConverged))
@@ -3559,10 +3598,11 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             
             do_dr  = do_per_step(step,ir->nstdisreout);
             do_or  = do_per_step(step,ir->nstorireout);
-            
             print_ebin(fp_ene,do_ene,do_dr,do_or,do_log?fplog:NULL,step,t,
                        eprNORMAL,bCompact,mdebin,fcd,groups,&(ir->opts));
       
+            if(do_ene) { 
+            }
             if (ir->ePull != epullNO)
             {
                 pull_print_output(ir->pull,step,t);
