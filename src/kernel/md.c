@@ -2950,7 +2950,6 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             bCalcEner = TRUE;
             bGStat    = TRUE;
         }
-        
       if (MASTER(cr)) {
        do {
         icg=(int)(gmx_rng_uniform_real(rng)*top_global->mols.nr);
@@ -3221,7 +3220,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             state->mc_move.update_box = update_box;
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,f,fcd,
                    &top->idef,ekind,scale_tot,
-                   cr,nrnb,mols,wcycle,upd,constr,bCalcEner,shake_vir,
+                   cr,nrnb,(PAR(cr)) ? mols : &top_global->mols,wcycle,upd,constr,bCalcEner,shake_vir,
                    bNEMD,bFirstStep && bStateFromTPX);
        
            if(update_box) {

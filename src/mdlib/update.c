@@ -1003,7 +1003,7 @@ void update(FILE         *fplog,
       if(PAR(cr)) { 
        if(DOMAINDECOMP(cr)) {
        }
-      else {
+       else {
        for(i=md->start;i<(md->start+md->homenr);i++) {
         if(i >= state->mc_move.start && i <state->mc_move.end) {
          do_update_mc(xprime[i],&(state->mc_move));
