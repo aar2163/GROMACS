@@ -603,6 +603,7 @@ void do_force(FILE *fplog,t_commrec *cr,
     clear_rvec(fr->vir_diag_posres);
     GMX_BARRIER(cr->mpi_comm_mygroup);
   }
+
   if (inputrec->ePull == epullCONSTRAINT)
     clear_pull_forces(inputrec->pull);
 

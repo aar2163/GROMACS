@@ -65,7 +65,7 @@ extern real ewald_LRcorrection(FILE *fp,
 			       matrix box,rvec mu_tot[],
 			       int ewald_geometry,real epsilon_surface,
 			       real lambda,real *dvdlambda,
-			       real *vdip,real *vcharge);
+			       real *vdip,real *vcharge,bool bDoForces);
 /* Calculate the Long range correction to ewald, due to 
  * 1-4 interactions, surface dipole term and charge terms
  */

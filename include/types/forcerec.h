@@ -320,6 +320,10 @@ typedef struct {
    */
   bool n_tpi;
 
+  /* If TRUE  means that we should only evaluate energy contributions from 
+   * specific icgs */
+  bool n_mc;
+
   /* Neighbor searching stuff */
   gmx_ns_t ns;
 

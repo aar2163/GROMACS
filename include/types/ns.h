@@ -61,6 +61,7 @@ typedef struct {
   bool     *bHaveVdW;
   t_ns_buf **ns_buf;
   bool     *bExcludeAlleg;
+  bool     *bExcludeMC;
   int      nra_alloc;
   int      cg_alloc;
   atom_id  **nl_sr;

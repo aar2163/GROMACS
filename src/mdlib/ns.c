@@ -561,7 +561,8 @@ put_in_list(bool              bHaveVdW[],
             bool              bLR,
             bool              bDoVdW,
             bool              bDoCoul,
-            bool              bQMMM)
+            bool              bQMMM,
+            bool              *bExcludeMC)
 {
     /* The a[] index has been removed,
      * to put it back in i_atom should be a[i0] and jj should be a[jj].
@@ -587,7 +588,7 @@ put_in_list(bool              bHaveVdW[],
     bool      bDoVdW_i,bDoCoul_i,bDoCoul_i_sol;
     int       iwater,jwater;
     t_nblist  *nlist;
-    
+ 
     /* Copy some pointers */
     cginfo  = fr->cginfo;
     charge  = md->chargeA;
@@ -704,6 +705,10 @@ put_in_list(bool              bHaveVdW[],
                 if (jcg == icg)
                 {
                     continue;
+                }
+                else if (bExcludeMC && bExcludeMC[icg] && bExcludeMC[jcg]) 
+                {
+                   //continue;
                 }
                 
                 jj0 = index[jcg];
@@ -1143,7 +1148,8 @@ put_in_list(bool              bHaveVdW[],
             bool              bLR,
             bool              bDoVdW,
             bool              bDoCoul,
-            bool              bQMMM)
+            bool              bQMMM,
+            bool              *bExcludeMC)
 {
     int          igid,gid,nbl_ind;
     t_nblist *   vdwc;
@@ -1368,7 +1374,7 @@ static void add_simple(t_ns_buf *nsbuf,int nrj,atom_id cg_j,
     if (nsbuf->nj + nrj > MAX_CG)
     {
         put_in_list(bHaveVdW,ngid,md,icg,jgid,nsbuf->ncg,nsbuf->jcg,
-                    cgs->index,bexcl,shift,fr,FALSE,TRUE,TRUE,FALSE);
+                    cgs->index,bexcl,shift,fr,FALSE,TRUE,TRUE,FALSE,NULL);
         /* Reset buffer contents */
         nsbuf->ncg = nsbuf->nj = 0;
     }
@@ -1535,7 +1541,7 @@ static int ns_simple_core(t_forcerec *fr,
                 if (nsbuf->ncg > 0)
                 {
                     put_in_list(bHaveVdW,ngid,md,icg,nn,nsbuf->ncg,nsbuf->jcg,
-                                cgs->index,bexcl,k,fr,FALSE,TRUE,TRUE,FALSE);
+                                cgs->index,bexcl,k,fr,FALSE,TRUE,TRUE,FALSE,NULL);
                     nsbuf->ncg=nsbuf->nj=0;
                 }
             }
@@ -1743,7 +1749,7 @@ static void do_longrange(t_commrec *cr,gmx_localtop_t *top,t_forcerec *fr,
         /* Put the long range particles in a list */
         /* Since do_longrange is never called for QMMM, bQMMM is FALSE */
         put_in_list(bHaveVdW,ngid,md,icg,jgid,nlr,lr,top->cgs.index,
-                    bexcl,shift,fr,TRUE,bDoVdW,bDoCoul,FALSE);
+                    bexcl,shift,fr,TRUE,bDoVdW,bDoCoul,FALSE,NULL);
     }
 }
 
@@ -1751,7 +1757,7 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                        matrix box,rvec box_size,int ngid,
                        gmx_localtop_t *top,
                        t_grid *grid,rvec x[],
-                       t_excl bexcl[],bool *bExcludeAlleg,
+                       t_excl bexcl[],bool *bExcludeAlleg,bool *bExcludeMC,
                        t_nrnb *nrnb,t_mdatoms *md,
                        real lambda,real *dvdlambda,
                        gmx_grppairener_t *grppener,
@@ -1787,7 +1793,7 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
     ivec    ncpddc;
     
     ns = &fr->ns;
-    
+
     bDomDec = DOMAINDECOMP(cr);
     if (bDomDec)
     {
@@ -1965,6 +1971,10 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
         {
             continue;
         }
+        else if (fr->n_mc && bExcludeMC[icg]) 
+        {
+            continue;
+        }
         
         i0   = cgs->index[icg];
         
@@ -2005,9 +2015,9 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                 jcg0 = icg;
                 jcg1 = icg + naaj;
                 
-                if (fr->n_tpi)
+                if (fr->n_tpi || (fr->n_mc && !bExcludeMC[icg]))
                 {
-                    /* The i-particle is awlways the test particle,
+                    /* With TPI or MC we only want to compute interactions with a specific icg,
                      * so we want all j-particles
                      */
                     max_jcg = cgsnr - 1;
@@ -2023,6 +2033,18 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
         
         /* Set the exclusions for the atoms in charge group icg using a bitmask */
         setexcl(i0,cgs->index[icg+1],&top->excls,TRUE,bexcl);
+        
+        /*if(bExcludeMC && bExcludeMC[icg]) {
+         for(j=0;j<cgs->nr;j++) {
+          if(bExcludeMC[j] && icg != j) {
+           for(tz=cgs->index[icg];tz<cgs->index[icg+1];tz++) {
+            for(nn=cgs->index[j];nn<cgs->index[j+1];nn++) {
+             SETEXCL(bexcl,tz-cgs->index[icg],nn);
+            }
+           }
+          }
+         }
+        }*/
         
         ci2xyz(grid,icg,&cell_x,&cell_y,&cell_z);
         
@@ -2161,12 +2183,12 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                                                         if (r2 < rs2)
                                                         {
                                                             if (nsr[jgid] >= MAX_CG)
-                                                            {
+                                                            { 
                                                                 put_in_list(bHaveVdW,ngid,md,icg,jgid,
                                                                             nsr[jgid],nl_sr[jgid],
                                                                             cgs->index,/* cgsatoms, */ bexcl,
                                                                             shift,fr,FALSE,TRUE,TRUE,
-                                                                            bMakeQMMMnblist);
+                                                                            bMakeQMMMnblist,bExcludeMC);
                                                                 nsr[jgid]=0;
                                                             }
                                                             nl_sr[jgid][nsr[jgid]++]=jjcg;
@@ -2215,11 +2237,11 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                     /* CHECK whether there is anything left in the buffers */
                     for(nn=0; (nn<ngid); nn++)
                     {
-                        if (nsr[nn] > 0)
+                        if (nsr[nn] > 0) 
                         {
                             put_in_list(bHaveVdW,ngid,md,icg,nn,nsr[nn],nl_sr[nn],
                                         cgs->index, /* cgsatoms, */ bexcl,
-                                        shift,fr,FALSE,TRUE,TRUE,bMakeQMMMnblist);
+                                        shift,fr,FALSE,TRUE,TRUE,bMakeQMMMnblist,bExcludeMC);
                         }
                         
                         if (nlr_ljc[nn] > 0)
@@ -2242,8 +2264,19 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                 }
             }
         }
-        /* setexcl(nri,i_atoms,&top->atoms.excl,FALSE,bexcl); */
-        setexcl(cgs->index[icg],cgs->index[icg+1],&top->excls,FALSE,bexcl);
+        /*setexcl(nri,i_atoms,&top->atoms.excl,FALSE,bexcl); */
+       /* if(bExcludeMC && bExcludeMC[icg]) {
+         for(j=0;j<cgs->nr;j++) {
+          if(bExcludeMC[j] && icg != j) {
+           for(tz=cgs->index[icg];tz<cgs->index[icg+1];tz++) {
+            for(nn=cgs->index[j];nn<cgs->index[j+1];nn++) {
+             RMEXCL(bexcl,tz-cgs->index[icg],nn);
+            }
+           }
+          }
+         }
+        }*/
+        setexcl(i0,cgs->index[icg+1],&top->excls,FALSE,bexcl);
     }
     /* Perform any left over force calculations */
     for (nn=0; (nn<ngid); nn++)
@@ -2283,6 +2316,17 @@ void ns_realloc_natoms(gmx_ns_t *ns,int natoms)
         {
             ns->bexcl[i] = 0;
         }
+    }
+}
+
+void init_ns_mc(gmx_ns_t *ns, const gmx_localtop_t *top)
+{
+ t_block *cgs = &(top->cgs);
+ int i;
+
+ snew(ns->bExcludeMC,cgs->nr);
+    for(i=0; i<cgs->nr; i++) {
+      ns->bExcludeMC[i] = FALSE;
     }
 }
 
@@ -2474,7 +2518,17 @@ int search_neighbours(FILE *log,t_forcerec *fr,
         }
         else
         {
-            fill_grid(log,NULL,grid,cgs->nr,fr->cg0,fr->hcg,fr->cg_cm);
+            if(!fr->n_mc) {
+             fill_grid(log,NULL,grid,cgs->nr,fr->cg0,fr->hcg,fr->cg_cm);
+            }
+            else {
+             for (m=0;m<cgs->nr;m++) {
+              if(!fr->ns.bExcludeMC[m]) {
+               fill_grid(log,NULL,grid,fr->hcg,m,m+1,fr->cg_cm);
+               break;
+              }
+             }
+            }
             grid->icg0 = fr->cg0;
             grid->icg1 = fr->hcg;
             debug_gmx();
@@ -2508,7 +2562,7 @@ int search_neighbours(FILE *log,t_forcerec *fr,
     {
         grid = ns->grid;
         nsearch = nsgrid_core(log,cr,fr,box,box_size,ngid,top,
-                              grid,x,ns->bexcl,ns->bExcludeAlleg,
+                              grid,x,ns->bexcl,ns->bExcludeAlleg,ns->bExcludeMC,
                               nrnb,md,lambda,dvdlambda,grppener,
                               ns->bHaveVdW,bDoForces,FALSE);
         
@@ -2524,7 +2578,7 @@ int search_neighbours(FILE *log,t_forcerec *fr,
         if (fr->bQMMM && fr->qr->QMMMscheme!=eQMMMschemeoniom)
         {
             nsearch += nsgrid_core(log,cr,fr,box,box_size,ngid,top,
-                                   grid,x,ns->bexcl,ns->bExcludeAlleg,
+                                   grid,x,ns->bexcl,ns->bExcludeAlleg,ns->bExcludeMC,
                                    nrnb,md,lambda,dvdlambda,grppener,
                                    ns->bHaveVdW,bDoForces,TRUE);
         }

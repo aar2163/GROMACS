@@ -162,7 +162,7 @@ static void do_my_pme(FILE *fp,real tm,bool bVerbose,t_inputrec *ir,
 		     nsb,nrnb,vir,fr->ewaldcoeff,FALSE,0,&dvdl,FALSE);
       vcorr = ewald_LRcorrection(fp,nsb,cr,fr,qptr,qptr,excl,xbuf,box,mu_tot,
 				 ir->ewald_geometry,ir->epsilon_surface,
-				 0,&dvdl,&vdip,&vcharge);
+				 0,&dvdl,&vdip,&vcharge,TRUE);
       gmx_sum(1,&ener,cr);
       gmx_sum(1,&vcorr,cr);
       if (ngroups > 1)

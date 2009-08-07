@@ -84,7 +84,7 @@ real ewald_LRcorrection(FILE *fplog,
 			matrix box,rvec mu_tot[],
 			int ewald_geometry,real epsilon_surface,
 			real lambda,real *dvdlambda,
-			real *vdip,real *vcharge)
+			real *vdip,real *vcharge,bool bDoForces)
 {
   int     i,i1,i2,j,k,m,iv,jv,q;
   atom_id *AA;
@@ -225,7 +225,6 @@ real ewald_LRcorrection(FILE *fplog,
 	      vc                = qqA*(rinv-VV);
 	      fijC              = qqA*FF;
 	      Vexcl            += vc;
-	      
 	      fscal             = vc*rinv2+fijC*tabscale*rinv;
 	    /* End of tabulated interaction part */
 #else
@@ -250,6 +249,10 @@ real ewald_LRcorrection(FILE *fplog,
 		fscal = ewc*ewc*qqA*vr0*(2.0/3.0 - 0.4*ewcdr*ewcdr);
 	      }
 #endif
+	      if(!bDoForces)
+              {
+               continue;
+              }
 	      /* The force vector is obtained by multiplication with the 
 	       * distance vector 
 	       */

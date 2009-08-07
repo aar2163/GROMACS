@@ -1604,6 +1604,7 @@ void init_forcerec(FILE *fp,
     /* Initialize neighbor search */
     init_ns(fp,cr,&fr->ns,fr,mtop,box);
     
+    
     if (cr->duty & DUTY_PP)
         gmx_setup_kernels(fp);
 }
@@ -1709,6 +1710,28 @@ void copy_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2)
       enerd2->grpp.ener[i][j] = enerd1->grpp.ener[i][j];
     }
 }
+
+void sum_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *enerd3)
+{
+ int i;
+    
+    for(i=0; i<F_NRE; i++)
+    {
+        enerd3->term[i] = enerd1->term[i] + enerd2->term[i];
+    }
+}
+
+void sub_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *enerd3)
+{
+ int i;
+    
+    for(i=0; i<F_NRE; i++)
+    {
+        enerd3->term[i] = enerd1->term[i] - enerd2->term[i];
+    }
+}
+
+
 void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                        t_forcerec *fr,      t_inputrec *ir,
                        t_idef     *idef,    t_commrec  *cr,
@@ -1936,7 +1959,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
         set_pbc_dd(&pbc,fr->ePBC,cr->dd,TRUE,box);
     }
     debug_gmx();
-    
     if (flags & GMX_FORCE_BONDED)
     {
         GMX_MPE_LOG(ev_calc_bonds_start);
@@ -2002,7 +2024,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                                            excl,x,bSB ? boxs : box,mu_tot,
                                            ir->ewald_geometry,
                                            ir->epsilon_surface,
-                                           lambda,&dvdlambda,&vdip,&vcharge);
+                                           lambda,&dvdlambda,&vdip,&vcharge,(flags & GMX_FORCE_FORCES) ? TRUE : FALSE);
                 PRINT_SEPDVDL("Ewald excl./charge/dip. corr.",Vcorr,dvdlambda);
                 enerd->dvdl_lin += dvdlambda;
             }
@@ -2061,7 +2083,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                                         &Vlr,lambda,&dvdlambda,
                                         pme_flags);
                     *cycles_pme = wallcycle_stop(wcycle,ewcPMEMESH);
-
                     /* We should try to do as little computation after
                      * this as possible, because parallel PME synchronizes
                      * the nodes, so we want all load imbalance of the rest

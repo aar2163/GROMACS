@@ -2203,7 +2203,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   rvec       *f_global=NULL;
   int        n_xtc=-1;
   rvec       *x_xtc=NULL;
-  gmx_enerdata_t *enerd,*enerd_base;
+  gmx_enerdata_t *enerd,*enerdcopy,*enerd2;
   gmx_global_stat_t gstat;
   gmx_update_t upd=NULL;
   t_graph    *graph=NULL;
@@ -2229,7 +2229,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   int         reset_counters=-1;
   char        sbuf[22],sbuf2[22];
   bool        bHandledSignal=FALSE;
-  real        deltaH,volume_delta,epot_delta,epot_base;
+  real        deltaH,volume_delta,epot_delta;
   rvec        xcm,box_size;
   int         ncg,k,icg,seed;
   bool        update_box=FALSE;
@@ -2291,9 +2291,11 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
 
   /* Energy terms and groups */
   snew(enerd,1);
-  snew(enerd_base,1);
+  snew(enerd2,1);
+  snew(enerdcopy,1);
   init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd);
-  init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd_base);
+  init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd2);
+  init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerdcopy);
   /* Kinetic energy data */
   snew(ekind,1);
   init_ekindata(fplog,top_global,&(ir->opts),ekind);
@@ -2371,6 +2373,11 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     if (ir->pull && PAR(cr)) {
       dd_make_local_pull_groups(NULL,ir->pull,mdatoms);
     }
+  }
+
+  if(ir->eI == eiMC) {
+   init_ns_mc(&fr->ns,top);
+   fr->n_mc = FALSE;
   }
 
     if (DOMAINDECOMP(cr))
@@ -2502,7 +2509,6 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     }
     copy_mat(state->box,boxcopy);
   } 
-
     if (MASTER(cr))
     {
         if (constr && !ir->bContinuation && ir->eConstrAlg == econtLINCS)
@@ -2950,24 +2956,6 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             bCalcEner = TRUE;
             bGStat    = TRUE;
         }
-      if (MASTER(cr)) {
-       do {
-        icg=(int)(gmx_rng_uniform_real(rng)*top_global->mols.nr);
-       } while(icg >= top_global->mols.nr);
-       state->mc_move.start = top_global->mols.index[icg];
-       state->mc_move.end = top_global->mols.index[icg+1];
-       state->mc_move.nr = state->mc_move.end - state->mc_move.start;
-       for (ii=0;ii<DIM;ii++) {
-        state->mc_move.delta_x[ii] = (2.0*gmx_rng_uniform_real(rng)-1.0)*ir->delta_r;
-        state->mc_move.delta_phi[ii] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->delta_phi/180.0;
-       }
-       state->mc_move.delta_v = (2.0*gmx_rng_uniform_real(rng)-1.0)*ir->delta_v;
-       state->mc_move.bolt = gmx_rng_uniform_real(rng);
-      }
-
-      if(PAR(cr)) {
-       gmx_bcast(sizeof(state->mc_move),&(state->mc_move),cr);
-      }
         if (shellfc)
         {
             /* Now is the time to relax the shells */
@@ -2993,14 +2981,33 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              * This is parallellized as well, and does communication too. 
              * Check comments in sim_util.c
              */
-            do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
-                     state->box,state->x,&state->hist,
+            if(step_rel && !update_box) {
+             fr->n_mc=TRUE;
+             for(ii=0;ii<top->cgs.nr;ii++) {
+              if(top->cgs.index[ii] >= state->mc_move.start && top->cgs.index[ii] < state->mc_move.end) {
+               fr->ns.bExcludeMC[ii] = FALSE;
+              }
+              else {
+               fr->ns.bExcludeMC[ii] = TRUE;
+              }
+             }
+            }
+
+            if(step_rel) {
+             do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
+                     boxcopy,xcopy,&state->hist,
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
                      GMX_FORCE_STATECHANGED | (bNS ? GMX_FORCE_NS : 0) |
-                     GMX_FORCE_ALLFORCES | (bCalcEner ? GMX_FORCE_VIRIAL : 0) |
-                     (bDoDHDL ? GMX_FORCE_DHDL : 0));
+                     GMX_FORCE_NONBONDED | GMX_FORCE_BONDED);
+             epot_delta = -enerd->term[F_EPOT];
+             
+             if (update_box)
+              copy_enerdata(enerd,enerdcopy); /* So if the volume move is rejected we dont need to calculate it again */
+             else
+              sub_enerdata(enerdcopy,enerd,enerd2);
+            }
 
            if (MASTER(cr) && ((bGStat || !PAR(cr) || EI_MC(ir->eI)) &&
                            cpt_period >= 0 &&
@@ -3033,48 +3040,56 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
           }
         }
         
-       clear_rvec(xcm);
-       if(PAR(cr)) {
-        if(DOMAINDECOMP(cr)) {
-        }
-        else {
-         for(ii=mdatoms->start;ii<(mdatoms->start+mdatoms->homenr);ii++) {
-          if(ii >= state->mc_move.start && ii < state->mc_move.end) {
-           rvec_add(xcm,state->x[ii],xcm);
-          }
-         }
-        }
-        mc_stat(cr,xcm);
-       }
-       else {
-        for(k=state->mc_move.start;k<state->mc_move.end;k++) {
-         rvec_add(state->x[k],xcm,xcm);
-        }
-       }
-
-       svmul(1.0/(real)(state->mc_move.end-state->mc_move.start),xcm,state->mc_move.xcm);
 
 
-       if(step_rel)
-        epot_delta = -enerd_base->term[F_EPOT];
-       else 
-        copy_enerdata(enerd,enerd_base);
 
-          if(step_rel) {
-	epot_delta    += enerd->term[F_EPOT];
-	volume_delta    = det(state->box) - det(boxcopy);
-          }
+            do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
+                     state->box,state->x,&state->hist,
+                     f,force_vir,mdatoms,enerd,fcd,
+                     state->lambda,graph,
+                     fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
+                     GMX_FORCE_STATECHANGED | (bNS ? GMX_FORCE_NS : 0) |
+                     GMX_FORCE_NONBONDED | GMX_FORCE_BONDED);
+          /*  do_force(fplog,cr,ir,
+	             step,nrnb,wcycle,top,top_global,groups,
+                     state->box,state->x,&state->hist,
+                     f,force_vir,mdatoms,enerd,fcd,
+                     state->lambda,NULL,fr,NULL,mu_tot,t,NULL,NULL,FALSE,
+                     GMX_FORCE_NONBONDED |
+                     (bNS ? GMX_FORCE_NS : 0) |
+                     (bStateChanged ? GMX_FORCE_STATECHANGED : 0)); */
+
+           if(step_rel) {
+
+            epot_delta += enerd->term[F_EPOT];
+            
+            if(!update_box)
+             sum_enerdata(enerd2,enerd,enerd);
+
+            if(!update_box) {
+             fr->n_mc=FALSE;
+             for(ii=0;ii<top->cgs.nr;ii++) {
+              if(top->cgs.index[ii] >= state->mc_move.start && top->cgs.index[ii] < state->mc_move.end) {
+               fr->ns.bExcludeMC[ii] = FALSE;
+              }
+              else {
+               fr->ns.bExcludeMC[ii] = FALSE;
+              }
+             }
+            }
+           }
+           else 
+            copy_enerdata(enerd,enerdcopy);
+
            deltaH = epot_delta;
+
            if(update_box) {
+              volume_delta    = det(state->box) - det(boxcopy);
               deltaH += ir->ref_p[XX][XX]*volume_delta/PRESFAC;
               deltaH -= top_global->mols.nr*BOLTZ*ir->opts.ref_t[0]*log(det(state->box)/det(boxcopy));
            }
          if(bBOXok) {
-          if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > state->mc_move.bolt) || !step_rel) {
-           if (step_rel) {
-            epot_base=enerd->term[F_EPOT];
-            copy_enerdata(enerd,enerd_base);
-           }
+          if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > gmx_rng_uniform_real(rng)) || !step_rel) {
            state->step_ac++;
            if(update_box) {
             state->vol_ac++;
@@ -3084,6 +3099,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             copy_rvec(state->x[ii],xcopy[ii]);
            }
            copy_mat(state->box,boxcopy);
+           copy_enerdata(enerd,enerdcopy);
 
           }
           else {
@@ -3094,7 +3110,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              copy_rvec(xcopy[ii],state->x[ii]);
             }
             copy_mat(boxcopy,state->box);
-            copy_enerdata(enerd_base,enerd);
+            copy_enerdata(enerdcopy,enerd);
            }
           }
          }
@@ -3206,6 +3222,28 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         {
             wallcycle_start(wcycle,ewcUPDATE);
             dvdl = 0;
+
+            do {
+             icg=(int)(gmx_rng_uniform_real(rng)*top_global->mols.nr);
+            } while(icg >= top_global->mols.nr);
+            state->mc_move.start = top_global->mols.index[icg];
+            state->mc_move.end = top_global->mols.index[icg+1];
+            state->mc_move.nr = state->mc_move.end - state->mc_move.start;
+            for (ii=0;ii<DIM;ii++) {
+             state->mc_move.delta_x[ii] = (2.0*gmx_rng_uniform_real(rng)-1.0)*ir->delta_r;
+             state->mc_move.delta_phi[ii] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->delta_phi/180.0;
+            }
+            state->mc_move.delta_v = (2.0*gmx_rng_uniform_real(rng)-1.0)*ir->delta_v;
+            state->mc_move.bolt = gmx_rng_uniform_real(rng);
+
+            for(ii=0;ii<top->cgs.nr;ii++) {
+             if(top->cgs.index[ii] >= state->mc_move.start && top->cgs.index[ii] < state->mc_move.end) {
+              fr->ns.bExcludeMC[ii] = FALSE;
+             }
+             else {
+              fr->ns.bExcludeMC[ii] = TRUE;
+             }
+            }
             /* We can only do Berendsen coupling after we have summed
              * the kinetic energy or virial.
              * Since the happens in global_state after update,

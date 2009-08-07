@@ -228,6 +228,11 @@ extern void ns(FILE       *fplog,
 
 void copy_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2);
 
+void sum_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *enerd3);
+
+void sub_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *enerd3);
+
+
 extern void do_force_lowlevel(FILE         *fplog,  
 			      gmx_step_t   step,
 			      t_forcerec   *fr,

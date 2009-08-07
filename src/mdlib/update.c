@@ -135,24 +135,26 @@ void rand_rot_mc(rvec x,vec4 xrot,
   
   m4_op(mxtot,x,xrot);
 }
-static void do_update_mc(rvec x,gmx_mc_move *mc_move)
+static void do_update_mc(rvec *x,gmx_mc_move *mc_move)
 {
-  real   vn,vv,va,vb,vnrel;
-  real   lg,u;
-  rvec dx,v1,v2,v3,v4,v5,q,xcm,dxcm[3];
-  int    n,d,k;
-  real z,theta,phi,q0;
-  t_atom *atom;
-  t_atom array[3];
+  int    n,k,start,end;
   vec4 xrot;
-  rvec maxrot,rand;
+  rvec xcm;
+  start = mc_move->start;
+  end = mc_move->end;
 
-     rand_rot_mc(x,xrot,mc_move->delta_phi,mc_move->xcm);
+    for(k=start;k<end;k++) {
+     rvec_add(x[k],xcm,xcm);
+    } 
+    svmul(1.0/(end-start),xcm,xcm);
 
+    for(n=start;n<end;n++) {
+     rand_rot_mc(x[n],xrot,mc_move->delta_phi,xcm);
      for(k=0;k<DIM;k++)
-      x[k]=xrot[k];
+      x[n][k]=xrot[k];
 
-     rvec_add(x,mc_move->delta_x,x);
+     rvec_add(x[n],mc_move->delta_x,x[n]);
+    }
 }
 static void do_update_md(int start,int homenr,double dt,
                          t_grp_tcstat *tcstat,t_grp_acc *gstat,real nh_xi[],
@@ -913,6 +915,8 @@ void update(FILE         *fplog,
         {
         case etcNO:
             break;
+        case etcMC:
+            break;
         case etcBERENDSEN:
             berendsen_tcoupl(&(inputrec->opts),ekind,dtc);
             break;
@@ -1006,15 +1010,13 @@ void update(FILE         *fplog,
        else {
        for(i=md->start;i<(md->start+md->homenr);i++) {
         if(i >= state->mc_move.start && i <state->mc_move.end) {
-         do_update_mc(xprime[i],&(state->mc_move));
+//         do_update_mc(xprime[i],&(state->mc_move));
         }
        }
       }
      }
      else {
-      for(i=state->mc_move.start;i<state->mc_move.end;i++) {
-       do_update_mc(xprime[i],&(state->mc_move));
-      }
+      do_update_mc(xprime,&(state->mc_move));
      }
     }
   } else {
