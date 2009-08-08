@@ -1329,11 +1329,6 @@ void init_forcerec(FILE *fp,
             set_shift_consts(fp,fr->rcoulomb_switch,fr->rcoulomb,box_size,fr);
     }
     
-    /* Initiate arrays */
-    if (fr->bTwinRange) {
-        snew(fr->fshift_twin,SHIFTS);
-    }
-
     fr->bF_NoVirSum = (EEL_FULL(fr->eeltype) ||
                        gmx_mtop_ftype_count(mtop,F_POSRES) > 0);
     
@@ -1635,7 +1630,6 @@ void pr_forcerec(FILE *fp,t_forcerec *fr,t_commrec *cr)
 void ns(FILE *fp,
         t_forcerec *fr,
         rvec       x[],
-        rvec       f[],
         matrix     box,
         gmx_groups_t *groups,
         t_grpopts  *opts,
@@ -1647,7 +1641,9 @@ void ns(FILE *fp,
         real       *dvdlambda,
         gmx_grppairener_t *grppener,
         bool       bFillGrid,
-        bool       bDoForces)
+        bool       bDoLongRange,
+        bool       bDoForces,
+        rvec       *f)
 {
   static bool bFirst=TRUE;
   static int  nDNL;
@@ -1674,9 +1670,10 @@ void ns(FILE *fp,
   if (fr->bTwinRange) 
     fr->nlr=0;
 
-  nsearch = search_neighbours(fp,fr,x,box,top,groups,cr,nrnb,md,
-                              lambda,dvdlambda,grppener,
-                              bFillGrid,bDoForces);
+    nsearch = search_neighbours(fp,fr,x,box,top,groups,cr,nrnb,md,
+                                lambda,dvdlambda,grppener,
+                                bFillGrid,bDoLongRange,
+                                bDoForces,f);
   if (debug)
     fprintf(debug,"nsearch = %d\n",nsearch);
     
@@ -1834,7 +1831,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 		
 		if(bBornRadii)
 		{
-			calc_gb_rad(cr,fr,ir,top,atype,x,f,&(fr->gblist),born,md);
+			calc_gb_rad(cr,fr,ir,top,atype,x,&(fr->gblist),born,md);
 		}
 		
 		/* wallcycle_stop(wcycle, ewcGB); */
@@ -2282,16 +2279,12 @@ void sum_dhdl(gmx_enerdata_t *enerd,double lambda,t_inputrec *ir)
     int i;
     double dlam,dhdl_lin;
 
-    /* dvdl_lr is also non-linear,
-     * but currently LR is not supported with foreign lambda FE.
-     */
-    enerd->term[F_DVDL] = enerd->dvdl_lin + enerd->dvdl_nonlin + enerd->dvdl_lr;
+    enerd->term[F_DVDL] = enerd->dvdl_lin + enerd->dvdl_nonlin;
 
     if (debug)
     {
-        fprintf(debug,"dvdl: %f, non-linear %f + linear %f + LR %f\n",
-                enerd->term[F_DVDL],
-                enerd->dvdl_nonlin,enerd->dvdl_lin,enerd->dvdl_lr);
+        fprintf(debug,"dvdl: %f, non-linear %f + linear %f\n",
+                enerd->term[F_DVDL],enerd->dvdl_nonlin,enerd->dvdl_lin);
     }
 
     /* Notes on the foreign lambda free energy difference evaluation:
@@ -2306,8 +2299,7 @@ void sum_dhdl(gmx_enerdata_t *enerd,double lambda,t_inputrec *ir)
     {
         dlam = (ir->flambda[i-1] - lambda);
         dhdl_lin =
-            (enerd->dvdl_lin + enerd->dvdl_lr +
-             enerd->term[F_DKDL] + enerd->term[F_DHDL_CON]);
+            enerd->dvdl_lin + enerd->term[F_DKDL] + enerd->term[F_DHDL_CON];
         if (debug)
         {
             fprintf(debug,"enerdiff lam %g: non-linear %f linear %f*%f\n",
@@ -2338,9 +2330,6 @@ void reset_enerdata(t_grpopts *opts,
       for(j=0; (j<enerd->grpp.nener); j++)
 	enerd->grpp.ener[i][j] = 0.0;
     }
-  }
-  if (!bKeepLR) {
-    enerd->dvdl_lr = 0.0;
   }
   enerd->dvdl_lin    = 0.0;
   enerd->dvdl_nonlin = 0.0;

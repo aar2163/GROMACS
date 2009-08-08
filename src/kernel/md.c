@@ -140,7 +140,6 @@ int mdrunner(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     matrix     box;
     gmx_ddbox_t ddbox;
     int        npme_major;
-    rvec       *f=NULL;
     real       tmpr1,tmpr2;
     t_nrnb     *nrnb;
     gmx_mtop_t *mtop=NULL;
@@ -364,8 +363,6 @@ int mdrunner(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                 }
                 bcast_state(cr,state,TRUE);
             }
-            
-            snew(f,mtop->natoms);
         }
     
         /* Dihedral Restraints */
@@ -541,7 +538,7 @@ int mdrunner(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                                       nstglobalcomm,
                                       vsite,constr,
                                       nstepout,inputrec,mtop,
-                                      fcd,state,f,
+                                      fcd,state,
                                       mdatoms,nrnb,wcycle,ed,fr,
                                       repl_ex_nst,repl_ex_seed,
                                       cpt_period,max_hours,
@@ -621,16 +618,17 @@ static void md_print_warning(const t_commrec *cr,FILE *fplog,const char *buf)
     }
 }
 
-static void check_gcom_param(FILE *fplog,t_commrec *cr,
-                             int nstglobalcomm,const char *desc,int *p)
+static void check_nst_param(FILE *fplog,t_commrec *cr,
+                            const char *desc_nst,int nst,
+                            const char *desc_p,int *p)
 {
     char buf[STRLEN];
 
-    if (*p > 0 && *p % nstglobalcomm != 0)
+    if (*p > 0 && *p % nst != 0)
     {
-        /* Round up to the next multiple of nstglobalcomm */
-        *p = ((*p)/nstglobalcomm + 1)*nstglobalcomm;
-        sprintf(buf,"NOTE: -gcom changes %s to %d\n",desc,*p);
+        /* Round up to the next multiple of nst */
+        *p = ((*p)/nst + 1)*nst;
+        sprintf(buf,"NOTE: %s changes %s to %d\n",desc_nst,desc_p,*p);
         md_print_warning(cr,fplog,buf);
     }
 }
@@ -710,15 +708,15 @@ static int check_nstglobalcomm(FILE *fplog,t_commrec *cr,
         }
         if (nstglobalcomm > ir->nstcalcenergy)
         {
-            check_gcom_param(fplog,cr,nstglobalcomm,
-                             "nstcalcenergy",&ir->nstcalcenergy);
+            check_nst_param(fplog,cr,"-gcom",nstglobalcomm,
+                            "nstcalcenergy",&ir->nstcalcenergy);
         }
 
-        check_gcom_param(fplog,cr,nstglobalcomm,
-                         "nstenergy",&ir->nstenergy);
-
-        check_gcom_param(fplog,cr,nstglobalcomm,
-                         "nstlog",&ir->nstlog);
+        check_nst_param(fplog,cr,"-gcom",nstglobalcomm,
+                        "nstenergy",&ir->nstenergy);
+        
+        check_nst_param(fplog,cr,"-gcom",nstglobalcomm,
+                        "nstlog",&ir->nstlog);
     }
 
     if (ir->comm_mode != ecmNO && ir->nstcomm < nstglobalcomm)
@@ -732,13 +730,152 @@ static int check_nstglobalcomm(FILE *fplog,t_commrec *cr,
     return nstglobalcomm;
 }
 
+static void check_ir_old_tpx_versions(t_commrec *cr,FILE *fplog,
+                                      t_inputrec *ir,gmx_mtop_t *mtop)
+{
+    /* Check required for old tpx files */
+    if (IR_TWINRANGE(*ir) && ir->nstlist > 1 &&
+        ir->nstcalcenergy % ir->nstlist != 0)
+    {
+        md_print_warning(cr,fplog,"Old tpr file with twin-range settings: modifiying energy calculation and/or T/P-coupling frequencies");
+
+        if (gmx_mtop_ftype_count(mtop,F_CONSTR) +
+            gmx_mtop_ftype_count(mtop,F_CONSTRNC) > 0 &&
+            ir->eConstrAlg == econtSHAKE)
+        {
+            md_print_warning(cr,fplog,"With twin-range cut-off's and SHAKE the virial and pressure are incorrect");
+            if (ir->epc != epcNO)
+            {
+                gmx_fatal(FARGS,"Can not do pressure coupling with twin-range cut-off's and SHAKE");
+            }
+        }
+        check_nst_param(fplog,cr,"nstlist",ir->nstlist,
+                        "nstcalcenergy",&ir->nstcalcenergy);
+    }
+    check_nst_param(fplog,cr,"nstcalcenergy",ir->nstcalcenergy,
+                    "nstenergy",&ir->nstenergy);
+    check_nst_param(fplog,cr,"nstcalcenergy",ir->nstcalcenergy,
+                    "nstlog",&ir->nstlog);
+    if (ir->efep != efepNO)
+    {
+        check_nst_param(fplog,cr,"nstdhdl",ir->nstdhdl,
+                        "nstenergy",&ir->nstenergy);
+    }
+}
+
+typedef struct {
+    bool       bGStatEveryStep;
+    gmx_step_t step_ns;
+    gmx_step_t step_nscheck;
+    gmx_step_t nns;
+    matrix     scale_tot;
+    int        nabnsb;
+    double     s1;
+    double     s2;
+    double     ab;
+    double     lt_runav;
+    double     lt_runav2;
+} gmx_nlheur_t;
+
+static void reset_nlistheuristics(gmx_nlheur_t *nlh,gmx_step_t step)
+{
+    nlh->lt_runav  = 0;
+    nlh->lt_runav2 = 0;
+    nlh->step_nscheck = step;
+}
+
+static void init_nlistheuristics(gmx_nlheur_t *nlh,
+                                 bool bGStatEveryStep,gmx_step_t step)
+{
+    nlh->bGStatEveryStep = bGStatEveryStep;
+    nlh->nns       = 0;
+    nlh->nabnsb    = 0;
+    nlh->s1        = 0;
+    nlh->s2        = 0;
+    nlh->ab        = 0;
+
+    reset_nlistheuristics(nlh,step);
+}
+
+static void update_nliststatistics(gmx_nlheur_t *nlh,gmx_step_t step)
+{
+    gmx_step_t nl_lt;
+    char sbuf[22],sbuf2[22];
+
+    /* Determine the neighbor list life time */
+    nl_lt = step - nlh->step_ns;
+    if (debug)
+    {
+        fprintf(debug,"%d atoms beyond ns buffer, updating neighbor list after %s steps\n",nlh->nabnsb,gmx_step_str(nl_lt,sbuf));
+    }
+    nlh->nns++;
+    nlh->s1 += nl_lt;
+    nlh->s2 += nl_lt*nl_lt;
+    nlh->ab += nlh->nabnsb;
+    if (nlh->lt_runav == 0)
+    {
+        nlh->lt_runav  = nl_lt;
+        /* Initialize the fluctuation average
+         * such that at startup we check after 0 steps.
+             */
+        nlh->lt_runav2 = sqr(nl_lt/2.0);
+    }
+    /* Running average with 0.9 gives an exp. history of 9.5 */
+    nlh->lt_runav2 = 0.9*nlh->lt_runav2 + 0.1*sqr(nlh->lt_runav - nl_lt);
+    nlh->lt_runav  = 0.9*nlh->lt_runav  + 0.1*nl_lt;
+    if (nlh->bGStatEveryStep)
+    {
+        /* Always check the nlist validity */
+        nlh->step_nscheck = step;
+    }
+    else
+    {
+        /* We check after:  <life time> - 2*sigma
+         * The factor 2 is quite conservative,
+         * but we assume that with nstlist=-1 the user
+         * prefers exact integration over performance.
+         */
+        nlh->step_nscheck = step
+            + (int)(nlh->lt_runav - 2.0*sqrt(nlh->lt_runav2)) - 1;
+    }
+    if (debug)
+    {
+        fprintf(debug,"nlist life time %s run av. %4.1f sig %3.1f check %s check with -gcom %d\n",
+                gmx_step_str(nl_lt,sbuf),nlh->lt_runav,sqrt(nlh->lt_runav2),
+                gmx_step_str(nlh->step_nscheck-step+1,sbuf2),
+                (int)(nlh->lt_runav - 2.0*sqrt(nlh->lt_runav2)));
+    }
+}
+
+static void set_nlistheuristics(gmx_nlheur_t *nlh,bool bReset,gmx_step_t step)
+{
+    int d;
+
+    if (bReset)
+    {
+        reset_nlistheuristics(nlh,step);
+    }
+    else
+    {
+        update_nliststatistics(nlh,step);
+    }
+
+    nlh->step_ns = step;
+    /* Initialize the cumulative coordinate scaling matrix */
+    clear_mat(nlh->scale_tot);
+    for(d=0; d<DIM; d++)
+    {
+        nlh->scale_tot[d][d] = 1.0;
+    }
+}
+
 double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              bool bVerbose,bool bCompact,int nstglobalcomm,
              gmx_vsite_t *vsite,gmx_constr_t constr,
              int stepout,t_inputrec *ir,
              gmx_mtop_t *top_global,
              t_fcdata *fcd,
-             t_state *state_global,rvec f[],
+             t_state *state_global,
              t_mdatoms *mdatoms,
              t_nrnb *nrnb,gmx_wallcycle_t wcycle,
              gmx_edsam_t ed,t_forcerec *fr,
@@ -754,20 +891,18 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   double     run_time;
   double     t,t0,lam0;
   bool       bGStatEveryStep,bGStat,bNstEner,bCalcEner;
-  bool       bNS,bSimAnn,bStopCM,bRerunMD,bNotLastFrame=FALSE,
+  bool       bNS,bNStList,bSimAnn,bStopCM,bRerunMD,bNotLastFrame=FALSE,
              bFirstStep,bStateFromTPX,bLastStep,bBornRadii;
   bool       bDoDHDL=FALSE;
   bool       bNEMD,do_ene,do_log,do_verbose,bRerunWarnNoV=TRUE,
 	         bForceUpdate=FALSE,bX,bV,bF,bXTC,bCPT;
   bool       bMasterState;
+  int        force_flags;
   tensor     force_vir,shake_vir,total_vir,pres,ekin;
   int        i,m,status;
   rvec       mu_tot;
   t_vcm      *vcm;
-  gmx_step_t step_ns=0,step_nscheck=0,nns=0,ns_lt;
-  int        nabnsb=0;
-  double     ns_s1=0,ns_s2=0,ns_ab=0,ns_lt_runav=0,ns_lt_runav2=0;
-  matrix     *scale_tot;
+  gmx_nlheur_t nlh;
   t_trxframe rerun_fr;
   gmx_repl_ex_t repl_ex=NULL;
   int        nchkpt=1;
@@ -781,6 +916,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   int        n_xtc=-1;
   rvec       *x_xtc=NULL;
   gmx_enerdata_t *enerd;
+  rvec       *f;
   gmx_global_stat_t gstat;
   gmx_update_t upd=NULL;
   t_graph    *graph=NULL;
@@ -828,6 +964,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         nstglobalcomm     = 1;
     }
 
+    check_ir_old_tpx_versions(cr,fplog,ir,top_global);
+
     nstglobalcomm = check_nstglobalcomm(fplog,cr,nstglobalcomm,ir);
     bGStatEveryStep = (nstglobalcomm == 1);
 
@@ -844,38 +982,48 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                 "If you want less energy communication, set nstlist > 3.\n\n");
     }
 
-  if (bRerunMD || bFFscan)
-    ir->nstxtcout = 0;
+    if (bRerunMD || bFFscan)
+    {
+        ir->nstxtcout = 0;
+    }
 
-  groups = &top_global->groups;
+    groups = &top_global->groups;
 
-  /* Initial values */
-  init_md(fplog,cr,ir,&t,&t0,&state_global->lambda,&lam0,
-	  nrnb,top_global,&upd,
-	  nfile,fnm,&fp_trn,&fp_xtc,&fp_ene,&fn_cpt,
-	  &fp_dhdl,&fp_field,&mdebin,
-	  force_vir,shake_vir,mu_tot,&bNEMD,&bSimAnn,&vcm,Flags);
+    /* Initial values */
+    init_md(fplog,cr,ir,&t,&t0,&state_global->lambda,&lam0,
+            nrnb,top_global,&upd,
+            nfile,fnm,&fp_trn,&fp_xtc,&fp_ene,&fn_cpt,
+            &fp_dhdl,&fp_field,&mdebin,
+            force_vir,shake_vir,mu_tot,&bNEMD,&bSimAnn,&vcm,Flags);
 
-  /* Energy terms and groups */
-  snew(enerd,1);
-  init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd);
-  /* Kinetic energy data */
-  snew(ekind,1);
-  init_ekindata(fplog,top_global,&(ir->opts),ekind);
-  /* Copy the cos acceleration to the groups struct */
-  ekind->cosacc.cos_accel = ir->cos_accel;
-  
-  gstat = global_stat_init(ir);
+    /* Energy terms and groups */
+    snew(enerd,1);
+    init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd);
+    if (DOMAINDECOMP(cr))
+    {
+        f = NULL;
+    }
+    else
+    {
+        snew(f,top_global->natoms);
+    }
+    /* Kinetic energy data */
+    snew(ekind,1);
+    init_ekindata(fplog,top_global,&(ir->opts),ekind);
+    /* Copy the cos acceleration to the groups struct */
+    ekind->cosacc.cos_accel = ir->cos_accel;
+    
+    gstat = global_stat_init(ir);
 
-  debug_gmx();
+    debug_gmx();
 
-  /* Check for polarizable models and flexible constraints */
-  shellfc = init_shell_flexcon(fplog,
-			       top_global,n_flexible_constraints(constr),
-			       (ir->bContinuation || 
-				(DOMAINDECOMP(cr) && !MASTER(cr))) ?
-			       NULL : state_global->x);
-
+    /* Check for polarizable models and flexible constraints */
+    shellfc = init_shell_flexcon(fplog,
+                                 top_global,n_flexible_constraints(constr),
+                                 (ir->bContinuation || 
+                                  (DOMAINDECOMP(cr) && !MASTER(cr))) ?
+                                 NULL : state_global->x);
+    
     if (DEFORM(*ir))
     {
         set_deform_reference_box(upd,init_step_tpx,box_tpx);
@@ -1106,12 +1254,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         fprintf(fplog,"\n");
     }
 
-  if (ir->nstlist == -1) {
-    snew(scale_tot,1);
-  } else {
-    scale_tot = NULL;
-  }
-
   /* Set and write start time */
   runtime_start(runtime);
   print_date_and_time(fplog,cr->nodeid,"Started mdrun",runtime);
@@ -1180,6 +1322,11 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     step = ir->init_step;
     step_rel = 0;
     
+    if (ir->nstlist == -1)
+    {
+        init_nlistheuristics(&nlh,bGStatEveryStep,step);
+    }
+
     bLastStep = (bRerunMD || step_rel > ir->nsteps);
     while (!bLastStep || (bRerunMD && bNotLastFrame)) {
         
@@ -1293,86 +1440,23 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             copy_mat(boxcopy,state->box);
         }
         
-        bNS = bFirstStep;
         if (bRerunMD)
         {
             /* for rerun MD always do Neighbour Searching */
-            if (ir->nstlist != 0)
-            {
-                bNS = TRUE;
-            }
+            bNS = (bFirstStep || ir->nstlist != 0);
+            bNStList = bNS;
         }
         else
         {
-            /* Determine whether or not to do Neighbour Searching */
-            if (bExchanged || (ir->nstlist > 0 && (step % ir->nstlist == 0)))
+            /* Determine whether or not to do Neighbour Searching and LR */
+            bNStList = (ir->nstlist > 0  && step % ir->nstlist == 0);
+
+            bNS = (bFirstStep || bExchanged || bNStList ||
+                   (ir->nstlist == -1 && nlh.nabnsb > 0));
+            
+            if (bNS && ir->nstlist == -1)
             {
-                bNS = TRUE;
-            }
-            else if (ir->nstlist == -1)
-            {
-                bNS = (bFirstStep || nabnsb > 0);
-                if (bNS)
-                {
-                    if (bFirstStep)
-                    {
-                        ns_lt_runav = 0;
-                        step_nscheck = step;
-                    }
-                    else
-                    {
-                        /* Determine the neighbor list life time */
-                        ns_lt = step - step_ns;
-                        if (debug)
-                        {
-                            fprintf(debug,"%d atoms beyond ns buffer, updating neighbor list after %s steps\n",nabnsb,gmx_step_str(ns_lt,sbuf));
-                        }
-                        nns++;
-                        ns_s1 += ns_lt;
-                        ns_s2 += ns_lt*ns_lt;
-                        ns_ab += nabnsb;
-                        if (ns_lt_runav == 0)
-                        {
-                            ns_lt_runav  = ns_lt;
-                            /* Initialize the fluctuation average
-                             * such that at startup we check after 0 steps.
-                             */
-                            ns_lt_runav2 = sqr(ns_lt/2.0);
-                        }
-                        /* Running average with 0.9 gives an exp. history of 9.5 */
-                        ns_lt_runav2 = 0.9*ns_lt_runav2 + 0.1*sqr(ns_lt_runav - ns_lt);
-                        ns_lt_runav  = 0.9*ns_lt_runav  + 0.1*ns_lt;
-                        if (bGStatEveryStep)
-                        {
-                            /* Always check the nlist validity */
-                            step_nscheck = step;
-                        }
-                        else
-                        {
-                            /* We check after:  <life time> - 2*sigma
-                             * The factor 2 is quite conservative,
-                             * but we assume that with nstlist=-1 the user
-                             * prefers exact integration over performance.
-                             */
-                            step_nscheck = step
-                                + (int)(ns_lt_runav - 2.0*sqrt(ns_lt_runav2)) - 1;
-                        }
-                        if (debug)
-                        {
-                            fprintf(debug,"nlist life time %s run av. %4.1f sig %3.1f check %s check with -gcom %d\n",
-                                    gmx_step_str(ns_lt,sbuf),ns_lt_runav,sqrt(ns_lt_runav2),
-                                    gmx_step_str(step_nscheck-step+1,sbuf2),
-                                    (int)(ns_lt_runav - 2.0*sqrt(ns_lt_runav2)));
-                        }
-                    }
-                    step_ns = step;
-                    /* Initialize the cumulative coordinate scaling matrix */
-                    clear_mat(*scale_tot);
-                    for(ii=0; ii<DIM; ii++)
-                    {
-                        (*scale_tot)[ii][ii] = 1.0;
-                    }
-                }
+                set_nlistheuristics(&nlh,bFirstStep || bExchanged,step);
             }
         } 
         
@@ -1502,7 +1586,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         
         /* Do we need global communication ? */
         bGStat = (bCalcEner || bStopCM ||
-                  (ir->nstlist == -1 && !bRerunMD && step >= step_nscheck));
+                  (ir->nstlist == -1 && !bRerunMD && step >= nlh.step_nscheck));
         
         do_ene = (do_per_step(step,ir->nstenergy) || bLastStep);
         
@@ -1512,11 +1596,19 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             bGStat    = TRUE;
         }
         
+        force_flags = (GMX_FORCE_STATECHANGED |
+                       GMX_FORCE_ALLFORCES |
+                       (bNStList ? GMX_FORCE_DOLR : 0) |
+                       GMX_FORCE_SEPLRF |
+                       (bCalcEner ? GMX_FORCE_VIRIAL : 0) |
+                       (bDoDHDL ? GMX_FORCE_DHDL : 0));
+
         if (shellfc)
         {
             /* Now is the time to relax the shells */
             count=relax_shell_flexcon(fplog,cr,bVerbose,bFFscan ? step+1 : step,
-                                      ir,bNS,bStopCM,top,top_global,
+                                      ir,bNS,force_flags,
+                                      bStopCM,top,top_global,
                                       constr,enerd,fcd,
                                       state,f,force_vir,mdatoms,
                                       nrnb,wcycle,graph,groups,
@@ -1543,9 +1635,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     GMX_FORCE_STATECHANGED | (bNS ? GMX_FORCE_NS : 0) |
-                     GMX_FORCE_ALLFORCES | (bCalcEner ? GMX_FORCE_VIRIAL : 0) |
-                     (bDoDHDL ? GMX_FORCE_DHDL : 0));
+                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
         }
         
         GMX_BARRIER(cr->mpi_comm_mygroup);
@@ -1658,8 +1748,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              * we should only do it at step % nstlist = 1
              * with bGStatEveryStep=FALSE.
              */
-            update(fplog,step,&dvdl,ir,mdatoms,state,graph,f,fcd,
-                   &top->idef,ekind,scale_tot,
+            update(fplog,step,&dvdl,ir,mdatoms,state,graph,
+                   f,fr->bTwinRange && bNStList,fr->f_twin,fcd,
+                   &top->idef,ekind,ir->nstlist==-1 ? &nlh.scale_tot : NULL,
                    cr,nrnb,NULL,wcycle,upd,constr,bCalcEner,shake_vir,
                    bNEMD,bFirstStep && bStateFromTPX);
             if (fr->bSepDVDL && fplog && do_log)
@@ -1786,17 +1877,17 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              * since energies are only written after global_stat
              * has been called.
              */
-            if (step >= step_nscheck)
+            if (step >= nlh.step_nscheck)
             {
-                nabnsb = natoms_beyond_ns_buffer(ir,fr,&top->cgs,
-                                                 *scale_tot,state->x);
+                nlh.nabnsb = natoms_beyond_ns_buffer(ir,fr,&top->cgs,
+                                                     nlh.scale_tot,state->x);
             }
             else
             {
                 /* This is not necessarily true,
                  * but step_nscheck is determined quite conservatively.
                  */
-                nabnsb = 0;
+                nlh.nabnsb = 0;
             }
         }
         
@@ -1833,7 +1924,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                  */
                 global_stat(fplog,gstat,cr,enerd,force_vir,shake_vir,mu_tot,
                             ir,ekind,bSumEkinhOld,constr,vcm,
-                            ir->nstlist==-1 ? &nabnsb : NULL,&chkpt,&terminate,
+                            ir->nstlist==-1 ? &nlh.nabnsb : NULL,
+                            &chkpt,&terminate,
                             top_global, state);
                 if (terminate != 0)
                 {
@@ -2131,10 +2223,10 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     }
     debug_gmx();
         
-    if (ir->nstlist == -1 && nns>0 && fplog)
+    if (ir->nstlist == -1 && nlh.nns > 0 && fplog)
     {
-        fprintf(fplog,"Average neighborlist lifetime: %.1f steps, std.dev.: %.1f steps\n",ns_s1/nns,sqrt(ns_s2/nns - sqr(ns_s1/nns)));
-        fprintf(fplog,"Average number of atoms that crossed the half buffer length: %.1f\n\n",ns_ab/nns);
+        fprintf(fplog,"Average neighborlist lifetime: %.1f steps, std.dev.: %.1f steps\n",nlh.s1/nlh.nns,sqrt(nlh.s2/nlh.nns - sqr(nlh.s1/nlh.nns)));
+        fprintf(fplog,"Average number of atoms that crossed the half buffer length: %.1f\n\n",nlh.ab/nlh.nns);
     }
     
     if (shellfc && fplog)
@@ -2161,7 +2253,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              int stepout,t_inputrec *ir,
              gmx_mtop_t *top_global,
              t_fcdata *fcd,
-             t_state *state_global,rvec f[],
+             t_state *state_global,
              t_mdatoms *mdatoms,
              t_nrnb *nrnb,gmx_wallcycle_t wcycle,
              gmx_edsam_t ed,t_forcerec *fr,
@@ -2177,7 +2269,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   double     run_time;
   double     t,t0,lam0;
   bool       bGStatEveryStep,bGStat,bNstEner,bCalcEner;
-  bool       bNS,bSimAnn,bStopCM,bRerunMD,bNotLastFrame=FALSE,
+  bool       bNS,bNStList,bSimAnn,bStopCM,bRerunMD,bNotLastFrame=FALSE,
              bFirstStep,bStateFromTPX,bLastStep,bBornRadii;
   bool       bDoDHDL=FALSE;
   bool       bNEMD,do_ene,do_log,do_verbose,bRerunWarnNoV=TRUE,
@@ -2187,6 +2279,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   int        i,m,status;
   rvec       mu_tot;
   t_vcm      *vcm;
+  gmx_nlheur_t nlh;
   gmx_step_t step_ns=0,step_nscheck=0,nns=0,ns_lt;
   int        nabnsb=0;
   double     ns_s1=0,ns_s2=0,ns_ab=0,ns_lt_runav=0,ns_lt_runav2=0;
@@ -2203,6 +2296,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   rvec       *f_global=NULL;
   int        n_xtc=-1;
   rvec       *x_xtc=NULL;
+  rvec       *f;
   gmx_enerdata_t *enerd,*enerdcopy,*enerd2;
   gmx_global_stat_t gstat;
   gmx_update_t upd=NULL;
@@ -2235,6 +2329,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   bool        update_box=FALSE;
   gmx_rng_t   rng;
   bool        bBOXok=TRUE;
+  int         force_flags;
   t_block     *mols;
 #ifdef GMX_FAHCORE
   /* Temporary addition for FAHCORE checkpointing */
@@ -2261,6 +2356,8 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         nstglobalcomm     = 1;
     }
 
+    check_ir_old_tpx_versions(cr,fplog,ir,top_global);
+
     nstglobalcomm = check_nstglobalcomm(fplog,cr,nstglobalcomm,ir);
     bGStatEveryStep = (nstglobalcomm == 1);
 
@@ -2278,7 +2375,9 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     }
 
   if (bRerunMD || bFFscan)
+  {
     ir->nstxtcout = 0;
+  }
 
   groups = &top_global->groups;
 
@@ -2296,6 +2395,15 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd);
   init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerd2);
   init_enerdata(top_global->groups.grps[egcENER].nr,ir->n_flambda,enerdcopy);
+
+  if (DOMAINDECOMP(cr))
+  {
+      f = NULL;
+  }
+  else
+  {
+      snew(f,top_global->natoms);
+  }
   /* Kinetic energy data */
   snew(ekind,1);
   init_ekindata(fplog,top_global,&(ir->opts),ekind);
@@ -2551,11 +2659,6 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         fprintf(fplog,"\n");
     }
 
-  if (ir->nstlist == -1) {
-    snew(scale_tot,1);
-  } else {
-    scale_tot = NULL;
-  }
 
   /* Set and write start time */
   runtime_start(runtime);
@@ -2625,6 +2728,11 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     step = ir->init_step;
     step_rel = 0;
     
+    if (ir->nstlist == -1)
+    {
+        init_nlistheuristics(&nlh,bGStatEveryStep,step);
+    }
+
     bLastStep = (bRerunMD || step_rel > ir->nsteps);
     while (!bLastStep || (bRerunMD && bNotLastFrame)) {
         
@@ -2738,86 +2846,23 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             copy_mat(boxcopy,state->box);
         }
         
-        bNS = bFirstStep;
         if (bRerunMD)
         {
             /* for rerun MD always do Neighbour Searching */
-            if (ir->nstlist != 0)
-            {
-                bNS = TRUE;
-            }
+            bNS = (bFirstStep || ir->nstlist != 0);
+            bNStList = bNS;
         }
         else
         {
-            /* Determine whether or not to do Neighbour Searching */
-            if (bExchanged || (ir->nstlist > 0 && (step % ir->nstlist == 0)))
+            /* Determine whether or not to do Neighbour Searching and LR */
+            bNStList = (ir->nstlist > 0  && step % ir->nstlist == 0);
+
+            bNS = (bFirstStep || bExchanged || bNStList ||
+                   (ir->nstlist == -1 && nlh.nabnsb > 0));
+            
+            if (bNS && ir->nstlist == -1)
             {
-                bNS = TRUE;
-            }
-            else if (ir->nstlist == -1)
-            {
-                bNS = (bFirstStep || nabnsb > 0);
-                if (bNS)
-                {
-                    if (bFirstStep)
-                    {
-                        ns_lt_runav = 0;
-                        step_nscheck = step;
-                    }
-                    else
-                    {
-                        /* Determine the neighbor list life time */
-                        ns_lt = step - step_ns;
-                        if (debug)
-                        {
-                            fprintf(debug,"%d atoms beyond ns buffer, updating neighbor list after %s steps\n",nabnsb,gmx_step_str(ns_lt,sbuf));
-                        }
-                        nns++;
-                        ns_s1 += ns_lt;
-                        ns_s2 += ns_lt*ns_lt;
-                        ns_ab += nabnsb;
-                        if (ns_lt_runav == 0)
-                        {
-                            ns_lt_runav  = ns_lt;
-                            /* Initialize the fluctuation average
-                             * such that at startup we check after 0 steps.
-                             */
-                            ns_lt_runav2 = sqr(ns_lt/2.0);
-                        }
-                        /* Running average with 0.9 gives an exp. history of 9.5 */
-                        ns_lt_runav2 = 0.9*ns_lt_runav2 + 0.1*sqr(ns_lt_runav - ns_lt);
-                        ns_lt_runav  = 0.9*ns_lt_runav  + 0.1*ns_lt;
-                        if (bGStatEveryStep)
-                        {
-                            /* Always check the nlist validity */
-                            step_nscheck = step;
-                        }
-                        else
-                        {
-                            /* We check after:  <life time> - 2*sigma
-                             * The factor 2 is quite conservative,
-                             * but we assume that with nstlist=-1 the user
-                             * prefers exact integration over performance.
-                             */
-                            step_nscheck = step
-                                + (int)(ns_lt_runav - 2.0*sqrt(ns_lt_runav2)) - 1;
-                        }
-                        if (debug)
-                        {
-                            fprintf(debug,"nlist life time %s run av. %4.1f sig %3.1f check %s check with -gcom %d\n",
-                                    gmx_step_str(ns_lt,sbuf),ns_lt_runav,sqrt(ns_lt_runav2),
-                                    gmx_step_str(step_nscheck-step+1,sbuf2),
-                                    (int)(ns_lt_runav - 2.0*sqrt(ns_lt_runav2)));
-                        }
-                    }
-                    step_ns = step;
-                    /* Initialize the cumulative coordinate scaling matrix */
-                    clear_mat(*scale_tot);
-                    for(ii=0; ii<DIM; ii++)
-                    {
-                        (*scale_tot)[ii][ii] = 1.0;
-                    }
-                }
+                set_nlistheuristics(&nlh,bFirstStep || bExchanged,step);
             }
         } 
         
@@ -2956,11 +3001,17 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             bCalcEner = TRUE;
             bGStat    = TRUE;
         }
+
+        force_flags = (GMX_FORCE_STATECHANGED |
+                       GMX_FORCE_NONBONDED | GMX_FORCE_BONDED |
+                       (bNStList ? GMX_FORCE_DOLR : 0) |
+                       GMX_FORCE_SEPLRF);
         if (shellfc)
         {
             /* Now is the time to relax the shells */
             count=relax_shell_flexcon(fplog,cr,bVerbose,bFFscan ? step+1 : step,
-                                      ir,bNS,bStopCM,top,top_global,
+                                      ir,bNS,force_flags,
+                                      bStopCM,top,top_global,
                                       constr,enerd,fcd,
                                       state,f,force_vir,mdatoms,
                                       nrnb,wcycle,graph,groups,
@@ -2999,8 +3050,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     GMX_FORCE_STATECHANGED | (bNS ? GMX_FORCE_NS : 0) |
-                     GMX_FORCE_NONBONDED | GMX_FORCE_BONDED);
+                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
              epot_delta = -enerd->term[F_EPOT];
              
              if (update_box)
@@ -3048,8 +3098,7 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     GMX_FORCE_STATECHANGED | (bNS ? GMX_FORCE_NS : 0) |
-                     GMX_FORCE_NONBONDED | GMX_FORCE_BONDED);
+                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
           /*  do_force(fplog,cr,ir,
 	             step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,
@@ -3256,9 +3305,10 @@ double do_mc(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              else
               update_box = FALSE;
             state->mc_move.update_box = update_box;
-            update(fplog,step,&dvdl,ir,mdatoms,state,graph,f,fcd,
-                   &top->idef,ekind,scale_tot,
-                   cr,nrnb,(PAR(cr)) ? mols : &top_global->mols,wcycle,upd,constr,bCalcEner,shake_vir,
+            update(fplog,step,&dvdl,ir,mdatoms,state,graph,
+                   f,fr->bTwinRange && bNStList,fr->f_twin,fcd,
+                   &top->idef,ekind,ir->nstlist==-1 ? &nlh.scale_tot : NULL,
+                   cr,nrnb,PAR(cr) ? mols : &top_global->mols,wcycle,upd,constr,bCalcEner,shake_vir,
                    bNEMD,bFirstStep && bStateFromTPX);
        
            if(update_box) {

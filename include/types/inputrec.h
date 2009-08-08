@@ -132,6 +132,7 @@ typedef struct {
   int        npbcdim;     /* do pbc in dims 0 <= dim < npbcdim */
   bool       bRefAt;      /* do we need reference atoms for a group COM ? */
   int        cosdim;      /* dimension for cosine weighting, -1 if none */
+  bool       bVirial;     /* do we need to add the pull virial? */
   t_pullgrp  *grp;        /* groups to pull/restrain/etc/ */
   t_pullgrp  *dyna;       /* dynamic groups for use with local constraints */
   FILE       *out_x;      /* output file for pull data */
@@ -282,5 +283,7 @@ typedef struct {
 #define PRESERVE_SHAPE(ir) ((ir).epc != epcNO && (ir).deform[XX][XX] == 0 && ((ir).epct == epctISOTROPIC || (ir).epct == epctSEMIISOTROPIC))
 
 #define NEED_MUTOT(ir) (((ir).coulombtype==eelEWALD || EEL_PME((ir).coulombtype)) && ((ir).ewald_geometry==eewg3DC || (ir).epsilon_surface!=0))
+
+#define IR_TWINRANGE(ir) ((ir).rlist > 0 && ((ir).rlistlong == 0 || (ir).rlistlong > (ir).rlist))
 
 #endif

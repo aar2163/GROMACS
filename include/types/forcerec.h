@@ -103,7 +103,6 @@ typedef struct {
 typedef struct {
   real term[F_NRE];    /* The energies for all different interaction types */
   gmx_grppairener_t grpp;
-  real dvdl_lr;
   double dvdl_lin;     /* Contributions to dvdl with linear lam-dependence */
   double dvdl_nonlin;  /* Idem, but non-linear dependence                  */
   int    n_lambda;
@@ -236,7 +235,6 @@ typedef struct {
   bool bTwinRange;
   int  nlr;
   rvec *f_twin;
-  rvec *fshift_twin;
 
   /* Forces that should not enter into the virial summation:
    * PPPM/PME/Ewald/posres
