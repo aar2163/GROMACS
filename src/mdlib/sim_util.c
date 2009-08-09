@@ -687,26 +687,6 @@ void do_force(FILE *fplog,t_commrec *cr,
     
     cycles_force = wallcycle_stop(wcycle,ewcFORCE);
     GMX_BARRIER(cr->mpi_comm_mygroup);
-
-  if (inputrec->ePull == epullCONSTRAINT)
-    clear_pull_forces(inputrec->pull);
-
-  /* update QMMMrec, if necessary */
-  if(fr->bQMMM)
-    update_QMMMrec(cr,fr,x,mdatoms,box,top);
-
-  if ((flags & GMX_FORCE_BONDED) && top->idef.il[F_POSRES].nr > 0) {
-    /* Position restraints always require full pbc */
-    set_pbc(&pbc,inputrec->ePBC,box);
-    v = posres(top->idef.il[F_POSRES].nr,top->idef.il[F_POSRES].iatoms,
-	       top->idef.iparams_posres,
-	       (const rvec*)x,fr->f_novirsum,fr->vir_diag_posres,
-	       inputrec->ePBC==epbcNONE ? NULL : &pbc,lambda,&dvdl,
-	       fr->rc_scaling,fr->ePBC,fr->posres_com,fr->posres_comB);
-    if (bSepDVDL) {
-      fprintf(fplog,sepdvdlformat,
-	      interaction_function[F_POSRES].longname,v,dvdl);
-    }
     
     if (ed)
     {

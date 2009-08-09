@@ -114,7 +114,6 @@ typedef struct gmx_global_stat *gmx_global_stat_t;
 
 extern gmx_integrator_t do_md;
 
-extern gmx_integrator_t do_mc;
 /* ROUTINES from minimize.c */
 
 extern gmx_integrator_t do_steep;
