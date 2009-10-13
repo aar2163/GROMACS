@@ -87,6 +87,8 @@ extern void upd_mdebin_step(t_mdebin *md);
   
 extern void print_ebin_header(FILE *log,gmx_step_t steps,double time,real lamb);
 
+extern void print_mc_ratio(FILE *log,real a,real b);
+
 extern void print_ebin(int fp_ene,bool bEne,bool bDR,bool bOR,
 		       FILE *log,
 		       gmx_step_t step,double time,

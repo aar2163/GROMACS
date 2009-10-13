@@ -79,6 +79,8 @@ extern void push_atom(t_symtab   *symtab,
 		      char       *line,
 		      int        *lastcg);
 
+extern void push_mcmove(directive d,char *line,t_ilist *ilist,int count);
+
 extern void push_bond(directive d,t_params bondtype[],t_params bond[],
 		      t_atoms *at,gpp_atomtype_t atype,char *line,
 		      bool bBonded,bool bGenPairs,real fudgeQQ,

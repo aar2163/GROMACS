@@ -138,7 +138,7 @@ typedef union
    * bonds, angles and improper dihedrals
    */
   struct {real a,b,c;	                                   } bham;
-  struct {real rA,krA,rB,krB;           	           } harmonic; 
+  struct {real rA,krA,rB,krB;            	           } harmonic; 
   /* No free energy supported for cubic bonds, FENE, WPOL or cross terms */ 
   struct {real b0,kb,kcub;                                 } cubic;
   struct {real bm,kb;                                      } fene;

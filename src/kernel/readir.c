@@ -785,9 +785,13 @@ void get_ir(char *mdparin,char *mdparout,
 		 
   /* MC stuff */
   ITYPE ("nst_p",	ir->nst_p,	0);
-  RTYPE ("delta_v",	ir->delta_v,	0);
-  RTYPE ("delta_r",	ir->delta_r,	0.01);
-  RTYPE ("delta_phi",	ir->delta_phi,	5.0);
+  ITYPE ("nstvir",	ir->nstvir,	0);
+  RTYPE ("volume",	ir->volume,	0);
+  RTYPE ("cm_translate",ir->cm_translate,0.0);
+  RTYPE ("cm_rot",	ir->cm_rot,	0.0);
+  RTYPE ("dihedral_rot", ir->dihedral_rot,0.0);
+  RTYPE ("bond_stretch", ir->bond_stretch,0.0);
+  RTYPE ("angle_bend", ir->angle_bend,0.0);
 
   /* Coupling stuff */
   CCTYPE ("OPTIONS FOR WEAK COUPLING ALGORITHMS");

@@ -287,6 +287,9 @@ void DS_Init(DirStack **DS)
     set_nec(&(necessary[d_orientation_restraints]),d_atoms,d_none);
     set_nec(&(necessary[d_dihedral_restraints]),d_atoms,d_none);
     set_nec(&(necessary[d_cmap]), d_atoms, d_none);
+    set_nec(&(necessary[d_mcbonds]), d_atoms, d_bonds,d_none);
+    set_nec(&(necessary[d_mcangles]), d_atoms, d_angles,d_none);
+    set_nec(&(necessary[d_mcdihedrals]), d_atoms, d_dihedrals,d_none);
 
     for(i=0; (i<d_maxdir); i++) {
       if (debug)
@@ -348,7 +351,6 @@ int DS_Check_Order(DirStack *DS,directive d)
   /* Check if parameter definitions appear after a moleculetype directive */
   if (d<d_moleculetype && DS_Search(DS,d_moleculetype))
     return FALSE;
-
   /* Check if all the necessary directives have appeared before directive d */
   if (necessary[d][0] == d_none)
     return TRUE;

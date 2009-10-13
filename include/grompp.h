@@ -94,6 +94,9 @@ typedef struct {
   t_block       mols;           /* Molecules                            */
   t_blocka      excls;          /* Exclusions                           */
   t_params      plist[F_NRE];   /* Parameters in old style              */
+  t_ilist       mc_bonds;
+  t_ilist       mc_angles;
+  t_ilist       mc_dihedrals;
 } t_molinfo;
 
 typedef struct {
@@ -161,6 +164,9 @@ typedef enum {
   d_orientation_restraints,
   d_dihedral_restraints,
   d_cmap,
+  d_mcbonds,
+  d_mcangles,
+  d_mcdihedrals,
   d_maxdir,
   d_invalid,
   d_none
@@ -205,6 +211,9 @@ static const char *ds[d_maxdir+1] = {
   "orientation_restraints",
   "dihedral_restraints",
   "cmap",
+  "MC_bonds",
+  "MC_angles",
+  "MC_dihedrals",
   "invalid"
   };
 

@@ -99,6 +99,17 @@ energyhistory_t;
 
 typedef struct
 {
+ int ai;
+ int aj;
+ int ak;
+ int *list; /* list[nr] of atoms to be rotated */
+ t_ilist *ilist;
+ int nr;
+ real value;
+} gmx_mc_movegroup;
+
+typedef struct
+{
  int start;
  int end;
  int nr;
@@ -107,7 +118,10 @@ typedef struct
  real delta_v;
  real bolt;
  bool update_box;
- rvec xcm;
+ gmx_mc_movegroup rot_bond;
+ gmx_mc_movegroup stretch_bond;
+ gmx_mc_movegroup bend_angle;
+ int mol;
 } gmx_mc_move;
 
 typedef struct

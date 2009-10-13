@@ -926,27 +926,27 @@ put_in_list(bool              bHaveVdW[],
                         jj1=index[jcg+1];
                         /* Finally loop over the atoms in the j-charge group */	
                         for(jj=jj0; jj<jj1; jj++) 
-                        {
+                        { 
                             bNotEx = NOTEXCL(bExcl,i,jj);
                             
                             if (bNotEx) 
                             {
                                 if (!bDoVdW_i) 
-                                { 
+                                {
                                     if (charge[jj] != 0)
-                                    {
+                                    { 
                                         add_j_to_nblist(coul,jj,bLR);
                                     }
                                 }
                                 else if (!bDoCoul_i) 
-                                {
+                                {  
                                     if (bHaveVdW[type[jj]])
                                     {
                                         add_j_to_nblist(vdw,jj,bLR);
                                     }
                                 }
                                 else 
-                                {
+                                { 
                                     if (bHaveVdW[type[jj]]) 
                                     {
                                         if (charge[jj] != 0)
@@ -1801,7 +1801,6 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
     {
         dd = cr->dd;
     }
-    
     bTriclinicX = ((YY < grid->npbcdim &&
                     (!bDomDec || dd->nc[YY]==1) && box[YY][XX] != 0) ||
                    (ZZ < grid->npbcdim &&
@@ -2171,19 +2170,24 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                                         {
                                             jjcg = grida[cgj0+j];
                                             
+                                            if(fr->n_mc && !bExcludeMC[icg] && !bExcludeMC[jjcg] && icg < jjcg)
+                                            {
+                                             continue;
+                                            }
+
                                             /* check whether this guy is in range! */
                                             if ((jjcg >= jcg0 && jjcg < jcg1) ||
-                                                (jjcg < max_jcg))
+                                                (jjcg < max_jcg) || fr->n_mc)
                                             {
                                                 r2=calc_dx2(XI,YI,ZI,cgcm[jjcg]);
-                                                if (r2 < rl2) {
+                                                if (r2 < rl2) { 
                                                     /* jgid = gid[cgsatoms[cgsindex[jjcg]]]; */
                                                     jgid = GET_CGINFO_GID(cginfo[jjcg]);
                                                     /* check energy group exclusions */
                                                     if (!(i_egp_flags[jgid] & EGP_EXCL))
                                                     {
                                                         if (r2 < rs2)
-                                                        {
+                                                        { 
                                                             if (nsr[jgid] >= MAX_CG)
                                                             { 
                                                                 put_in_list(bHaveVdW,ngid,md,icg,jgid,
@@ -2196,7 +2200,7 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                                                             nl_sr[jgid][nsr[jgid]++]=jjcg;
                                                         } 
                                                         else if (r2 < rm2)
-                                                        {
+                                                        { continue;  
                                                             if (nlr_ljc[jgid] >= MAX_CG)
                                                             {
                                                                 do_longrange(cr,top,fr,ngid,md,icg,jgid,
@@ -2213,7 +2217,7 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                                                             nl_lr_ljc[jgid][nlr_ljc[jgid]++]=jjcg;
                                                         }
                                                         else
-                                                        {
+                                                        { continue;
                                                             if (nlr_one[jgid] >= MAX_CG) {
                                                                 do_longrange(cr,top,fr,ngid,md,icg,jgid,
                                                                              nlr_one[jgid],
@@ -2246,6 +2250,10 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                             put_in_list(bHaveVdW,ngid,md,icg,nn,nsr[nn],nl_sr[nn],
                                         cgs->index, /* cgsatoms, */ bexcl,
                                         shift,fr,FALSE,TRUE,TRUE,bMakeQMMMnblist,bExcludeMC);
+                            /*if(fr->n_mc) {
+                            for(j=0;j<nsr[nn];j++) 
+                             printf("icg %d nl_sr %d\n",icg,nl_sr[nn][j]);
+                            }*/
                         }
                         
                         if (nlr_ljc[nn] > 0)
@@ -2441,7 +2449,7 @@ int search_neighbours(FILE *log,t_forcerec *fr,
 {
     t_block  *cgs=&(top->cgs);
     rvec     box_size,grid_x0,grid_x1;
-    int      i,j,m,ngid;
+    int      i,j,m,ngid,cg0,cg1;
     real     min_size,grid_dens;
     int      nsearch;
     bool     bGrid;
@@ -2524,17 +2532,7 @@ int search_neighbours(FILE *log,t_forcerec *fr,
         }
         else
         {
-            if(!fr->n_mc) {
-             fill_grid(log,NULL,grid,cgs->nr,fr->cg0,fr->hcg,fr->cg_cm);
-            }
-            else {
-             for (m=0;m<cgs->nr;m++) {
-              if(!fr->ns.bExcludeMC[m]) {
-               fill_grid(log,NULL,grid,fr->hcg,m,m+1,fr->cg_cm);
-               break;
-              }
-             }
-            }
+            fill_grid(log,NULL,grid,cgs->nr,fr->cg0,fr->hcg,fr->cg_cm);
             grid->icg0 = fr->cg0;
             grid->icg1 = fr->hcg;
             debug_gmx();

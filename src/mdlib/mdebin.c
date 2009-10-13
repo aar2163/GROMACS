@@ -664,6 +664,21 @@ void print_ebin_header(FILE *log,gmx_step_t steps,double time,real lamb)
             "Step","Time","Lambda",gmx_step_str(steps,buf),time,lamb);
 }
 
+void print_mc_ratio(FILE *log,real a,real b)
+{
+    char buf[22];
+    if(a && b) {
+     fprintf(log,"  %12s   %12s\n"
+            "   %12.5f   %12.5f\n\n",
+            "# of Accepted Steps/# of Total Steps","# of Accepted Vol. Changes/# of Total Vol. Change Trials",a,b);
+    }
+    else if(a) {
+     fprintf(log,"  %12s \n"
+            "   %12.5f   \n\n",
+            "# of Accepted Steps/# of Total Steps",a);
+    }
+}
+
 void print_ebin(int fp_ene,bool bEne,bool bDR,bool bOR,
                 FILE *log,
                 gmx_step_t step,double time,

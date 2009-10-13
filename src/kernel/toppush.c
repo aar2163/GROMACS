@@ -594,7 +594,6 @@ void push_bt(directive d,t_params bt[],int nral,
     warning_error(errbuf);
     return;
   }
-  
   ft    = atoi(alc[nral]);
   ftype = ifunc_index(d,ft);
   nrfp  = NRFP(ftype);
@@ -625,8 +624,9 @@ void push_bt(directive d,t_params bt[],int nral,
     else if (bat && ((p.a[i]=get_bond_atomtype_type(alc[i],bat)) == NOTSET))
       gmx_fatal(FARGS,"Unknown bond_atomtype %s\n",alc[i]);
   }
-  for(i=0; (i<nrfp); i++)
+  for(i=0; (i<nrfp); i++) {
     p.c[i]=c[i];
+  }
   push_bondtype (&(bt[ftype]),&p,nral,ftype,FALSE,line);
 }
 
@@ -1446,7 +1446,32 @@ static bool default_params(int ftype,t_params bt[],
   return bFound;
 }
 
+void push_mcmove(directive d,char *line,t_ilist *ilist,int count)
+{
+  const char *aaformat[MAXATOMLIST]= {
+    "%d%d",
+    "%d%d%d",
+    "%d%d%d%d",
+    "%d%d%d%d%d",
+    "%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d"
+  };
+  int      aa[MAXATOMLIST+1];
+  int nread,j;
 
+  for(j=0; j<MAXATOMLIST; j++)
+    aa[j]=NOTSET;
+
+  nread = sscanf(line,aaformat[count-2],
+		 &aa[0],&aa[1],&aa[2]);
+  if(nread != count)
+   gmx_fatal(FARGS,"You are supposed to enter %d atom numbers in field %s",count,dir2str(d));
+  
+  srenew(ilist->iatoms,ilist->nr+count);
+  for(j=0;j<count;j++)
+   ilist->iatoms[ilist->nr++]=aa[j]-1;
+  
+}
 
 void push_bond(directive d,t_params bondtype[],t_params bond[],
 	       t_atoms *at,gpp_atomtype_t atype,char *line,

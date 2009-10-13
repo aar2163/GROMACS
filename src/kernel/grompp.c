@@ -267,6 +267,9 @@ static void molinfo2mtop(int nmi,t_molinfo *mi,gmx_mtop_t *mtop)
     /* ilists are copied later */
     molt->cgs   = mi[m].cgs;
     molt->excls = mi[m].excls;
+    molt->mc_bonds = mi[m].mc_bonds;
+    molt->mc_angles = mi[m].mc_angles;
+    molt->mc_dihedrals = mi[m].mc_dihedrals;
   }
 }
 

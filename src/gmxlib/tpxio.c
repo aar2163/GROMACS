@@ -344,6 +344,7 @@ static void do_inputrec(t_inputrec *ir,bool bRead, int file_version,
     do_int(ir->nstvout); 
     do_int(ir->nstfout); 
     do_int(ir->nst_p);
+    do_int(ir->nstvir);
     do_int(ir->nstenergy); 
     do_int(ir->nstxtcout); 
     if (file_version >= 59) {
@@ -355,9 +356,12 @@ static void do_inputrec(t_inputrec *ir,bool bRead, int file_version,
       do_real(rdum);
       ir->delta_t = rdum;
     }
-    do_real(ir->delta_r);
-    do_real(ir->delta_v);
-    do_real(ir->delta_phi);
+    do_real(ir->cm_translate);
+    do_real(ir->volume);
+    do_real(ir->cm_rot);
+    do_real(ir->dihedral_rot);
+    do_real(ir->bond_stretch);
+    do_real(ir->angle_bend);
     do_real(ir->xtcprec); 
     if (file_version < 19) {
       do_int(idum); 
@@ -1562,6 +1566,9 @@ static void do_moltype(gmx_moltype_t *molt,bool bRead,t_symtab *symtab,
   if (file_version >= 57) {
     do_ilists(molt->ilist,bRead,file_version);
 
+    do_ilist(&molt->mc_bonds,bRead,file_version,F_BONDS);
+    do_ilist(&molt->mc_angles,bRead,file_version,F_ANGLES);
+    do_ilist(&molt->mc_dihedrals,bRead,file_version,F_PDIHS);
     do_block(&molt->cgs,bRead,file_version);
     if (bRead && gmx_debug_at) {
       pr_block(debug,0,"cgs",&molt->cgs,TRUE);

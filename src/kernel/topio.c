@@ -415,7 +415,6 @@ static char **read_topol(char *infile,char *outfile,
       /* skip trailing and leading spaces and comment text */
       strip_comment (pline);
       trim (pline);
-    
       /* if there is something left... */
       if ((int)strlen(pline) > 0) {
 	if (pline[0] == OPENDIR) {
@@ -540,6 +539,18 @@ static char **read_topol(char *infile,char *outfile,
 	  case d_cmaptypes:
 		push_cmaptype(d, plist, 5, atype, batype,pline);
 		break;
+
+          case d_mcbonds:
+           push_mcmove(d,pline,&(mi0->mc_bonds),2);
+           break;
+
+          case d_mcangles:
+           push_mcmove(d,pline,&(mi0->mc_angles),3);
+           break;
+
+          case d_mcdihedrals:
+           push_mcmove(d,pline,&(mi0->mc_dihedrals),4);
+           break;
 			  
 	  case d_moleculetype: {
 	    if (!bReadMolType) {
@@ -572,6 +583,9 @@ static char **read_topol(char *infile,char *outfile,
 	    srenew(block2,nmol);
 	    block2[nmol-1].nr=0;
 	    mi0=&((*molinfo)[nmol-1]);
+            mi0->mc_bonds.nr=0;
+            mi0->mc_angles.nr=0;
+            mi0->mc_dihedrals.nr=0;
 	    break;
 	  }
 	  case d_atoms: 

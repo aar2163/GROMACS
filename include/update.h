@@ -81,6 +81,7 @@ extern void update(FILE         *fplog,
 		   gmx_ekindata_t *ekind,
 		   matrix       *scale_tot,
 		   t_commrec    *cr,
+                   t_forcerec   *fr,
 		   t_nrnb       *nrnb,
                    t_block      *mols,
 		   gmx_wallcycle_t wcycle,
@@ -92,6 +93,10 @@ extern void update(FILE         *fplog,
 		   bool         bInitStep);
 /* Return TRUE if OK, FALSE in case of Shake Error */
      
+void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr);
+
+void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start);
+
 extern void calc_ke_part(t_state *state,t_grpopts *opts,t_mdatoms *md,
 			 gmx_ekindata_t *ekind,t_nrnb *nrnb);
 /*

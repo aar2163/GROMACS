@@ -180,9 +180,15 @@ typedef struct {
   tensor compress;	/* compressability ((mol nm^3)/kJ) 		*/
   int  nst_p;            /* number of steps after which volume is       */
                         /* changed when doing MC simulations            */
-  real delta_v;         /* Maximum Volume change for NPT MC simulations */
-  real delta_r;         /* Maximum translation for molecules in MC sims */
-  real delta_phi;       /* Maximum angle for rotations in MC sims       */         
+  int  nstvir;
+  real volume;         /* Maximum Volume change for NPT MC simulations */
+  real cm_translate;         /* Maximum translation for molecules in MC sims */
+  real cm_rot;       /* Maximum angle for rotations in MC sims       */ 
+  real dihedral_rot;  /* Maximum angle for rotations through flexible */
+                        /* bonds in MC sims                             */        
+  real bond_stretch;
+  real angle_bend;
+
   int  refcoord_scaling;/* How to scale absolute reference coordinates  */
   rvec posres_com;      /* The COM of the posres atoms                  */
   rvec posres_comB;     /* The B-state COM of the posres atoms          */

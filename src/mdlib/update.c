@@ -135,26 +135,238 @@ void rand_rot_mc(rvec x,vec4 xrot,
   
   m4_op(mxtot,x,xrot);
 }
-static void do_update_mc(rvec *x,gmx_mc_move *mc_move)
+void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 {
-  int    n,k,start,end;
+  int ai,aj,ak,nr,nr_r,nr_l,list_r[200],list_l[200],*list;
+  int k,m;
+  rvec r1,r_ij,u1,v;
+
+     ai = mc_move->stretch_bond.ai;
+     aj = mc_move->stretch_bond.aj;
+     nr_r = 0;
+     bond_rot(graph,ai,aj,list_r,&nr_r);
+
+     nr_l = 0;
+     bond_rot(graph,aj,ai,list_l,&nr_l);
+
+     if(nr_l < nr_r) {
+      nr = nr_l;
+      list = list_l;
+      aj = mc_move->stretch_bond.ai;
+      ai = mc_move->stretch_bond.aj;
+     }
+     else {
+      nr = nr_r;
+      list = list_r;
+     }
+
+     copy_rvec(x[aj],r1);
+     rvec_sub(x[aj],x[ai],r_ij);
+     unitv(r_ij,u1);
+     svmul(mc_move->stretch_bond.value,u1,u1);
+     rvec_add(r_ij,u1,v);
+     
+     rvec_add(x[ai],v,x[aj]);
+
+
+     rvec_sub(x[aj],r1,r_ij);
+     
+     for(k=0;k<nr;k++) {
+      ak=list[k];
+      rvec_add(x[ak],r_ij,x[ak]);
+     }
+}
+void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
+{
+  int    n,i,k,start,end;
+  int    ai,aj,ak,nr,list_r[200],*list;
+  rvec   r_ij,r_kj,r1,r2,u1,u2,u3;
   vec4 xrot;
   rvec xcm;
+  matrix basis,basis_inv;
+  rvec delta_phi;
+     ai = mc_move->rot_bond.ai;
+     aj = mc_move->rot_bond.aj;
+
+     nr = 0;
+     bond_rot(graph,ai,aj,list_r,&nr);
+
+     list = list_r;
+
+     ak=list[0];
+     //printf("to aki %d %d %d\n",ai-start,aj-start,ak-start);
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u1);
+     unitv(r1,u2);
+     unitv(r2,u3);
+    
+     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; //basis[XX][3] = 0;
+     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; //basis[YY][3] = 0;
+     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; //basis[ZZ][3] = 0;
+     //basis[3][XX]  = 0;      basis[3][YY]  = 0;      basis[3][ZZ]  = 0;      basis[3][3]  = 1;
+
+     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; //basis_inv[XX][3] = 0;
+     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; //basis_inv[YY][3] = 0;
+     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; //basis_inv[ZZ][3] = 0;
+//     basis_inv[3][XX]  = 0;             basis_inv[3][YY]  = 0;             basis_inv[3][ZZ]  = 0;             basis_inv[3][3]  = 1;
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+     delta_phi[XX]=mc_move->rot_bond.value;
+     //delta_phi[XX]=0;
+
+     
+     for(k=0;k<nr;k++) {
+      ak=list[k];
+      rvec_sub(x[ak],x[aj],r_kj);
+      mvmul(basis_inv,r_kj,r1);
+      rand_rot_mc(r1,xrot,delta_phi,xcm);
+      for(i=0;i<DIM;i++)
+       r1[i]=xrot[i];
+      mvmul(basis,r1,r2);
+      rvec_add(x[aj],r2,x[ak]);
+     }
+}
+
+void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
+{
+  int    n,i,k,start,end;
+  int    ai,aj,ak,al,nr_r,nr_l,nr,list_r[200],*list;
+  rvec   r_ij,r_kj,r_lj,r1,r2,u1,u2,u3;
+  vec4 xrot;
+  rvec xcm;
+  matrix basis,basis_inv;
+  rvec delta_phi;
+     ai = mc_move->bend_angle.ai;
+     aj = mc_move->bend_angle.aj;
+     ak = mc_move->bend_angle.ak;
+
+     nr = 0;
+     bond_rot(graph,aj,ak,list_r,&nr);
+     list=list_r;
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u2);
+     unitv(r1,u1);
+     unitv(r2,u3);
+    
+     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; //basis[XX][3] = 0;
+     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; //basis[YY][3] = 0;
+     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; //basis[ZZ][3] = 0;
+     //basis[3][XX]  = 0;      basis[3][YY]  = 0;      basis[3][ZZ]  = 0;      basis[3][3]  = 1;
+
+     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; //basis_inv[XX][3] = 0;
+     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; //basis_inv[YY][3] = 0;
+     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; //basis_inv[ZZ][3] = 0;
+//     basis_inv[3][XX]  = 0;             basis_inv[3][YY]  = 0;             basis_inv[3][ZZ]  = 0;             basis_inv[3][3]  = 1;
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+     delta_phi[XX]=mc_move->bend_angle.value;
+     //delta_phi[XX]=0;
+
+     list[nr++]=ak;
+
+     for(k=0;k<nr;k++) {
+      al=list[k];
+ //     printf("to aki ai %d aj %d ak %d al %d start %d\n",ai-mc_move->start,aj-mc_move->start,ak-mc_move->start,al-mc_move->start,mc_move->start);
+      rvec_sub(x[al],x[aj],r_lj);
+      mvmul(basis_inv,r_lj,r1);
+      rand_rot_mc(r1,xrot,delta_phi,xcm);
+      for(i=0;i<DIM;i++)
+       r1[i]=xrot[i];
+      mvmul(basis,r1,r2);
+      rvec_add(x[aj],r2,x[al]);
+     }
+}
+void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start)
+{
+ int i,j,k;
+ group->value = (2.0*gmx_rng_uniform_real(rng)-1.0)*fac;
+
+ k=(group->ilist)->nr/delta;
+
+ do {
+  i=(int)(gmx_rng_uniform_real(rng)*k);
+ } while(i >= k);
+
+ group->ai = start + (group->ilist)->iatoms[delta*i];
+ group->aj = start + (group->ilist)->iatoms[delta*i+1];
+
+ if(delta == 3) {
+  group->ak = start + (group->ilist)->iatoms[delta*i+2];
+ }
+  
+ 
+}
+static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
+{
+  int    n,i,k,start,end;
+  int    ai,aj,ak;
+  rvec   r_ij,r_kj,r1,r2,u1,u2,u3;
+  bool   b_translate,b_rotate;
+  vec4 xrot;
+  rvec xcm;
+  rvec delta_phi;
   start = mc_move->start;
   end = mc_move->end;
+ 
+  b_translate = (norm(mc_move->delta_x) > 0);
+  b_rotate = (norm(mc_move->delta_phi) > 0);
+  //snew(list_r,mc_move->nr);
+  //snew(list_l,mc_move->nr);
 
+   if(b_rotate) 
+   {
     for(k=start;k<end;k++) {
      rvec_add(x[k],xcm,xcm);
     } 
     svmul(1.0/(end-start),xcm,xcm);
+   }
 
     for(n=start;n<end;n++) {
-     rand_rot_mc(x[n],xrot,mc_move->delta_phi,xcm);
-     for(k=0;k<DIM;k++)
-      x[n][k]=xrot[k];
+     if(b_rotate) 
+     { 
+      rand_rot_mc(x[n],xrot,mc_move->delta_phi,xcm);
+     }
+      for(k=0;k<DIM;k++)
+      {
+       if(b_rotate) 
+        x[n][k]=xrot[k];
 
-     rvec_add(x[n],mc_move->delta_x,x[n]);
+       if(b_translate)
+       rvec_add(x[n],mc_move->delta_x,x[n]);
+      }
     }
+
+    /* INTERNAL COORDINATES */
+    
+    if(mc_move->rot_bond.nr != -1 && mc_move->rot_bond.value) 
+    {
+     rotate_dihedral(x,mc_move,graph);
+    }
+    /* STRETCHING BONDS */
+    if((mc_move->stretch_bond.ilist)->nr != 0 && mc_move->stretch_bond.value) 
+    {
+     stretch_bonds(x,mc_move,graph);
+    }
+    /* BENDING ANGLES */
+    if((mc_move->bend_angle.ilist)->nr != 0 && mc_move->bend_angle.value) 
+    {
+     bend_angles(x,mc_move,graph);
+    }
+  //sfree(list_r);
+  //sfree(list_l);
 }
 static void do_update_md(int start,int homenr,double dt,
                          t_grp_tcstat *tcstat,t_grp_acc *gstat,real nh_xi[],
@@ -240,6 +452,28 @@ static void do_update_md(int start,int homenr,double dt,
   }
 }
 
+void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr)
+{
+  int i,k;
+
+  for(i=0;i<graph->nedge[aj];i++)
+  {
+   if(graph->edge[aj][i] != ai) 
+   {
+    for(k=0;k < (*nr);k++) 
+    {
+     if(graph->edge[aj][i] == list[k])
+      break;
+    }
+    if(k == *nr)
+    { 
+     list[(*nr)++] = graph->edge[aj][i];
+     bond_rot(graph,aj,graph->edge[aj][i],list,nr);
+    }
+   }
+  }
+ return;
+}
 static void do_update_visc(int start,int homenr,double dt,
                            t_grp_tcstat *tcstat,real invmass[],real nh_xi[],
                            unsigned short ptype[],unsigned short cTC[],
@@ -895,6 +1129,7 @@ void update(FILE         *fplog,
             gmx_ekindata_t *ekind,
             matrix       *scale_tot,
             t_commrec    *cr,
+            t_forcerec   *fr,
             t_nrnb       *nrnb,
             t_block      *mols,
             gmx_wallcycle_t wcycle,
@@ -1075,7 +1310,7 @@ void update(FILE         *fplog,
       }
      }
      else {
-      do_update_mc(xprime,&(state->mc_move));
+      do_update_mc(xprime,&(state->mc_move),graph);
      }
     }
   } else {
