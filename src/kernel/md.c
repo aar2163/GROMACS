@@ -899,7 +899,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   bool       bMasterState;
   bool       bMC;
   int        force_flags;
-  tensor     force_vir,shake_vir,total_vir,pres,ekin;
+  tensor     force_vir,force_vircopy,shake_vir,total_vir,pres,ekin;
   int        i,m,status,nflex;
   rvec       mu_tot;
   t_vcm      *vcm;
@@ -1859,7 +1859,14 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      (bNS ? GMX_FORCE_NS : 0) | force_flags);
                }
                copy_enerdata(enerd,enerdcopy);
-
+               if(do_vir)
+               {
+                copy_mat(force_vir,force_vircopy);
+               }
+               else
+               {
+                copy_mat(force_vircopy,force_vir);
+               }
               }
               else {
                if (DOMAINDECOMP(cr)) {
@@ -1870,6 +1877,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                 }
                 copy_mat(boxcopy,state->box);
                 copy_enerdata(enerdcopy,enerd);
+                copy_mat(force_vircopy,force_vir);
                }
               }
              }
