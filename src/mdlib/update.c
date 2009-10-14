@@ -137,28 +137,14 @@ void rand_rot_mc(rvec x,vec4 xrot,
 }
 void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 {
-  int ai,aj,ak,nr,nr_r,nr_l,list_r[200],list_l[200],*list;
+  int ai,aj,ak,nr,list_r[200],*list;
   int k,m;
   rvec r1,r_ij,u1,v;
 
      ai = mc_move->stretch_bond.ai;
      aj = mc_move->stretch_bond.aj;
-     nr_r = 0;
-     bond_rot(graph,ai,aj,list_r,&nr_r);
-
-     nr_l = 0;
-     bond_rot(graph,aj,ai,list_l,&nr_l);
-
-     if(nr_l < nr_r) {
-      nr = nr_l;
-      list = list_l;
-      aj = mc_move->stretch_bond.ai;
-      ai = mc_move->stretch_bond.aj;
-     }
-     else {
-      nr = nr_r;
-      list = list_r;
-     }
+     nr = 0;
+     bond_rot(graph,ai,aj,list_r,&nr);
 
      copy_rvec(x[aj],r1);
      rvec_sub(x[aj],x[ai],r_ij);
