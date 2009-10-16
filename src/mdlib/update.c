@@ -171,8 +171,8 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   rvec xcm;
   matrix basis,basis_inv;
   rvec delta_phi;
-     ai = mc_move->rot_bond.ai;
-     aj = mc_move->rot_bond.aj;
+     ai = mc_move->rot_dihedral.ai;
+     aj = mc_move->rot_dihedral.aj;
 
      nr = 0;
      bond_rot(graph,ai,aj,list_r,&nr);
@@ -203,7 +203,7 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 
      clear_rvec(xcm);
      clear_rvec(delta_phi);
-     delta_phi[XX]=mc_move->rot_bond.value;
+     delta_phi[XX]=mc_move->rot_dihedral.value;
      //delta_phi[XX]=0;
 
      
@@ -337,7 +337,7 @@ static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 
     /* INTERNAL COORDINATES */
     
-    if(mc_move->rot_bond.nr != -1 && mc_move->rot_bond.value) 
+    if(mc_move->rot_dihedral.nr != -1 && mc_move->rot_dihedral.value) 
     {
      rotate_dihedral(x,mc_move,graph);
     }

@@ -1463,13 +1463,19 @@ void push_mcmove(directive d,char *line,t_ilist *ilist,int count)
     aa[j]=NOTSET;
 
   nread = sscanf(line,aaformat[count-2],
-		 &aa[0],&aa[1],&aa[2]);
+		 &aa[0],&aa[1],&aa[2],&aa[3]);
   if(nread != count)
    gmx_fatal(FARGS,"You are supposed to enter %d atom numbers in field %s",count,dir2str(d));
   
-  srenew(ilist->iatoms,ilist->nr+count);
+  srenew(ilist->iatoms,ilist->nr+(count == 4 ? 2 : count));
+  if(count != 4) {
   for(j=0;j<count;j++)
    ilist->iatoms[ilist->nr++]=aa[j]-1;
+  }
+  else {
+   ilist->iatoms[ilist->nr++]=aa[1]-1;
+   ilist->iatoms[ilist->nr++]=aa[2]-1;
+  }
   
 }
 

@@ -118,7 +118,7 @@ typedef struct
  real delta_v;
  real bolt;
  bool update_box;
- gmx_mc_movegroup rot_bond;
+ gmx_mc_movegroup rot_dihedral;
  gmx_mc_movegroup stretch_bond;
  gmx_mc_movegroup bend_angle;
  int mol;

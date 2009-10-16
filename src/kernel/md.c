@@ -1252,9 +1252,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   } 
 
   if(bMC) {
-   snew(state->mc_move.rot_bond.list,top_global->moltype[0].atoms.nr);
    state->mc_move.stretch_bond.ilist = &top_global->moltype[0].mc_bonds;
    state->mc_move.bend_angle.ilist = &top_global->moltype[0].mc_angles;
+   state->mc_move.rot_dihedral.ilist = &top_global->moltype[0].mc_dihedrals;
    /*snew(zmat,top_global->moltype[0].atoms.nr);
    snew(gone,top_global->moltype[0].atoms.nr);
    
@@ -2041,60 +2041,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               set_mcmove(&(state->mc_move.bend_angle),rng,(M_PI*ir->angle_bend/180.0),3,state->mc_move.start);
              }
 
-             nflex=0;
-             for(ii=state->mc_move.start;ii<state->mc_move.end;ii++)
+             if((state->mc_move.rot_dihedral.ilist)->nr > 0) 
              {
-              if(graph->nedge[ii] >= 2)
-              {
-               for(m=0;m<graph->nedge[ii];m++) 
-               {
-                if(graph->nedge[graph->edge[ii][m]] >= 2) {
-                 nflex++;
-                 break;
-                }
-               }
-              }
-             }
-             if(nflex >= 1) 
-             {
-
-              do {
-               nflex=0;
-               ii=state->mc_move.start + (int)(gmx_rng_uniform_real(rng)*state->mc_move.nr);
-               if(graph->nedge[ii] > 1) 
-               {
-                for(m=0;m<graph->nedge[ii];m++)
-                {
-                 if(graph->nedge[graph->edge[ii][m]] > 1)
-                  nflex++;
-                }
-               }
-              } while(ii >= state->mc_move.end || nflex == 0);
-
-              do {
-               m=(int)(gmx_rng_uniform_real(rng)*nflex);
-              } while(m >= nflex);
-              
-              nflex=0;
-              for(i=0;i<graph->nedge[ii];i++)
-              {
-               ak = graph->edge[ii][i];
-               if(graph->nedge[ak] > 1)
-               {
-                if(nflex == m) 
-                {
-                 state->mc_move.rot_bond.ai=ii;
-                 state->mc_move.rot_bond.aj=ak;
-                 break;
-                }
-                nflex++;
-               }
-              }
-              state->mc_move.rot_bond.value = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->dihedral_rot/180.0;
-             }
-             else
-             {
-              state->mc_move.rot_bond.nr = -1;   /* No bonds to be rotated */
+              set_mcmove(&(state->mc_move.rot_dihedral),rng,(M_PI*ir->dihedral_rot/180.0),2,state->mc_move.start);
              }
             }
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,
@@ -2588,10 +2537,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         close_trj(status);
     }
     
-    if(bMC) 
-    {
-     sfree(state->mc_move.rot_bond.list);
-    }
     if (!(cr->duty & DUTY_PME))
     {
         /* Tell the PME only node to finish */
