@@ -145,7 +145,7 @@ void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      aj = mc_move->stretch_bond.aj;
      nr = 0;
      bond_rot(graph,ai,aj,list_r,&nr);
-
+     list=list_r;
      copy_rvec(x[aj],r1);
      rvec_sub(x[aj],x[ai],r_ij);
      unitv(r_ij,u1);
