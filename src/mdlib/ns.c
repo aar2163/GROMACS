@@ -2434,7 +2434,24 @@ void init_ns(FILE *fplog,const t_commrec *cr,
     }
 }
 
-			 
+void set_bexclude_mc(gmx_localtop_t *top,
+                     gmx_mc_move *mc_move,
+                     t_forcerec *fr,
+                     bool bExclude)
+{
+ int ii;
+	 
+ fr->n_mc=bExclude;
+ for(ii=0;ii<top->cgs.nr;ii++) 
+ {
+   if(top->cgs.index[ii] >= mc_move->start && top->cgs.index[ii] < mc_move->end) {
+    fr->ns.bExcludeMC[ii] = FALSE;
+   }
+   else {
+    fr->ns.bExcludeMC[ii] = bExclude;
+   }
+ }
+}
 int search_neighbours(FILE *log,t_forcerec *fr,
                       rvec x[],matrix box,
                       gmx_localtop_t *top,

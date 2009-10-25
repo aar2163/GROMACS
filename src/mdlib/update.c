@@ -309,11 +309,10 @@ static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
  
   b_translate = (norm(mc_move->delta_x) > 0);
   b_rotate = (norm(mc_move->delta_phi) > 0);
-  //snew(list_r,mc_move->nr);
-  //snew(list_l,mc_move->nr);
 
    if(b_rotate) 
    {
+    clear_rvec(xcm);
     for(k=start;k<end;k++) {
      rvec_add(x[k],xcm,xcm);
     } 

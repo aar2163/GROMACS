@@ -1754,15 +1754,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             if(bMC)
             {
               if(step_rel && !update_box) {
-               fr->n_mc=TRUE;
-               for(ii=0;ii<top->cgs.nr;ii++) {
-                if(top->cgs.index[ii] >= state->mc_move.start && top->cgs.index[ii] < state->mc_move.end) {
-                 fr->ns.bExcludeMC[ii] = FALSE;
-                }
-                else {
-                 fr->ns.bExcludeMC[ii] = TRUE;
-                }
-               }
+               set_bexclude_mc(top,&(state->mc_move),fr,TRUE);
               }
               if(step_rel) {
                do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
@@ -1798,15 +1790,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
 
             //printf("enerd1 %f\n",enerd->term[F_EPOT]);
               if(!update_box) {
-               fr->n_mc=FALSE;
-               for(ii=0;ii<top->cgs.nr;ii++) {
-                if(top->cgs.index[ii] >= state->mc_move.start && top->cgs.index[ii] < state->mc_move.end) {
-                 fr->ns.bExcludeMC[ii] = FALSE;
-                }
-                else {
-                 fr->ns.bExcludeMC[ii] = FALSE;
-                }
-               }
+               set_bexclude_mc(top,&(state->mc_move),fr,FALSE);
               }
             /*do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      boxcopy,xcopy,&state->hist,

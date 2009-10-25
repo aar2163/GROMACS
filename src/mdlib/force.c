@@ -1773,7 +1773,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
     static int     timesteps=0;
     
 #define PRINT_SEPDVDL(s,v,dvdl) if (bSepDVDL) fprintf(fplog,sepdvdlformat,s,v,dvdl);
-    
     GMX_MPE_LOG(ev_force_start);
     /* Reset box */
     for(i=0; (i<DIM); i++)
@@ -1919,7 +1918,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
     debug_gmx();
     
     GMX_MPE_LOG(ev_do_fnbf_finish);
-    
     if (debug)
     {
         pr_rvecs(debug,0,"fshift after SR",fr->fshift,SHIFTS);

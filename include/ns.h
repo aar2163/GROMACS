@@ -93,6 +93,11 @@ extern int search_neighbours(FILE *log,t_forcerec *fr,
 			     bool bDoLongRange,
 			     bool bDoForces,rvec *f);
  
+/* Sets active molecules in MC calculations */
+void set_bexclude_mc(gmx_localtop_t *top,
+                     gmx_mc_move *mc_move,
+                     t_forcerec *fr,
+                     bool bExclude);
 
 /* Debugging routines from wnblist.c */
 extern void dump_nblist(FILE *out,t_commrec *cr,t_forcerec *fr,int nDNL);
