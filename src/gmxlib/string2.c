@@ -37,11 +37,6 @@
 #include <config.h>
 #endif
 
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #ifdef GMX_CRAY_XT3
 #undef HAVE_PWD_H
 #endif
@@ -51,6 +46,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/types.h>
+
 #ifdef HAVE_PWD_H
 #include <pwd.h>
 #endif
@@ -282,6 +278,79 @@ gmx_strndup(const char *src, int n)
     return dest;
 }
 
+/*!
+ * \param[in] pattern  Pattern to match against.
+ * \param[in] str      String to match.
+ * \returns   0 on match, GMX_NO_WCMATCH if there is no match.
+ *
+ * Matches \p str against \p pattern, which may contain * and ? wildcards.
+ * All other characters are matched literally.
+ * Currently, it is not possible to match literal * or ?.
+ */
+int
+gmx_wcmatch(const char *pattern, const char *str)
+{
+    while (*pattern)
+    {
+        if (*pattern == '*')
+        {
+            /* Skip multiple wildcards in a sequence */
+            while (*pattern == '*' || *pattern == '?')
+            {
+                ++pattern;
+                /* For ?, we need to check that there are characters left
+                 * in str. */
+                if (*pattern == '?')
+                {
+                    if (*str == 0)
+                    {
+                        return GMX_NO_WCMATCH;
+                    }
+                    else
+                    {
+                        ++str;
+                    }
+                }
+            }
+            /* If the pattern ends after the star, we have a match */
+            if (*pattern == 0)
+            {
+                return 0;
+            }
+            /* Match the rest against each possible suffix of str */
+            while (*str)
+            {
+                /* Only do the recursive call if the first character
+                 * matches. We don't have to worry about wildcards here,
+                 * since we have processed them above. */
+                if (*pattern == *str)
+                {
+                    int rc;
+                    /* Match the suffix, and return if a match or an error */
+                    rc = gmx_wcmatch(pattern, str);
+                    if (rc != GMX_NO_WCMATCH)
+                    {
+                        return rc;
+                    }
+                }
+                ++str;
+            }
+            /* If no suffix of str matches, we don't have a match */
+            return GMX_NO_WCMATCH;
+        }
+        else if ((*pattern == '?' && *str != 0) || *pattern == *str)
+        {
+            ++str;
+        }
+        else
+        {
+            return GMX_NO_WCMATCH;
+        }
+        ++pattern;
+    }
+    return 0;
+}
+
 char *wrap_lines(const char *buf,int line_width, int indent,bool bIndentFirst)
 {
   char *b2;
@@ -399,11 +468,11 @@ char **split(char sep,char *str)
 }
 
 
-gmx_step_t
-str_to_gmx_step_t(const char *str, char **endptr)
+gmx_large_int_t
+str_to_large_int_t(const char *str, char **endptr)
 {
 	int         sign = 1;
-	gmx_step_t  val  = 0;
+	gmx_large_int_t  val  = 0;
 	char        ch;
 	const char  *p;
 	
@@ -450,3 +519,38 @@ str_to_gmx_step_t(const char *str, char **endptr)
 	
 	return val;
 }
+
+char *gmx_strsep(char **stringp, const char *delim)
+{
+    char *ret;
+    int len=strlen(delim);
+    int i,j=0;
+    int found=0;
+
+    if (! *stringp)
+        return NULL;
+    ret=*stringp;
+    do
+    {
+        if ( (*stringp)[j] == '\0')
+        {
+            found=1;
+            *stringp=NULL;
+            break;
+        }
+        for (i=0;i<len;i++)
+        {
+            if ( (*stringp)[j]==delim[i])
+            {
+                (*stringp)[j]='\0';
+                *stringp=*stringp+j+1;
+                found=1;
+                break;
+            }
+        }
+        j++;
+    } while (!found);
+
+    return ret;
+}
+

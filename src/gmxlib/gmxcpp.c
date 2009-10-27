@@ -45,6 +45,12 @@
 #include <limits.h>
 #include <ctype.h>
 
+/* Necessary for getcwd */
+#if ((defined WIN32 || defined _WIN32 || defined WIN64 || defined _WIN64) && !defined __CYGWIN__ && !defined __CYGWIN32__)
+#include <direct.h>
+#include <io.h>
+#endif
+
 #include "string2.h"
 #include "smalloc.h"
 #include "futil.h"
@@ -66,6 +72,7 @@ enum { eifTRUE, eifFALSE, eifIGNORE, eifNR };
 
 typedef struct gmx_cpp {
   FILE     *fp;
+  char     *path,*cwd;
   char     *fn;
   int      line_len;
   char     *line;
@@ -149,11 +156,12 @@ static void add_define(const char *define)
 
 /* Open the file to be processed. The handle variable holds internal
    info for the cpp emulator. Return integer status */
-int cpp_open_file(char *filenm,gmx_cpp_t *handle, char **cppopts)
+int cpp_open_file(const char *filenm,gmx_cpp_t *handle, char **cppopts)
 {
   gmx_cpp_t cpp;
-  char *buf;
+  char *buf,*ptr,*pdum;
   int i;
+  unsigned int i1;
   
   /* First process options, they might be necessary for opening files
      (especially include statements). */  
@@ -172,7 +180,29 @@ int cpp_open_file(char *filenm,gmx_cpp_t *handle, char **cppopts)
   
   snew(cpp,1);
   *handle      = cpp;
-  cpp->fn      = strdup(filenm);
+  ptr = strrchr(filenm,'/');
+  if (NULL == ptr) {
+    cpp->path = NULL;
+    cpp->cwd  = NULL;
+    cpp->fn   = strdup(filenm);
+  }
+  else {
+    cpp->path = strdup(filenm);
+    cpp->path[ptr-filenm] = '\0';
+    cpp->fn   = strdup(ptr+1);
+    snew(cpp->cwd,STRLEN);
+      
+#if ((defined WIN32 || defined _WIN32 || defined WIN64 || defined _WIN64) && !defined __CYGWIN__ && !defined __CYGWIN32__)
+      pdum=_getcwd(cpp->cwd,STRLEN);
+      _chdir(cpp->path);
+#else
+      pdum=getcwd(cpp->cwd,STRLEN);
+      chdir(cpp->path);
+#endif
+      
+    if (NULL != debug)
+      fprintf(debug,"GMXCPP: chdir to %s\n",cpp->path);
+  }
   cpp->line_len= 0;
   cpp->line    = NULL;
   cpp->line_nr = 0;
@@ -213,6 +243,7 @@ int cpp_read_line(gmx_cpp_t *handlep,int n,char buf[])
 {
   gmx_cpp_t handle = (gmx_cpp_t)*handlep;
   int  i,i0,nn,len,status;
+  unsigned int i1;
   char *inc_fn,*ptr,*ptr2,*name;
   int  bIfdef,bIfndef;
   
@@ -303,10 +334,10 @@ int cpp_read_line(gmx_cpp_t *handlep,int n,char buf[])
   if (strstrw(buf,"#include") != NULL) {
     len = -1;
     i0  = 0;
-    for(i=0; (i<strlen(buf)); i++) {
-      if ((buf[i] == '"') || (buf[i] == '<') || (buf[i] == '>'))  {
+    for(i1=0; (i1<strlen(buf)); i1++) {
+      if ((buf[i1] == '"') || (buf[i1] == '<') || (buf[i1] == '>'))  {
 	if (len == -1) {
-	  i0 = i+1;
+	  i0 = i1+1;
 	  len = 0;
 	}
 	else
@@ -318,6 +349,7 @@ int cpp_read_line(gmx_cpp_t *handlep,int n,char buf[])
     snew(inc_fn,len+1);
     strncpy(inc_fn,buf+i0,len);
     inc_fn[len] = '\0';
+    
     if (debug)
       fprintf(debug,"Going to open include file '%s' i0 = %d, strlen = %d\n",
 	      inc_fn,i0,len);
@@ -409,8 +441,18 @@ int cpp_close_file(gmx_cpp_t *handlep)
   if (debug)
     fprintf(debug,"Closing file %s\n",handle->fn);
   fclose(handle->fp);
+  if (NULL != handle->cwd) {
+    if (NULL != debug)
+      fprintf(debug,"GMXCPP: chdir to %s\n",handle->cwd);
+#if ((defined WIN32 || defined _WIN32 || defined WIN64 || defined _WIN64) && !defined __CYGWIN__ && !defined __CYGWIN32__)
+      _chdir(handle->cwd);
+#else
+      chdir(handle->cwd);
+#endif
+  }
   
-  if (0)switch(errno) {
+  if (0)
+    switch(errno) {
   case 0:
     break;
   case ENOENT:
@@ -426,18 +468,22 @@ int cpp_close_file(gmx_cpp_t *handlep)
   }
   handle->fp = NULL;
   handle->line_nr = 0;
-  if (handle->fn) {
+  if (NULL != handle->fn) {
     sfree(handle->fn);
     handle->fn = NULL;
   }
-  if (handle->line) {
+  if (NULL != handle->line) {
     sfree(handle->line);
     handle->line = NULL;
   }
-  if (handle->ifdefs) 
+  if (NULL != handle->ifdefs) 
     sfree(handle->ifdefs);
   handle->nifdef = 0;
-  
+  if (NULL != handle->path)
+    sfree(handle->path);
+  if (NULL != handle->cwd)
+    sfree(handle->cwd);
+    
   return eCPP_OK;
 }
 

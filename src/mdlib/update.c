@@ -103,7 +103,7 @@ typedef struct gmx_update
     rvec *xp;
     int  xp_nalloc;
     /* Variables for the deform algorithm */
-    gmx_step_t deformref_step;
+    gmx_large_int_t deformref_step;
     matrix     deformref_box;
 } t_gmx_update;
 
@@ -180,7 +180,6 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      list = list_r;
 
      ak=list[0];
-     //printf("to aki %d %d %d\n",ai-start,aj-start,ak-start);
      rvec_sub(x[aj],x[ai],r_ij);
      rvec_sub(x[aj],x[ak],r_kj);
      cprod(r_ij,r_kj,r1);
@@ -190,21 +189,18 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      unitv(r1,u2);
      unitv(r2,u3);
     
-     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; //basis[XX][3] = 0;
-     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; //basis[YY][3] = 0;
-     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; //basis[ZZ][3] = 0;
-     //basis[3][XX]  = 0;      basis[3][YY]  = 0;      basis[3][ZZ]  = 0;      basis[3][3]  = 1;
+     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; 
+     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; 
+     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; 
 
-     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; //basis_inv[XX][3] = 0;
-     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; //basis_inv[YY][3] = 0;
-     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; //basis_inv[ZZ][3] = 0;
-//     basis_inv[3][XX]  = 0;             basis_inv[3][YY]  = 0;             basis_inv[3][ZZ]  = 0;             basis_inv[3][3]  = 1;
+     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; 
+     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; 
+     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; 
 
 
      clear_rvec(xcm);
      clear_rvec(delta_phi);
      delta_phi[XX]=mc_move->rot_dihedral.value;
-     //delta_phi[XX]=0;
 
      
      for(k=0;k<nr;k++) {
@@ -245,27 +241,23 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      unitv(r1,u1);
      unitv(r2,u3);
     
-     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; //basis[XX][3] = 0;
-     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; //basis[YY][3] = 0;
-     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; //basis[ZZ][3] = 0;
-     //basis[3][XX]  = 0;      basis[3][YY]  = 0;      basis[3][ZZ]  = 0;      basis[3][3]  = 1;
+     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; 
+     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; 
+     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; 
 
-     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; //basis_inv[XX][3] = 0;
-     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; //basis_inv[YY][3] = 0;
-     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; //basis_inv[ZZ][3] = 0;
-//     basis_inv[3][XX]  = 0;             basis_inv[3][YY]  = 0;             basis_inv[3][ZZ]  = 0;             basis_inv[3][3]  = 1;
+     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; 
+     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; 
+     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; 
 
 
      clear_rvec(xcm);
      clear_rvec(delta_phi);
      delta_phi[XX]=mc_move->bend_angle.value;
-     //delta_phi[XX]=0;
 
      list[nr++]=ak;
 
      for(k=0;k<nr;k++) {
       al=list[k];
- //     printf("to aki ai %d aj %d ak %d al %d start %d\n",ai-mc_move->start,aj-mc_move->start,ak-mc_move->start,al-mc_move->start,mc_move->start);
       rvec_sub(x[al],x[aj],r_lj);
       mvmul(basis_inv,r_lj,r1);
       rand_rot_mc(r1,xrot,delta_phi,xcm);
@@ -285,7 +277,6 @@ void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int sta
  do {
   i=(int)(gmx_rng_uniform_real(rng)*k);
  } while(i >= k);
-
  group->ai = start + (group->ilist)->iatoms[delta*i];
  group->aj = start + (group->ilist)->iatoms[delta*i+1];
 
@@ -995,7 +986,7 @@ restore_ekinstate_from_state(t_commrec *cr,
   }
 }
 
-void set_deform_reference_box(gmx_update_t upd,gmx_step_t step,matrix box)
+void set_deform_reference_box(gmx_update_t upd,gmx_large_int_t step,matrix box)
 {
     upd->deformref_step = step;
     copy_mat(box,upd->deformref_box);
@@ -1003,7 +994,7 @@ void set_deform_reference_box(gmx_update_t upd,gmx_step_t step,matrix box)
 
 static void deform(gmx_update_t upd,
                    int start,int homenr,rvec x[],matrix box,matrix *scale_tot,
-                   const t_inputrec *ir,gmx_step_t step)
+                   const t_inputrec *ir,gmx_large_int_t step)
 {
     matrix bnew,invbox,mu;
     real   elapsed_time;
@@ -1062,7 +1053,7 @@ static void deform(gmx_update_t upd,
 static void combine_forces(int nstlist,
                            gmx_constr_t constr,
                            t_inputrec *ir,t_mdatoms *md,t_idef *idef,
-                           t_commrec *cr,gmx_step_t step,t_state *state,
+                           t_commrec *cr,gmx_large_int_t step,t_state *state,
                            int start,int homenr,
                            rvec f[],rvec f_lr[],
                            t_nrnb *nrnb)
@@ -1100,7 +1091,7 @@ static void combine_forces(int nstlist,
 }
 
 void update(FILE         *fplog,
-            gmx_step_t   step,
+            gmx_large_int_t   step,
             real         *dvdlambda,    /* FEP stuff */
             t_inputrec   *inputrec,     /* input record and box stuff	*/
             t_mdatoms    *md,

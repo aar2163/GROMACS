@@ -49,6 +49,10 @@
 #include "time.h"
 #include "readinp.h"
 
+/* The source code in this file should be thread-safe. 
+         Please keep it that way. */
+
+
 typedef struct {
   const char *search,*replace;
 } t_sandr_const;
@@ -194,7 +198,7 @@ static char *mydate(char buf[], int maxsize,bool bWiki)
 }
 
 /* Data structure for saved HTML links */
-typedef struct {
+typedef struct t_linkdata {
   int     nsr;
   t_sandr *sr;
 } t_linkdata;
@@ -505,7 +509,7 @@ char *check_tty(const char *s)
   return repall(s,NSRTTY,sandrTty);
 }
 
-static void
+void
 print_tty_formatted(FILE *out, int nldesc, const char **desc,int indent,
                     t_linkdata *links,const char *program,bool bWiki)
 {
@@ -523,7 +527,7 @@ print_tty_formatted(FILE *out, int nldesc, const char **desc,int indent,
       temp=NWR(desc[i]);
     else
       temp=check_tty(desc[i]);
-    if (strlen(buf) + strlen(temp) >= buflen-2) {
+    if (strlen(buf) + strlen(temp) >= (size_t)(buflen-2)) {
       buflen += strlen(temp);
       srenew(buf,buflen);
     }
@@ -534,7 +538,7 @@ print_tty_formatted(FILE *out, int nldesc, const char **desc,int indent,
   temp = wrap_lines(buf,78,indent,FALSE);
   fprintf(out,"%s\n",temp);
   sfree(temp);
-  /* sfree(buf);*/
+  sfree(buf);
 }
 
 static void write_ttyman(FILE *out,

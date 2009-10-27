@@ -39,8 +39,8 @@
 #ifdef GMX_LIB_MPI
 #include <mpi.h>
 #endif
-#ifdef GMX_THREAD_MPI
-#include "thread_mpi.h"
+#ifdef GMX_THREADS
+#include "tmpi.h"
 #endif
 
 #include "idef.h"
@@ -98,6 +98,23 @@ typedef struct {
   /* Normal vectors for the cells walls */
   rvec normal[DIM];
 } gmx_ddbox_t;
+
+
+#if defined(GMX_MPI) && !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
+typedef struct {
+  /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
+     supported.*/
+  float *ibuf; /* for ints */
+  int ibuf_alloc;
+
+  float *fbuf; /* for floats */
+  int fbuf_alloc;
+
+  double *dbuf; /* for doubles */
+  int dbuf_alloc;
+} mpi_in_place_buf_t;
+#endif
+
 
 typedef struct {
   /* The DD particle-particle nodes only */
@@ -187,7 +204,13 @@ typedef struct {
   gmx_domdec_comm_p_t comm;
 
   /* The partioning count, to keep track of the state */
-  gmx_step_t ddp_count;
+  gmx_large_int_t ddp_count;
+
+
+  /* gmx_pme_recv_f buffer */
+  int pme_recv_f_alloc;
+  rvec *pme_recv_f_buf;
+
 } gmx_domdec_t;
 
 typedef struct gmx_partdec *gmx_partdec_p_t;
@@ -198,6 +221,11 @@ typedef struct {
 #ifdef GMX_MPI
   MPI_Group mpi_group_masters;
   MPI_Comm mpi_comm_masters;
+#if !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
+  /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
+     supported.*/
+  mpi_in_place_buf_t *mpb;
+#endif
 #endif
 } gmx_multisim_t;
 
@@ -232,7 +260,7 @@ typedef struct {
   MPI_Comm mpi_comm_mygroup;
 #endif
 
-#ifdef GMX_THREAD
+#ifdef GMX_THREAD_SHM_FDECOMP
   gmx_commrec_thread_t thread;
 #endif
 
@@ -248,6 +276,12 @@ typedef struct {
   int duty;
 
   gmx_multisim_t *ms;
+
+#if defined(GMX_MPI) && !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
+  /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
+     supported.*/
+  mpi_in_place_buf_t *mpb;
+#endif
 } t_commrec;
 
 #define MASTERNODE(cr)     ((cr)->nodeid == 0)

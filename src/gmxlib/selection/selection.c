@@ -122,7 +122,8 @@
  * semicolons. Each selection defines a set of positions for the analysis.
  * Each selection can also be preceded by a string that gives a name for
  * the selection for use in, e.g., graph legends.
- * If no name is provided, a name like "Selection 3" is generated automatically.
+ * If no name is provided, a the string used for the selection is used
+ * automatically.
  * It is also possible to use variables to store selection expressions.
  * A variable is defined with the following syntax:
 \verbatim
@@ -180,6 +181,8 @@ VARNAME = EXPR ;
  *    a single position), i.e., atoms in the solid angle spanned by the
  *    positions in POS_EXPR and centered at POS
  *    (see \subpage sm_insolidangle "detailed explanation").
+ *  - <tt>same residue as ATOM_EXPR</tt>:
+ *    Selects any atoms that are in a same residue with any atom in ATOM_EXPR.
  *
  * For string-based selection keywords, it is possible to use wildcards
  * (e.g., <tt>name "C*"</tt>) or regular expressions
@@ -192,7 +195,7 @@ VARNAME = EXPR ;
  *
  * In addition, the following keywords yield numeric values that can
  * be compared with each other or constant values to select a subset of
- * the particles (\p resnr can also be used in this way):
+ * the particles (\p resnr and similar keywords can also be used in this way):
  *  - <tt>distance from POS [cutoff REAL]</tt>: calculates the distance from
  *    POS
  *  - <tt>mindistance from POS_EXPR [cutoff REAL]</tt>: calculates the minimum
@@ -275,11 +278,11 @@ resname RES and rdist < 6;
  * and fill it with the necessary information.
  * Details can be found on a separate page: \ref selmethods.
  */
-/*! \file
+/*! \internal \file
  * \brief
  * Implementation of functions in selection.h.
  */
-/*! \dir src/gmxlib/selection
+/*! \internal \dir src/gmxlib/selection
  * \brief
  * Source code for selection-related routines.
  */
@@ -551,6 +554,7 @@ void
 gmx_ana_selection_free(gmx_ana_selection_t *sel)
 {
     sfree(sel->name);
+    sfree(sel->selstr);
     gmx_ana_pos_deinit(&sel->p);
     if (sel->m != sel->orgm)
     {
@@ -621,14 +625,15 @@ gmx_ana_selection_init_coverfrac(gmx_ana_selection_t *sel, e_coverfrac_t type)
 /*!
  * \param[in] out  Output file.
  * \param[in] sc   Selection collection which should be written.
+ * \param[in] oenv Output options structure.
  */
-void
-xvgr_selcollection(FILE *out, gmx_ana_selcollection_t *sc)
+void xvgr_selcollection(FILE *out, gmx_ana_selcollection_t *sc,
+                        const output_env_t oenv)
 {
     char  *buf;
     char  *p, *nl;
 
-    if (bPrintXvgrCodes() && sc && sc->selstr)
+    if (get_print_xvgr_codes(oenv) && sc && sc->selstr)
     {
         fprintf(out, "# Selections:\n");
         buf = strdup(sc->selstr);

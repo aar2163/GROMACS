@@ -188,7 +188,7 @@ static void write_constr_pdb(const char *fn,const char *title,
   gmx_fio_fclose(out);
 }
 			     
-static void dump_confs(FILE *fplog,gmx_step_t step,gmx_mtop_t *mtop,
+static void dump_confs(FILE *fplog,gmx_large_int_t step,gmx_mtop_t *mtop,
 		       int start,int homenr,t_commrec *cr,
 		       rvec x[],rvec xprime[],matrix box)
 {
@@ -224,14 +224,14 @@ bool constrain(FILE *fplog,bool bLog,bool bEner,
                struct gmx_constr *constr,
                t_idef *idef,t_inputrec *ir,
                t_commrec *cr,
-               gmx_step_t step,int delta_step,
+               gmx_large_int_t step,int delta_step,
                t_mdatoms *md,
                rvec *x,rvec *xprime,rvec *min_proj,matrix box,
                real lambda,real *dvdlambda,
                rvec *v,tensor *vir,
                t_nrnb *nrnb,int econq)
 {
-    bool    bOK;
+    bool    bOK,bDump;
     int     start,homenr;
     int     i,j;
     int     ncons,error;
@@ -247,7 +247,8 @@ bool constrain(FILE *fplog,bool bLog,bool bEner,
         gmx_incons("constrain called for forces displacements while not doing energy minimization, can not do this while the LINCS and SETTLE constraint connection matrices are mass weighted");
     }
     
-    bOK = TRUE;
+    bOK   = TRUE;
+    bDump = FALSE;
     
     start  = md->start;
     homenr = md->homenr;
@@ -281,10 +282,14 @@ bool constrain(FILE *fplog,bool bLog,bool bEner,
                               invdt,v,vir!=NULL,rmdr,
                               econq,nrnb,
                               constr->maxwarn,&constr->warncount_lincs);
-        if (!bOK && constr->maxwarn >= 0 && fplog)
+        if (!bOK && constr->maxwarn >= 0)
         {
-            fprintf(fplog,"Constraint error in algorithm %s at step %s\n",
-                    econstr_names[econtLINCS],gmx_step_str(step,buf));
+            if (fplog != NULL)
+            {
+                fprintf(fplog,"Constraint error in algorithm %s at step %s\n",
+                        econstr_names[econtLINCS],gmx_step_str(step,buf));
+            }
+            bDump = TRUE;
         }
     }	
     
@@ -300,10 +305,14 @@ bool constrain(FILE *fplog,bool bLog,bool bEner,
                       idef,ir,box,x,xprime,nrnb,
                       constr->lagr,lambda,dvdlambda,
                       invdt,v,vir!=NULL,rmdr,constr->maxwarn>=0);
-        if (!bOK && constr->maxwarn >= 0 && fplog)
+        if (!bOK && constr->maxwarn >= 0)
         {
-            fprintf(fplog,"Constraint error in algorithm %s at step %s\n",
-                    econstr_names[econtSHAKE],gmx_step_str(step,buf));
+            if (fplog != NULL)
+            {
+                fprintf(fplog,"Constraint error in algorithm %s at step %s\n",
+                        econstr_names[econtSHAKE],gmx_step_str(step,buf));
+            }
+            bDump = TRUE;
         }
     }
     
@@ -347,6 +356,7 @@ bool constrain(FILE *fplog,bool bLog,bool bEner,
                 {
                     too_many_constraint_warnings(-1,constr->warncount_settle);
                 }
+                bDump = TRUE;
                 break;
             case econqVeloc:
             case econqDeriv:
@@ -396,7 +406,7 @@ bool constrain(FILE *fplog,bool bLog,bool bEner,
         }
     }
     
-    if (!bOK && constr->maxwarn >= 0)
+    if (bDump)
     {
         dump_confs(fplog,step,constr->warn_mtop,start,homenr,cr,x,xprime,box);
     }

@@ -262,11 +262,11 @@ void push_at (t_symtab *symtab, gpp_atomtype_t at, t_bond_atomtype bat,
   
   /* optional fields */
   surftens  = -1;
-  vol       =  0;
-  radius    =  0;
-  gb_radius =  0;
+  vol       = -1;
+  radius    = -1;
+  gb_radius = -1;
   atomnr    = -1;
-  S_hct     =  0;
+  S_hct     = -1;
 	
   switch (nb_funct) {
       
@@ -594,7 +594,8 @@ void push_bt(directive d,t_params bt[],int nral,
     warning_error(errbuf);
     return;
   }
-  ft    = atoi(alc[nral]);
+  
+  ft    = strtol(alc[nral],NULL,10);
   ftype = ifunc_index(d,ft);
   nrfp  = NRFP(ftype);
   nrfpA = interaction_function[ftype].nrfpA;
@@ -683,7 +684,7 @@ void push_dihedraltype(directive d,t_params bt[],
   nn=sscanf(line,formal[4],alc[0],alc[1],alc[2],alc[3],alc[4]);
   if(nn>=3 && strlen(alc[2])==1 && isdigit(alc[2][0])) {
     nral=2;
-    ft    = atoi(alc[nral]);
+    ft    = strtol(alc[nral],NULL,10);
     /* Move atom types around a bit and use 'X' for wildcard atoms
      * to create a 4-atom dihedral definition with arbitrary atoms in
      * position 1 and 4.
@@ -703,7 +704,7 @@ void push_dihedraltype(directive d,t_params bt[],
     }
   } else if(nn==5 && strlen(alc[4])==1 && isdigit(alc[4][0])) {
     nral=4;
-    ft    = atoi(alc[nral]);
+    ft    = strtol(alc[nral],NULL,10);
   } else {
     sprintf(errbuf,"Incorrect number of atomtypes for dihedral (%d instead of 2 or 4)",nn-1);
     warning_error(errbuf);
@@ -943,9 +944,9 @@ push_cmaptype(directive d, t_params bt[], int nral, gpp_atomtype_t at,
 	/* start is the position on the line where we start to read the actual cmap grid data from the itp file */
 	start = start + nn -1; 
 	
-	ft     = atoi(alc[nral]);
-	nxcmap = atoi(alc[nral+1]);
-	nycmap = atoi(alc[nral+2]);
+	ft     = strtol(alc[nral],NULL,10);
+	nxcmap = strtol(alc[nral+1],NULL,10);
+	nycmap = strtol(alc[nral+2],NULL,10);
 	
 	/* Check for equal grid spacing in x and y dims */
 	if(nxcmap!=nycmap)
@@ -955,8 +956,8 @@ push_cmaptype(directive d, t_params bt[], int nral, gpp_atomtype_t at,
 	
 	ncmap  = nxcmap*nycmap;
 	ftype = ifunc_index(d,ft);
-	nrfpA = atoi(alc[6])*atoi(alc[6]);
-	nrfpB = atoi(alc[7])*atoi(alc[7]);
+	nrfpA = strtol(alc[6],NULL,10)*strtol(alc[6],NULL,10);
+	nrfpB = strtol(alc[7],NULL,10)*strtol(alc[7],NULL,10);
 	nrfp  = nrfpA+nrfpB;
 	
 	/* Allocate memory for the CMAP grid */
@@ -969,7 +970,7 @@ push_cmaptype(directive d, t_params bt[], int nral, gpp_atomtype_t at,
 	{
 		nn=sscanf(line+start+sl,"%s",s);
 		sl+=strlen(s)+1;
-		bt->cmap[i+(bt->ncmap)-nrfp]=atof(s);
+		bt->cmap[i+(bt->ncmap)-nrfp]=strtod(s,NULL);
 		
 		if(nn==1)
 		{
@@ -1076,7 +1077,7 @@ static void push_atom_now(t_symtab *symtab,t_atoms *at,int atomnr,
 		resnumberic,atomnr);
     }
   }
-  resnr = atoi(resnumberic);
+  resnr = strtol(resnumberic,NULL,10);
 
   if (nr > 0) {
     resind = at->atom[nr-1].resind;
@@ -2259,14 +2260,18 @@ static void decouple_atoms(t_atoms *atoms,int atomtype_decouple,
   int i;
 
   for(i=0; i<atoms->nr; i++) {
-    if (couple_lam0 != ecouplamVDWQ)
+    if (couple_lam0 == ecouplamNONE || couple_lam0 == ecouplamVDW) {
       atoms->atom[i].q     = 0.0;
-    if (couple_lam0 == ecouplamNONE)
+    }
+    if (couple_lam0 == ecouplamNONE || couple_lam0 == ecouplamQ) {
       atoms->atom[i].type  = atomtype_decouple;
-    if (couple_lam1 != ecouplamVDWQ)
+    }
+    if (couple_lam1 == ecouplamNONE || couple_lam1 == ecouplamVDW) {
       atoms->atom[i].qB    = 0.0;
-    if (couple_lam1 == ecouplamNONE)
+    }
+    if (couple_lam1 == ecouplamNONE || couple_lam1 == ecouplamQ) {
       atoms->atom[i].typeB = atomtype_decouple;
+    }
   }
 }
 
