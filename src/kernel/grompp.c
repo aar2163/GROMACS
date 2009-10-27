@@ -420,6 +420,24 @@ new_status(const char *topfile,const char *topppfile,const char *confin,
 
   *nmi = nrmols;
   *mi  = molinfo;
+  
+  if(ir->eI != eiMC) {
+   for(i=0;i<nrmols;i++) {
+    if(molinfo[i].mc_bonds.nr > 0) {
+     gmx_fatal(FARGS,"Your are defining MC active bonds "
+		"in a non-MC simulation");
+    }
+    if(molinfo[i].mc_angles.nr > 0) {
+     gmx_fatal(FARGS,"Your are defining MC active angles "
+		"in a non-MC simulation");
+    }
+    if(molinfo[i].mc_dihedrals.nr > 0) {
+     gmx_fatal(FARGS,"Your are defining MC active dihedrals "
+		"in a non-MC simulation");
+    }
+   }
+  }
+
 }
 
 static void cont_status(const char *slog,const char *ener,
