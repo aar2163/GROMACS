@@ -707,10 +707,6 @@ put_in_list(bool              bHaveVdW[],
                 {
                     continue;
                 }
-                else if (bExcludeMC && bExcludeMC[icg] && bExcludeMC[jcg]) 
-                {
-                   //continue;
-                }
                 
                 jj0 = index[jcg];
                 jwater = GET_CGINFO_SOLOPT(cginfo[jcg]);
