@@ -1605,7 +1605,7 @@ void do_index(const char* mdparin, const char *ndx,
 		"%d tau_t values",ntcg,nref_t,ntau_t);
   }
 
-  bSetTCpar = (ir->etc || EI_SD(ir->eI) || ir->eI==eiBD || EI_TPI(ir->eI) || EI_MC(ir->eI));
+  bSetTCpar = (ir->etc || EI_SD(ir->eI) || ir->eI==eiBD || EI_TPI(ir->eI) || ir->eI == eiMC);
   do_numbering(natoms,groups,ntcg,ptr3,grps,gnames,egcTC,
 	       restnm,bSetTCpar ? egrptpALL : egrptpALL_GENREST,bVerbose);
   nr = groups->grps[egcTC].nr;

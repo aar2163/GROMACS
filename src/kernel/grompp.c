@@ -421,7 +421,7 @@ new_status(const char *topfile,const char *topppfile,const char *confin,
   *nmi = nrmols;
   *mi  = molinfo;
   
-  if(ir->eI != eiMC) {
+  if(!EI_MC(ir->eI)) {
    for(i=0;i<nrmols;i++) {
     if(molinfo[i].mc_bonds.nr > 0) {
      gmx_fatal(FARGS,"Your are defining MC active bonds "

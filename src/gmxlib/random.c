@@ -87,6 +87,20 @@ static void low_mspeed(real tempi,
   }
 }
 
+real gsa_random(real T, real Tup,int seed) {
+ real dx,R,S;
+ real qv=1.5,qv1,exp1,exp2;
+ qv1=qv-1.0;
+ exp1=2.0/(3.0-qv);
+ exp2=1.0/qv1 - 0.5;
+ //seed=make_seed();
+ R=rando(&seed);
+ S=rando(&seed);
+ dx = Tup/pow(1.0+qv1*R*R/pow(T,exp1),exp2);
+ if (S <= 0.5) 
+  dx = - dx;
+ return dx;
+}
 void maxwell_speed(real tempi,int seed,gmx_mtop_t *mtop, rvec v[])
 {
   atom_id *dummy;

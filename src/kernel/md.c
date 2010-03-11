@@ -127,7 +127,7 @@ typedef struct {
 } gmx_intp_t;
 
 /* The array should match the eI array in include/types/enums.h */
-const gmx_intp_t integrator[eiNR] = { {do_md}, {do_steep}, {do_cg}, {do_md}, {do_md}, {do_nm}, {do_lbfgs}, {do_tpi}, {do_tpi}, {do_md}, {do_md} };
+const gmx_intp_t integrator[eiNR] = { {do_md}, {do_steep}, {do_cg}, {do_gsa}, {do_md}, {do_md}, {do_nm}, {do_lbfgs}, {do_tpi}, {do_tpi}, {do_md}, {do_md} };
 
 /* Static variables for temporary use with the deform option */
 static int    init_step_tpx;
@@ -2132,17 +2132,17 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
              
              if((state->mc_move.stretch_bond.ilist)->nr > 0) 
              {
-              set_mcmove(&(state->mc_move.stretch_bond),rng,ir->bond_stretch,2,state->mc_move.start);
+              set_mcmove(&(state->mc_move.stretch_bond),rng,ir->bond_stretch,2,state->mc_move.start,ir->eI);
              }
 
              if((state->mc_move.bend_angle.ilist)->nr > 0) 
              {
-              set_mcmove(&(state->mc_move.bend_angle),rng,(M_PI*ir->angle_bend/180.0),3,state->mc_move.start);
+              set_mcmove(&(state->mc_move.bend_angle),rng,(M_PI*ir->angle_bend/180.0),3,state->mc_move.start,ir->eI);
              }
 
              if((state->mc_move.rot_dihedral.ilist)->nr > 0) 
              {
-              set_mcmove(&(state->mc_move.rot_dihedral),rng,(M_PI*ir->dihedral_rot/180.0),2,state->mc_move.start);
+              set_mcmove(&(state->mc_move.rot_dihedral),rng,(M_PI*ir->dihedral_rot/180.0),2,state->mc_move.start,ir->eI);
              }
             }
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,

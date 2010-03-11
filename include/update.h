@@ -60,6 +60,12 @@ extern void get_stochd_state(gmx_update_t sd,t_state *state);
 /* Set the random in sd from state */
 extern void set_stochd_state(gmx_update_t sd,t_state *state);
 
+void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
+/* Makes a random move in x */ 
+
+void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
+void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
+void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
 /* Store the box at step step
  * as a reference state for simulations with box deformation.
  */
@@ -95,7 +101,7 @@ extern void update(FILE         *fplog,
      
 void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr);
 
-void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start);
+void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start,int eI);
 
 extern void calc_ke_part(t_state *state,t_grpopts *opts,t_mdatoms *md,
 			 gmx_ekindata_t *ekind,t_nrnb *nrnb);

@@ -430,6 +430,19 @@ static void copy_em_coords_back(em_state_t *ems,t_state *state,rvec *f)
   if (f != NULL)
     copy_rvec(ems->f[i],f[i]);
 }
+static void copy_em_state(em_state_t *ems1,em_state_t *ems2)
+{
+ int i;
+
+ for(i=0; (i<ems1->s.natoms); i++)
+    copy_rvec(ems1->s.x[i],ems2->s.x[i]);
+ ems2->s.natoms = ems1->s.natoms;
+ copy_mat(ems1->s.box,ems2->s.box);
+ ems2->epot =   ems1->epot;
+ ems2->fnorm =  ems1->fnorm;
+ ems2->fmax =   ems1->fmax;
+ ems2->a_fmax = ems1->a_fmax;
+}
 
 static void write_em_traj(FILE *fplog,t_commrec *cr,
                           int fp_trn,bool bX,bool bF,const char *confout,
@@ -2175,6 +2188,268 @@ double do_steep(FILE *fplog,t_commrec *cr,
   return 0;
 } /* That's all folks */
 
+double do_gsa(FILE *fplog,t_commrec *cr,
+                int nfile, const t_filenm fnm[],
+                const output_env_t oenv, bool bVerbose,bool bCompact,
+                int nstglobalcomm,
+                gmx_vsite_t *vsite,gmx_constr_t constr,
+                int stepout,
+                t_inputrec *inputrec,
+                gmx_mtop_t *top_global,t_fcdata *fcd,
+                t_state *state_global,
+                t_mdatoms *mdatoms,
+                t_nrnb *nrnb,gmx_wallcycle_t wcycle,
+                gmx_edsam_t ed,
+                t_forcerec *fr,
+                int repl_ex_nst,int repl_ex_seed,
+                real cpt_period,real max_hours,
+                unsigned long Flags,
+                gmx_runtime_t *runtime)
+{ 
+  const char *GSA="Generalized Simulated Annealing";
+  em_state_t *s_min,*s_try,*s_base;
+  rvec       *f_global;
+  gmx_localtop_t *top;
+  gmx_enerdata_t *enerd;
+  rvec   *f;
+  gmx_global_stat_t gstat;
+  t_graph    *graph;
+  real   stepsize,constepsize;
+  real   ustep,dvdlambda,fnormn;
+  int        fp_trn; 
+  ener_file_t fp_ene;
+  t_mdebin   *mdebin; 
+  bool   bDone,bAbort,do_x,do_f; 
+  tensor vir,pres; 
+  rvec   mu_tot;
+  int    nsteps;
+  int    count=0; 
+  int    steps_accepted=0; 
+  real d,delta,random,qa1=0.5;
+  real temp=1.0,tqt,qt1=0.5,Tup=1.0;
+  int seed;
+  double pq;
+  bool store;
+  gmx_mc_move mc_move;
+  gmx_rng_t   rng;
+  /* not used */
+  real   terminate=0;
+
+  s_min = init_em_state();
+  s_try = init_em_state();
+  s_base = init_em_state();
+
+  seed = make_seed();
+  rng=gmx_rng_init(seed);
+
+  tqt=pow(2,qt1)-1.0;
+
+  mc_move.stretch_bond.ilist = &top_global->moltype[0].mc_bonds;
+  mc_move.bend_angle.ilist = &top_global->moltype[0].mc_angles;
+  mc_move.rot_dihedral.ilist = &top_global->moltype[0].mc_dihedrals;
+
+  /* Init em and store the local state in s_try */
+  init_em(fplog,GSA,cr,inputrec,
+          state_global,top_global,s_base,&top,&f,&f_global,
+          nrnb,mu_tot,fr,&enerd,&graph,mdatoms,&gstat,vsite,constr,
+          nfile,fnm,&fp_trn,&fp_ene,&mdebin);
+	
+  init_em(fplog,GSA,cr,inputrec,
+          state_global,top_global,s_try,&top,&f,&f_global,
+          nrnb,mu_tot,fr,&enerd,&graph,mdatoms,&gstat,vsite,constr,
+          nfile,fnm,&fp_trn,&fp_ene,&mdebin);
+
+  init_em(fplog,GSA,cr,inputrec,
+          state_global,top_global,s_min,&top,&f,&f_global,
+          nrnb,mu_tot,fr,&enerd,&graph,mdatoms,&gstat,vsite,constr,
+          nfile,fnm,&fp_trn,&fp_ene,&mdebin);
+
+  /* Print to log file  */
+  print_date_and_time(fplog,cr->nodeid,"Started GSA",NULL);
+  wallcycle_start(wcycle,ewcRUN);
+    
+  /* Set variables for stepsize (in nm). This is the largest  
+   * step that we are going to make in any direction. 
+   */
+  ustep = inputrec->em_stepsize; 
+  stepsize = 0;
+  
+  /* Max number of steps  */
+  nsteps = inputrec->nsteps; 
+  
+  if (MASTER(cr)) 
+    /* Print to the screen  */
+    sp_header(stderr,GSA,inputrec->em_tol,nsteps);
+  if (fplog)
+    sp_header(fplog,GSA,inputrec->em_tol,nsteps);
+    
+  /**** HERE STARTS THE LOOP ****
+   * count is the counter for the number of steps 
+   * bDone will be TRUE when the minimization has converged
+   * bAbort will be TRUE when nsteps steps have been performed or when
+   * the stepsize becomes smaller than is reasonable for machine precision
+   */
+  count  = 0;
+  bDone  = FALSE;
+  bAbort = FALSE;
+  while( !bDone && !bAbort ) {
+    bAbort = (nsteps > 0) && (count==nsteps);
+    copy_em_state(s_base,s_try);
+    /* set new coordinates, except for first step */
+    if (count > 0) {
+     temp = tqt/(pow((1.0+count),qt1)-1.0);
+     clear_rvec(mc_move.delta_x);
+     clear_rvec(mc_move.delta_phi);
+             if(mc_move.stretch_bond.ilist->nr > 0) 
+             {
+              /* STRETCHING BONDS */
+              d=gsa_random(temp,Tup,seed)/100;
+              printf("d %f %d\n",d,mc_move.stretch_bond.ilist->nr);
+              set_mcmove(&(mc_move.stretch_bond),rng,d,2,0,inputrec->eI);
+              stretch_bonds(s_try->s.x,&mc_move,graph);
+             }
+
+             if((mc_move.bend_angle.ilist)->nr > 0) 
+             {
+              /* BENDING ANGLES */
+              d=gsa_random(temp,Tup,seed);
+              set_mcmove(&(mc_move.bend_angle),rng,0.0,3,mc_move.start,inputrec->eI);
+              bend_angles(s_try->s.x,&mc_move,graph);
+             }
+
+             if((mc_move.rot_dihedral.ilist)->nr > 0) 
+             {
+              d=gsa_random(temp,Tup,seed);
+              set_mcmove(&(mc_move.rot_dihedral),rng,0.0,2,mc_move.start,inputrec->eI);
+              rotate_dihedral(s_try->s.x,&mc_move,graph);
+             }
+    }
+    
+        printf("energy: %f - delta %f - step %d- random %f - pq %f %d %f\n",s_try->epot,delta,count,random,pq,top_global->mols.index[1],s_try->s.x[15][0]);
+    evaluate_energy(fplog,bVerbose,cr,
+		    state_global,top_global,s_try,top,
+		    inputrec,nrnb,wcycle,gstat,
+		    vsite,constr,fcd,graph,mdatoms,fr,
+		    mu_tot,enerd,vir,pres,count,count==0);
+	 
+        printf("energy: %f - delta %f - step %d- random %f - pq %f %d %f\n",s_try->epot,delta,count,random,pq,top_global->mols.index[1],s_try->s.x[15][0]);
+    if (MASTER(cr))
+      print_ebin_header(fplog,count,count,s_try->s.lambda);
+
+    if (count == 0)
+      s_min->epot = s_try->epot + 1;
+    
+      delta = s_try->epot-s_min->epot;
+      random=fabs(gsa_random(temp,Tup,seed));
+      pq=1.0/pow((1.0+qa1*delta/temp),(1/qa1)); 
+    /* Print it if necessary  */
+    if (MASTER(cr)) {
+      if (bVerbose) {
+	fprintf(stderr,"Step=%5d, Dmax= %6.1e nm, Epot= %12.5e Fmax= %11.5e, atom= %d%c",
+		count,ustep,s_try->epot,s_try->fmax,s_try->a_fmax+1,
+		(s_try->epot < s_min->epot) ? '\n' : '\r');
+      }
+      
+      store = ((delta < 0) || (delta >= 0 && random < pq)); 
+      if (store) {
+	/* Store the new (lower) energies  */
+	upd_mdebin(mdebin,NULL,TRUE,(double)count,
+		   mdatoms->tmass,enerd,&s_try->s,s_try->s.box,
+		   NULL,NULL,vir,pres,NULL,mu_tot,constr);
+	print_ebin(fp_ene,TRUE,
+		   do_per_step(steps_accepted,inputrec->nstdisreout),
+		   do_per_step(steps_accepted,inputrec->nstorireout),
+		   fplog,count,count,eprNORMAL,TRUE,
+		   mdebin,fcd,&(top_global->groups),&(inputrec->opts));
+	fflush(fplog);
+      }
+    } 
+    
+    /* Now if the new energy is smaller than the previous...  
+     * or if this is the first step!
+     * or if we did random steps! 
+     */
+    
+    if ( (count==0) || (store) ) {
+      steps_accepted++; 
+
+      /* Test whether the convergence criterion is met...  */
+      bDone = (s_try->fmax < inputrec->em_tol);
+      
+      /* Copy the arrays for force, positions and energy  */
+      /* The 'Min' array always holds the coords and forces of the minimal 
+	 sampled energy  */
+      copy_em_state(s_try,s_base);
+      if((count > 0 && delta < 0) || !count) {
+       copy_em_state(s_base,s_min);
+      }
+      if (count > 0)
+	ustep *= 1.2;
+
+      /* Write to trn, if necessary */
+      do_x = do_per_step(steps_accepted,inputrec->nstxout);
+      do_f = do_per_step(steps_accepted,inputrec->nstfout);
+      write_em_traj(fplog,cr,fp_trn,do_x,do_f,NULL,
+		    top_global,inputrec,count,
+		    s_min,state_global,f_global);
+    } 
+    else {
+      /* If energy is not smaller make the step smaller...  */
+      ustep *= 0.5;
+
+      if (DOMAINDECOMP(cr) && s_min->s.ddp_count != cr->dd->ddp_count) {
+	/* Reload the old state */
+	em_dd_partition_system(fplog,count,cr,top_global,inputrec,
+			       s_min,top,mdatoms,fr,vsite,constr,
+			       nrnb,wcycle);
+      }
+    }
+    
+    /* Determine new step  */
+    stepsize = ustep/s_min->fmax;
+    
+    /* Check if stepsize is too small, with 1 nm as a characteristic length */
+#ifdef GMX_DOUBLE
+    if (ustep < 1e-12)
+#else
+    if (ustep < 1e-6)
+#endif
+      {
+	if (MASTER(cr)) {
+	  warn_step(stderr,inputrec->em_tol,constr!=NULL);
+	  warn_step(fplog,inputrec->em_tol,constr!=NULL);
+	}
+	bAbort=TRUE;
+      }
+    
+    count++;
+  } /* End of the loop  */
+  
+    /* Print some shit...  */
+  if (MASTER(cr)) 
+    fprintf(stderr,"\nwriting lowest energy coordinates.\n"); 
+  write_em_traj(fplog,cr,fp_trn,TRUE,inputrec->nstfout,ftp2fn(efSTO,nfile,fnm),
+		top_global,inputrec,count,
+		s_min,state_global,f_global);
+
+  fnormn = s_min->fnorm/sqrt(state_global->natoms);
+
+  if (MASTER(cr)) {
+    print_converged(stderr,GSA,inputrec->em_tol,count,bDone,nsteps,
+		    s_min->epot,s_min->fmax,s_min->a_fmax,fnormn);
+    print_converged(fplog,GSA,inputrec->em_tol,count,bDone,nsteps,
+		    s_min->epot,s_min->fmax,s_min->a_fmax,fnormn);
+  }
+
+  finish_em(fplog,cr,fp_trn,fp_ene);
+  
+  /* To print the actual number of steps we needed somewhere */
+  inputrec->nsteps=count;
+
+  runtime->nsteps_done = count;
+  
+  return 0;
+} /* That's all folks */
 
 double do_nm(FILE *fplog,t_commrec *cr,
              int nfile,const t_filenm fnm[],

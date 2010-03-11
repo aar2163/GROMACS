@@ -119,6 +119,8 @@ extern gmx_integrator_t do_md;
 extern gmx_integrator_t do_steep;
 /* Do steepest descents EM */
 
+extern gmx_integrator_t do_gsa;
+/* Do Generalized Simulated Annealing optimization */
 extern gmx_integrator_t do_cg;
 /* Do conjugate gradient EM */
 
