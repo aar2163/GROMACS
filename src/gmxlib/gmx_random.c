@@ -303,7 +303,14 @@ gmx_rng_uniform_real(gmx_rng_t rng)
     */
 }
 
-
+int uniform_int(gmx_rng_t rng,int max)
+{
+ int ii;
+ do {
+  ii=(int)(gmx_rng_uniform_real(rng)*max);
+ } while(ii >= max);
+ return ii;
+}
 
 real 
 gmx_rng_gaussian_table(gmx_rng_t rng)

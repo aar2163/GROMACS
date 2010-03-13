@@ -50,8 +50,6 @@ extern real rando(int *seed);
  * random seed variable.
  */
 
-extern real gsa_random(real temp,real Tup,int seed);
-
 extern void maxwell_speed(real tempi,int seed, 
 			  gmx_mtop_t *mtop, rvec v[]);
 /* Generate velocites according to a maxwellian distribution */

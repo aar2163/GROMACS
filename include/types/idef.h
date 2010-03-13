@@ -128,6 +128,15 @@ enum {
   F_DHDL_CON,
   F_NRE		/* This number is for the total number of energies	*/
 };
+
+enum {
+MC_TRANSLATE,
+MC_ROTATE,
+MC_BONDS,
+MC_ANGLES,
+MC_DIHEDRALS,
+MC_NR
+};
   
 typedef union
 {

@@ -127,7 +127,7 @@ typedef struct {
 } gmx_intp_t;
 
 /* The array should match the eI array in include/types/enums.h */
-const gmx_intp_t integrator[eiNR] = { {do_md}, {do_steep}, {do_cg}, {do_gsa}, {do_md}, {do_md}, {do_nm}, {do_lbfgs}, {do_tpi}, {do_tpi}, {do_md}, {do_md} };
+const gmx_intp_t integrator[eiNR] = { {do_md}, {do_steep}, {do_cg}, {do_gsa}, {do_ss}, {do_md}, {do_md}, {do_nm}, {do_lbfgs}, {do_tpi}, {do_tpi}, {do_md}, {do_md} };
 
 /* Static variables for temporary use with the deform option */
 static int    init_step_tpx;
@@ -1091,7 +1091,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
     bool        bTCR=FALSE,bConverged=TRUE,bOK,bSumEkinhOld,bExchanged;
     bool        bAppend;
     real        temp0,mu_aver=0,dvdl;
-    int         a0,a1,gnx=0,ii;
+    int         a0,a1,gnx=0,ii,jj;
     atom_id     *grpindex=NULL;
     char        *grpname;
     t_coupl_rec *tcr=NULL;
@@ -1111,7 +1111,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
     gmx_rng_t   rng;
     gmx_enerdata_t *enerdcopy,*enerd2;
     bool        update_box=FALSE,bBOXok=TRUE;
-    real epot_delta,deltaH,volume_delta;
+    real epot_delta,deltaH,volume_delta,deltax;
     tensor force_vircopy;
     rvec        box_size;
 
@@ -1414,9 +1414,10 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
     } 
 
   if(bMC) {
-   state->mc_move.stretch_bond.ilist = &top_global->moltype[0].mc_bonds;
-   state->mc_move.bend_angle.ilist = &top_global->moltype[0].mc_angles;
-   state->mc_move.rot_dihedral.ilist = &top_global->moltype[0].mc_dihedrals;
+   snew(state->mc_move.group,MC_NR);
+   state->mc_move.group[MC_BONDS].ilist = &top_global->moltype[0].mc_bonds;
+   state->mc_move.group[MC_ANGLES].ilist = &top_global->moltype[0].mc_angles;
+   state->mc_move.group[MC_DIHEDRALS].ilist = &top_global->moltype[0].mc_dihedrals;
   }
     if (MASTER(cr))
     {
@@ -2130,19 +2131,25 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 
              state->mc_move.update_box = update_box;
              
-             if((state->mc_move.stretch_bond.ilist)->nr > 0) 
+             if((state->mc_move.group[MC_BONDS].ilist)->nr > 0) 
              {
-              set_mcmove(&(state->mc_move.stretch_bond),rng,ir->bond_stretch,2,state->mc_move.start,ir->eI);
+              jj = uniform_int(rng,(state->mc_move.group[MC_BONDS].ilist)->nr/2);
+              deltax=(2*gmx_rng_uniform_real(rng)-1.0)*ir->bond_stretch;
+              set_mcmove(&(state->mc_move.group[MC_BONDS]),rng,ir->bond_stretch,2,state->mc_move.start,ir->eI);
              }
 
-             if((state->mc_move.bend_angle.ilist)->nr > 0) 
+             if((state->mc_move.group[MC_ANGLES].ilist)->nr > 0) 
              {
-              set_mcmove(&(state->mc_move.bend_angle),rng,(M_PI*ir->angle_bend/180.0),3,state->mc_move.start,ir->eI);
+              jj = uniform_int(rng,(state->mc_move.group[MC_ANGLES].ilist)->nr/3);
+              deltax=(2*gmx_rng_uniform_real(rng)-1.0)*ir->angle_bend*M_PI/180.0;
+              set_mcmove(&(state->mc_move.group[MC_ANGLES]),rng,deltax,3,state->mc_move.start,ir->eI);
              }
 
-             if((state->mc_move.rot_dihedral.ilist)->nr > 0) 
+             if((state->mc_move.group[MC_DIHEDRALS].ilist)->nr > 0) 
              {
-              set_mcmove(&(state->mc_move.rot_dihedral),rng,(M_PI*ir->dihedral_rot/180.0),2,state->mc_move.start,ir->eI);
+              jj = uniform_int(rng,(state->mc_move.group[MC_DIHEDRALS].ilist)->nr/4);
+              deltax=(2*gmx_rng_uniform_real(rng)-1.0)*ir->dihedral_rot*M_PI/180.0;
+              set_mcmove(&(state->mc_move.group[MC_DIHEDRALS]),rng,deltax,2,state->mc_move.start,ir->eI);
              }
             }
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,

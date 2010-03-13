@@ -97,7 +97,7 @@ enum {
 };
 
 enum {
-  eiMD, eiSteep, eiCG, eiGSA, eiBD, eiSD2, eiNM, eiLBFGS, eiTPI, eiTPIC, eiSD1, eiMC, eiNR
+  eiMD, eiSteep, eiCG, eiGSA, eiSS, eiBD, eiSD2, eiNM, eiLBFGS, eiTPI, eiTPIC, eiSD1, eiMC, eiNR
 };
 
 #define EI_SD(e) ((e) == eiSD1 || (e) == eiSD2)
@@ -106,7 +106,7 @@ enum {
 #define EI_DYNAMICS(e) ((e) == eiMD || EI_SD(e) || (e) == eiBD || (e) == eiMC)
 #define EI_ENERGY_MINIMIZATION(e) ((e) == eiSteep || (e) == eiCG || (e) == eiLBFGS)
 #define EI_TPI(e) ((e) == eiTPI || (e) == eiTPIC)
-#define EI_MC(e) ((e) == eiMC || (e) == eiGSA)
+#define EI_MC(e) ((e) == eiMC || (e) == eiGSA || (e) == eiSS)
 
 #define EI_STATE_VELOCITY(e) ((e) == eiMD || EI_SD(e))
 

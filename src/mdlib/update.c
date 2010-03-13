@@ -141,15 +141,15 @@ void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   int k,m;
   rvec r1,r_ij,u1,v;
 
-     ai = mc_move->stretch_bond.ai;
-     aj = mc_move->stretch_bond.aj;
+     ai = mc_move->group[MC_BONDS].ai;
+     aj = mc_move->group[MC_BONDS].aj;
      nr = 0;
      bond_rot(graph,ai,aj,list_r,&nr);
      list=list_r;
      copy_rvec(x[aj],r1);
      rvec_sub(x[aj],x[ai],r_ij);
      unitv(r_ij,u1);
-     svmul(mc_move->stretch_bond.value,u1,u1);
+     svmul(mc_move->group[MC_BONDS].value,u1,u1);
      rvec_add(r_ij,u1,v);
      
      rvec_add(x[ai],v,x[aj]);
@@ -171,8 +171,8 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   rvec xcm;
   matrix basis,basis_inv;
   rvec delta_phi;
-     ai = mc_move->rot_dihedral.ai;
-     aj = mc_move->rot_dihedral.aj;
+     ai = mc_move->group[MC_DIHEDRALS].ai;
+     aj = mc_move->group[MC_DIHEDRALS].aj;
 
      nr = 0;
      bond_rot(graph,ai,aj,list_r,&nr);
@@ -200,7 +200,7 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 
      clear_rvec(xcm);
      clear_rvec(delta_phi);
-     delta_phi[XX]=mc_move->rot_dihedral.value;
+     delta_phi[XX]=mc_move->group[MC_DIHEDRALS].value;
 
      
      for(k=0;k<nr;k++) {
@@ -224,9 +224,9 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   rvec xcm;
   matrix basis,basis_inv;
   rvec delta_phi;
-     ai = mc_move->bend_angle.ai;
-     aj = mc_move->bend_angle.aj;
-     ak = mc_move->bend_angle.ak;
+     ai = mc_move->group[MC_ANGLES].ai;
+     aj = mc_move->group[MC_ANGLES].aj;
+     ak = mc_move->group[MC_ANGLES].ak;
 
      nr = 0;
      bond_rot(graph,aj,ak,list_r,&nr);
@@ -252,7 +252,7 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 
      clear_rvec(xcm);
      clear_rvec(delta_phi);
-     delta_phi[XX]=mc_move->bend_angle.value;
+     delta_phi[XX]=mc_move->group[MC_ANGLES].value;
 
      list[nr++]=ak;
 
@@ -267,19 +267,9 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
       rvec_add(x[aj],r2,x[al]);
      }
 }
-void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start,int eI)
+void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start,int i)
 {
- int i,j,k;
- if(eI == eiMC)
-  group->value = (2.0*gmx_rng_uniform_real(rng)-1.0)*fac;
- if(eI == eiGSA)
-  group->value = fac;
-
- k=(group->ilist)->nr/delta;
-
- do {
-  i=(int)(gmx_rng_uniform_real(rng)*k);
- } while(i >= k);
+ group->value = fac;
  group->ai = start + (group->ilist)->iatoms[delta*i];
  group->aj = start + (group->ilist)->iatoms[delta*i+1];
 
@@ -329,17 +319,17 @@ void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
     }
     /* INTERNAL COORDINATES */
     
-    if(mc_move->rot_dihedral.nr != -1 && mc_move->rot_dihedral.value) 
+    if(mc_move->group[2].nr != -1 && mc_move->group[2].value) 
     {
      rotate_dihedral(x,mc_move,graph);
     }
     /* STRETCHING BONDS */
-    if((mc_move->stretch_bond.ilist)->nr != 0 && mc_move->stretch_bond.value != 0)  
+    if((mc_move->group[0].ilist)->nr != 0 && mc_move->group[0].value != 0)  
     {
      stretch_bonds(x,mc_move,graph);
     }
     /* BENDING ANGLES */
-    if((mc_move->bend_angle.ilist)->nr != 0 && mc_move->bend_angle.value != 0) 
+    if((mc_move->group[1].ilist)->nr != 0 && mc_move->group[1].value != 0) 
     {
      bend_angles(x,mc_move,graph);
     }
