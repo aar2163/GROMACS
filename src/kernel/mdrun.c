@@ -276,7 +276,8 @@ int main(int argc,char *argv[])
     { efXVG, "-px",     "pullx",    ffOPTWR },
     { efXVG, "-pf",     "pullf",    ffOPTWR },
     { efMTX, "-mtx",    "nm",       ffOPTWR },
-    { efNDX, "-dn",     "dipole",   ffOPTWR }
+    { efNDX, "-dn",     "dipole",   ffOPTWR },
+    { efXPM, "-ssmap",  "ssmap",    ffOPTWR }
   };
 #define NFILE asize(fnm)
 

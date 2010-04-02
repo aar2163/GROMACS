@@ -81,6 +81,8 @@
 #include "mtop_util.h"
 #include "gmxfio.h"
 #include "pme.h"
+# include "matio.h"
+
 
 typedef struct {
   t_state s;
@@ -2240,9 +2242,9 @@ double do_gsa(FILE *fplog,t_commrec *cr,
   int    nsteps;
   int    count=0; 
   int    steps_accepted=0; 
-  int ii,jj;
+  int ii,jj,nj;
   real d,delta,random,qa=1.1,qv=1.3,qa1,qv1;
-  real temp=1.0,tqt,qt=1.5,qt1,Tup=1.0;
+  real temp=1.0,tqt,qt=1.1,qt1,Tup=1.0;
   int seed;
   double pq;
   bool store,b_random_init = TRUE;
@@ -2326,7 +2328,7 @@ double do_gsa(FILE *fplog,t_commrec *cr,
      clear_rvec(mc_move.delta_phi);
 
              ii = uniform_int(rng,MC_NR);
-             if(mc_move.group[MC_BONDS].ilist->nr > 0 && ( b_random_init || ii == MC_BONDS)) 
+             if(mc_move.group[MC_BONDS].ilist->nr > 0 && ((b_random_init && !count) || ii == MC_BONDS)) 
              {
               /* STRETCHING BONDS */
               d=gsa_random(temp,Tup,rng,qv)/100;
@@ -2335,7 +2337,7 @@ double do_gsa(FILE *fplog,t_commrec *cr,
               stretch_bonds(s_try->s.x,&mc_move,graph);
              }
 
-             if((mc_move.group[MC_ANGLES].ilist)->nr > 0 && (b_random_init || ii == MC_ANGLES)) 
+             if((mc_move.group[MC_ANGLES].ilist)->nr > 0 && ((b_random_init && !count) || ii == MC_ANGLES)) 
              {
               /* BENDING ANGLES */
               d=gsa_random(temp,Tup,rng,qv)*M_PI/180.0;
@@ -2344,14 +2346,23 @@ double do_gsa(FILE *fplog,t_commrec *cr,
               bend_angles(s_try->s.x,&mc_move,graph);
              }
 
-             if((mc_move.group[MC_DIHEDRALS].ilist)->nr > 0 && (b_random_init || ii == MC_DIHEDRALS)) 
+             if((mc_move.group[MC_DIHEDRALS].ilist)->nr > 0 && ((b_random_init && !count) || ii == MC_DIHEDRALS)) 
              {
-              d=gsa_random(temp,Tup,rng,qv)*100*M_PI/180.0;
-              if(!count)
-               d*=10; 
-              jj=mc_move.group[MC_DIHEDRALS].ilist->nr/4;
-              set_mcmove(&mc_move.group[MC_DIHEDRALS],rng,d,2,mc_move.start,jj);
-              rotate_dihedral(s_try->s.x,&mc_move,graph);
+              nj=(mc_move.group[MC_DIHEDRALS].ilist->nr)/2;
+
+              if(!count) {
+               for(jj=0;jj<nj;jj++) {
+                d=gmx_rng_uniform_real(rng)*M_PI;
+                set_mcmove(&mc_move.group[MC_DIHEDRALS],rng,d,2,mc_move.start,jj);
+                rotate_dihedral(s_try->s.x,&mc_move,graph);
+               }
+              }
+              else {
+               jj=uniform_int(rng,nj);
+               d=gsa_random(temp,Tup,rng,qv)*100*M_PI/180.0;
+               set_mcmove(&mc_move.group[MC_DIHEDRALS],rng,d,2,mc_move.start,jj);
+               rotate_dihedral(s_try->s.x,&mc_move,graph);
+              }
              }
     }
     
@@ -2380,7 +2391,7 @@ double do_gsa(FILE *fplog,t_commrec *cr,
       store = ((delta < 0) || (delta >= 0 && random < pq)); 
       if (store) {
         if(delta != 0)
-        printf("energy: %f - delta %f - step %d- random %f - pq %f %d %f\n",s_try->epot,delta,count,random,pq,top_global->mols.index[1],d);
+        //printf("energy: %f - delta %f - step %d- random %f - pq %f %d %f\n",s_try->epot,delta,count,random,pq,top_global->mols.index[1],d);
 	/* Store the new (lower) energies  */
 	upd_mdebin(mdebin,NULL,TRUE,(double)count,
 		   mdatoms->tmass,enerd,&s_try->s,s_try->s.box,
@@ -2478,6 +2489,7 @@ double do_ss(FILE *fplog,t_commrec *cr,
                 unsigned long Flags,
                 gmx_runtime_t *runtime)
 { 
+  FILE *xpmout;
   const char *SS="Systematic Search";
   em_state_t *s_min,*s_base;
   rvec       *f_global;
@@ -2497,7 +2509,7 @@ double do_ss(FILE *fplog,t_commrec *cr,
   int    nsteps;
   int    count=0; 
   int    steps_accepted=0; 
-  int ii,jj;
+  int ii,jj,ni,nn;
   real d,delta,random,qa=1.1,qv=1.3,qa1,qv1;
   real temp=1.0,tqt,qt=1.1,qt1,Tup=1.0;
   int seed;
@@ -2505,9 +2517,18 @@ double do_ss(FILE *fplog,t_commrec *cr,
   bool store,b_random_init = TRUE;
   gmx_mc_move mc_move;
   gmx_rng_t   rng;
+
+  //XPM
+  real       **mat2;
+  real       min,max,mid,*axis;
+  int        i,j,k,l,nlevels;
+  int        WriteXref;
+  const char *asciifile,*xpmfile,*xpmafile;
+  t_rgb      rlo,rmi,rhi;
   /* not used */
   real   terminate=0;
 
+  xpmfile   = opt2fn_null("-ssmap",nfile,fnm);
   s_min = init_em_state();
   s_base = init_em_state();
 
@@ -2531,6 +2552,23 @@ double do_ss(FILE *fplog,t_commrec *cr,
           nrnb,mu_tot,fr,&enerd,&graph,mdatoms,&gstat,vsite,constr,
           nfile,fnm,&fp_trn,&fp_ene,&mdebin);
 
+  ni=(mc_move.group[MC_DIHEDRALS].ilist)->nr/2;
+  d=5*M_PI/180.0;
+  nn = (int)(2*M_PI/d);
+  nlevels=1000;
+  if (xpmfile) {
+    snew(mat2,nn);
+    for (j=0; j<nn; j++) {
+     snew(mat2[j],nn);
+    }
+    snew(axis,nn);
+    for(i=0; i<nn; i++)
+      axis[i] = i*d*180.0/M_PI;
+    rlo.r = 0; rlo.g = 0; rlo.b = 1;
+    rmi.r = 1; rmi.g = 1; rmi.b = 1;
+    rhi.r = 1; rhi.g = 0; rhi.b = 0;
+    xpmout = ffopen(xpmfile,"w");
+  }
   /* Print to log file  */
   print_date_and_time(fplog,cr->nodeid,"Started SS",NULL);
   wallcycle_start(wcycle,ewcRUN);
@@ -2589,9 +2627,14 @@ double do_ss(FILE *fplog,t_commrec *cr,
 
              if((mc_move.group[MC_DIHEDRALS].ilist)->nr > 0) 
              {
-              d=M_PI/180.0;
-              jj=mc_move.group[MC_DIHEDRALS].ilist->nr/2;
-              jj=1;
+              if(count % nn == 0)
+               jj = 1;
+              else
+               jj = 0;
+              
+              if(count >= (nn*nn-1))
+               bDone = TRUE;
+
               set_mcmove(&mc_move.group[MC_DIHEDRALS],rng,d,2,mc_move.start,jj);
               rotate_dihedral(s_min->s.x,&mc_move,graph);
              }
@@ -2602,7 +2645,16 @@ double do_ss(FILE *fplog,t_commrec *cr,
 		    inputrec,nrnb,wcycle,gstat,
 		    vsite,constr,fcd,graph,mdatoms,fr,
 		    mu_tot,enerd,vir,pres,count,count==0);
-        printf("energy: %f %f %d\n",s_min->epot,d,count);
+
+   if(xpmfile)
+   {
+    mat2[count%nn][(int)(count/nn)]=s_min->epot;
+    printf("bla %d %d %f\n",count%nn,(int)(count/nn),s_min->epot);
+    if(!count || s_min->epot < min) 
+     min = s_min->epot;
+   }
+
+        //printf("energy: %f %f %d\n",s_min->epot,d,count);
     if (MASTER(cr))
       print_ebin_header(fplog,count,count,s_min->s.lambda);
 
@@ -2657,6 +2709,17 @@ double do_ss(FILE *fplog,t_commrec *cr,
 		s_min,state_global,f_global);
 
   fnormn = s_min->fnorm/sqrt(state_global->natoms);
+
+  if (xpmfile) {
+    max = min + 2*fabs(min);
+    mid = min + 0.1*fabs(min);
+    write_xpm3(xpmout,0,"Energy Map","kJ/mol",
+	       "Dihedral Angle 1","Dihedral Angle 2",nn,nn,axis,axis,
+	       mat2,min,mid,max,rlo,rmi,rhi,&nlevels);
+    fclose(xpmout);
+    sfree(axis);
+    sfree(mat2);
+  }
 
   if (MASTER(cr)) {
     print_converged(stderr,SS,inputrec->em_tol,count,bDone,nsteps,
