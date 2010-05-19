@@ -88,6 +88,8 @@ enum {
   evdwCUT, evdwSWITCH, evdwSHIFT, evdwUSER, evdwENCADSHIFT, evdwNR
 };
 
+#define EEL_EXCL_FORCES(e) (EEL_FULL(e) || (EEL_RF(e) && (e) != eelRF_NEC))
+
 #define EVDW_SWITCHED(e) ((e) == evdwSWITCH || (e) == evdwSHIFT || (e) == evdwENCADSHIFT)
 
 #define EVDW_ZERO_AT_CUTOFF(e) (EVDW_SWITCHED(e) || (e) == evdwUSER)
@@ -97,7 +99,7 @@ enum {
 };
 
 enum {
-  eiMD, eiSteep, eiCG, eiGSA, eiSS, eiBD, eiSD2, eiNM, eiLBFGS, eiTPI, eiTPIC, eiSD1, eiMC, eiNR
+  eiMD, eiSteep, eiCG, eiBD, eiSD2, eiNM, eiLBFGS, eiTPI, eiTPIC, eiSD1, eiMC, eiNR
 };
 
 #define EI_SD(e) ((e) == eiSD1 || (e) == eiSD2)
@@ -106,7 +108,7 @@ enum {
 #define EI_DYNAMICS(e) ((e) == eiMD || EI_SD(e) || (e) == eiBD || (e) == eiMC)
 #define EI_ENERGY_MINIMIZATION(e) ((e) == eiSteep || (e) == eiCG || (e) == eiLBFGS)
 #define EI_TPI(e) ((e) == eiTPI || (e) == eiTPIC)
-#define EI_MC(e) ((e) == eiMC || (e) == eiGSA || (e) == eiSS)
+#define EI_MC(e) ((e) == eiMC)
 
 #define EI_STATE_VELOCITY(e) ((e) == eiMD || EI_SD(e))
 
@@ -187,7 +189,7 @@ enum {
 };
 
 enum {
-  epullgDIST, epullgDIR, epullgCYL, epullgPOS, epullgDIRPBC, epullgNR
+  epullgDIST, epullgDIR, epullgCYL, epullgPOS, epullgNR
 };
 
 #define PULL_CYL(pull) ((pull)->eGeom == epullgCYL)

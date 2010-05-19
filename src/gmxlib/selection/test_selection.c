@@ -28,7 +28,7 @@
  *
  * For more info, check our website at http://www.gromacs.org
  */
-/*! \internal \file
+/*! \file
  * \brief Testing/debugging tool for the selection engine.
  */
 #ifdef HAVE_CONFIG_H
@@ -46,7 +46,6 @@
 typedef struct
 {
     bool                     bFrameTree;
-    int                      nmaxind;
     gmx_ana_selcollection_t *sc;
 } t_dumpdata;
 
@@ -55,7 +54,7 @@ dump_frame(t_topology * top, t_trxframe * fr, t_pbc * pbc,
            int nr, gmx_ana_selection_t *sel[], void *data)
 {
     t_dumpdata         *d = (t_dumpdata *)data;
-    int                 g, i, n;
+    int                 g, i;
 
     fprintf(stderr, "\n");
     if (d->bFrameTree)
@@ -64,14 +63,9 @@ dump_frame(t_topology * top, t_trxframe * fr, t_pbc * pbc,
     }
     for (g = 0; g < nr; ++g)
     {
-        gmx_ana_index_dump(sel[g]->g, g, d->nmaxind);
+        gmx_ana_index_dump(sel[g]->g, g);
         fprintf(stderr, "  Positions (%d pcs):\n", sel[g]->p.nr);
-        n = sel[g]->p.nr;
-        if (d->nmaxind >= 0 && n > d->nmaxind)
-        {
-            n = d->nmaxind;
-        }
-        for (i = 0; i < n; ++i)
+        for (i = 0; i < sel[g]->p.nr; ++i)
         {
             fprintf(stderr, "    (%.2f,%.2f,%.2f) r=%d, m=%d, b=%d-%d\n",
                     sel[g]->p.x[i][XX], sel[g]->p.x[i][YY], sel[g]->p.x[i][ZZ],
@@ -79,19 +73,15 @@ dump_frame(t_topology * top, t_trxframe * fr, t_pbc * pbc,
                     sel[g]->p.m.mapb.index[i]+1,
                     sel[g]->p.m.mapb.index[i+1]);
         }
-        if (n < sel[g]->p.nr)
-        {
-            fprintf(stderr, "    ...\n");
-        }
     }
     fprintf(stderr, "\n");
     return 0;
 }
 
 static void
-print_selections(int nr, gmx_ana_selection_t **sel, int nmaxind)
+print_selections(int nr, gmx_ana_selection_t **sel)
 {
-    int                 g, i, n;
+    int                 g, i;
 
     fprintf(stderr, "\nSelections:\n");
     for (g = 0; g < nr; ++g)
@@ -99,7 +89,7 @@ print_selections(int nr, gmx_ana_selection_t **sel, int nmaxind)
         fprintf(stderr, "  ");
         gmx_ana_selection_print_info(sel[g]);
         fprintf(stderr, "    ");
-        gmx_ana_index_dump(sel[g]->g, g, nmaxind);
+        gmx_ana_index_dump(sel[g]->g, g);
 
         fprintf(stderr, "    Block (size=%d):", sel[g]->p.m.mapb.nr);
         if (!sel[g]->p.m.mapb.index)
@@ -108,19 +98,11 @@ print_selections(int nr, gmx_ana_selection_t **sel, int nmaxind)
         }
         else
         {
-            n = sel[g]->p.m.mapb.nr;
-            if (nmaxind >= 0 && n > nmaxind)
-                n = nmaxind;
-            for (i = 0; i <= n; ++i)
+            for (i = 0; i <= sel[g]->p.m.mapb.nr; ++i)
                 fprintf(stderr, " %d", sel[g]->p.m.mapb.index[i]);
-            if (n < sel[g]->p.m.mapb.nr)
-                fprintf(stderr, " ...");
         }
         fprintf(stderr, "\n");
 
-        n = sel[g]->p.m.nr;
-        if (nmaxind >= 0 && n > nmaxind)
-            n = nmaxind;
         fprintf(stderr, "    RefId:");
         if (!sel[g]->p.m.refid)
         {
@@ -128,10 +110,8 @@ print_selections(int nr, gmx_ana_selection_t **sel, int nmaxind)
         }
         else
         {
-            for (i = 0; i < n; ++i)
+            for (i = 0; i < sel[g]->p.m.nr; ++i)
                 fprintf(stderr, " %d", sel[g]->p.m.refid[i]);
-            if (n < sel[g]->p.m.nr)
-                fprintf(stderr, " ...");
         }
         fprintf(stderr, "\n");
 
@@ -142,10 +122,8 @@ print_selections(int nr, gmx_ana_selection_t **sel, int nmaxind)
         }
         else
         {
-            for (i = 0; i < n; ++i)
+            for (i = 0; i < sel[g]->p.m.nr; ++i)
                 fprintf(stderr, " %d", sel[g]->p.m.mapid[i]);
-            if (n < sel[g]->p.m.nr)
-                fprintf(stderr, " ...");
         }
         fprintf(stderr, "\n");
     }
@@ -162,7 +140,6 @@ gmx_test_selection(int argc, char *argv[])
     bool                bMaskOnly  = FALSE;
     bool                bFrameTree = FALSE;
     int                 nref       = 0;
-    int                 nmaxind    = 20;
     t_pargs             pa[] = {
         {"-mask",   FALSE, etBOOL, {&bMaskOnly},
          "Test position mask functionality"},
@@ -170,8 +147,6 @@ gmx_test_selection(int argc, char *argv[])
          "Print the whole evaluation tree for each frame"},
         {"-nref",   FALSE, etINT,  {&nref},
          "Number of reference selections to ask for"},
-        {"-pmax",   FALSE, etINT,  {&nmaxind},
-         "Maximum number of indices to print in lists (-1 = print all)"},
     };
 
     t_filenm            fnm[] = {
@@ -182,7 +157,6 @@ gmx_test_selection(int argc, char *argv[])
     t_dumpdata            d;
     int                   ngrps;
     gmx_ana_selection_t **sel;
-    output_env_t          oenv;
 
 #define NFILE asize(fnm)
 
@@ -192,8 +166,7 @@ gmx_test_selection(int argc, char *argv[])
     gmx_ana_get_selcollection(trj, &d.sc);
     gmx_ana_set_nanagrps(trj, -1);
     parse_trjana_args(trj, &argc, argv, 0,
-                      NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL,
-                      &oenv);
+                      NFILE, fnm, asize(pa), pa, asize(desc), desc, 0, NULL);
     if (bMaskOnly)
     {
         gmx_ana_add_flags(trj, ANA_USE_POSMASK);
@@ -204,14 +177,12 @@ gmx_test_selection(int argc, char *argv[])
     gmx_ana_get_ngrps(trj, &ngrps);
     gmx_ana_get_anagrps(trj, &sel);
 
+    print_selections(ngrps, sel);
+
     d.bFrameTree = bFrameTree;
-    d.nmaxind    = nmaxind;
-
-    print_selections(ngrps, sel, d.nmaxind);
-
     gmx_ana_do(trj, 0, &dump_frame, &d);
 
-    print_selections(ngrps, sel, d.nmaxind);
+    print_selections(ngrps, sel);
 
     gmx_ana_traj_free(trj);
 

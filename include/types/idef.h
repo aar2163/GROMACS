@@ -128,16 +128,18 @@ enum {
   F_DHDL_CON,
   F_NRE		/* This number is for the total number of energies	*/
 };
-
+  
 enum {
 MC_TRANSLATE,
-MC_ROTATE,
+MC_ROTATEX,
+MC_ROTATEY,
+MC_ROTATEZ,
 MC_BONDS,
 MC_ANGLES,
 MC_DIHEDRALS,
 MC_NR
 };
-  
+
 typedef union
 {
   /* Some parameters have A and B values for free energy calculations.
@@ -182,7 +184,7 @@ typedef union
   struct {real phi,dphi,kfac;int label,power;             } dihres;  
   struct {int  ex,power,label; real c,obs,kfac;           } orires;
   struct {int  table;real kA;real kB;                     } tab;
-  struct {real sar,st,pi,gbr,bmlt;                        } gb;
+  struct {real c6A,c12A,c6B,c12B,sar,st,pi,gbr,bmlt;      } gb;
   struct {int cmapA,cmapB;                                } cmap;
   struct {real buf[MAXFORCEPARAM];	  	          } generic; /* Conversion */
 } t_iparams;

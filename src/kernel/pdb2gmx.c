@@ -204,7 +204,7 @@ static void rename_pdbresint(t_atoms *pdba,const char *oldnm,
   }
 }
 
-static void check_occupancy(t_atoms *atoms,const char *filename,bool bVerbose)
+static void check_occupancy(t_atoms *atoms,char *filename,bool bVerbose)
 {
   int i,ftp;
   int nzero=0;
@@ -262,7 +262,7 @@ void write_posres(char *fn,t_atoms *pdba,real fc)
   gmx_fio_fclose(fp);
 }
 
-static int read_pdball(const char *inf, const char *outf,char *title,
+static int read_pdball(char *inf, char *outf,char *title,
 		       t_atoms *atoms, rvec **x,
 		       int *ePBC,matrix box, bool bRemoveH,
 		       t_symtab *symtab,t_aa_names *aan,const char *watres,
@@ -674,8 +674,7 @@ int main(int argc, char *argv[])
   t_symtab   symtab;
   gpp_atomtype_t atype;
   t_aa_names *aan;
-  const char *top_fn;
-  char       fn[256],itp_fn[STRLEN],posre_fn[STRLEN],buf_fn[STRLEN];
+  char       fn[256],*top_fn,itp_fn[STRLEN],posre_fn[STRLEN],buf_fn[STRLEN];
   char       molname[STRLEN],title[STRLEN],resname[STRLEN],quote[STRLEN];
   char       *c,forcefield[STRLEN],fff[STRLEN],suffix[STRLEN];
   const char *watres;
@@ -689,7 +688,6 @@ int main(int argc, char *argv[])
   real       mHmult=0;
   bool       bAlldih,HH14,bRemoveDih;
   int        nrexcl;
-  output_env_t oenv;
 
 	gmx_atomprop_t aps;
   
@@ -702,8 +700,7 @@ int main(int argc, char *argv[])
     { efSTO, "-q", "clean.pdb", ffOPTWR }
   };
 #define NFILE asize(fnm)
- 
-
+  
   /* Command line arguments must be static */
   static bool bNewRTP=FALSE,bMerge=FALSE;
   static bool bInter=FALSE, bCysMan=FALSE; 
@@ -711,8 +708,8 @@ int main(int argc, char *argv[])
   static bool bGlnMan=FALSE, bArgMan=FALSE;
   static bool bRenameCys=TRUE;
   static bool bTerMan=FALSE, bUnA=FALSE, bHeavyH;
-  static bool bSort=TRUE, bAllowMissing=FALSE, bRemoveH=FALSE;
-  static bool bDeuterate=FALSE,bVerbose=FALSE,bChargeGroups=TRUE,bCmap=TRUE;
+  static bool bSort=TRUE, bMissing=FALSE, bRemoveH=FALSE;
+  static bool bDeuterate=FALSE,bVerbose=FALSE,bChargeGroups=TRUE;
   static real angle=135.0, distance=0.3,posre_fc=1000;
   static real long_bond_dist=0.25, short_bond_dist=0.05;
   static const char *vsitestr[] = { NULL, "none", "hydrogens", "aromatics", NULL };
@@ -763,7 +760,7 @@ int main(int argc, char *argv[])
       "HIDDENSort the residues according to database, turning this off is dangerous as charge groups might be broken in parts" },
     { "-ignh",   FALSE, etBOOL, {&bRemoveH}, 
       "Ignore hydrogen atoms that are in the pdb file" },
-    { "-missing",FALSE, etBOOL, {&bAllowMissing}, 
+    { "-missing",FALSE, etBOOL, {&bMissing}, 
       "Continue when atoms are missing, dangerous" },
     { "-v",      FALSE, etBOOL, {&bVerbose}, 
       "Be slightly more verbose in messages" },
@@ -775,16 +772,14 @@ int main(int argc, char *argv[])
       "Make hydrogen atoms heavy" },
     { "-deuterate", FALSE, etBOOL, {&bDeuterate},
       "Change the mass of hydrogens to 2 amu" },
-    { "-chargegrp", TRUE, etBOOL, {&bChargeGroups},
-      "Use charge groups in the rtp file"  },
-    { "-cmap", TRUE, etBOOL, {&bCmap},
-      "Use cmap torsions (if enabled in the rtp file)"  }
+	{ "-chargegrp", TRUE, etBOOL, {&bChargeGroups},
+	  "Use (default) or disable charge groups in the rtp file"  }
   };
 #define NPARGS asize(pa)
   
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,0,NFILE,fnm,asize(pa),pa,asize(desc),desc,
-		    0,NULL,&oenv);
+		    0,NULL);
   if (strcmp(ff,"select") == 0) {
     /* Interactive forcefield selection */
     choose_ff(forcefield,sizeof(forcefield));
@@ -1151,7 +1146,7 @@ int main(int argc, char *argv[])
 
     /* Generate Hydrogen atoms (and termini) in the sequence */
     natom=add_h(&pdba,&x,nah,ah,
-		cc->nterpairs,cc->ntdb,cc->ctdb,cc->rN,cc->rC,bAllowMissing,
+		cc->nterpairs,cc->ntdb,cc->ctdb,cc->rN,cc->rC,bMissing,
 		NULL,NULL,TRUE,FALSE);
     printf("Now there are %d residues with %d atoms\n",
 	   pdba->nres,pdba->nr);
@@ -1225,10 +1220,10 @@ int main(int argc, char *argv[])
 	top_file2=top_file;
     
     pdb2top(top_file2,posre_fn,molname,pdba,&x,atype,&symtab,bts,nrtp,restp,
-	    cc->nterpairs,cc->ntdb,cc->ctdb,cc->rN,cc->rC,bAllowMissing,
+	    cc->nterpairs,cc->ntdb,cc->ctdb,cc->rN,cc->rC,bMissing,
 	    HH14,bAlldih,bRemoveDih,bVsites,bVsiteAromatics,forcefield,
 	    mHmult,nssbonds,ssbonds,nrexcl, 
-	    long_bond_dist,short_bond_dist,bDeuterate,bChargeGroups,bCmap);
+	    long_bond_dist,short_bond_dist,bDeuterate,bChargeGroups);
     
     if (!cc->bAllWat)
       write_posres(posre_fn,pdba,posre_fc);

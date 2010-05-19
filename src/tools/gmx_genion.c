@@ -225,7 +225,7 @@ void sort_ions(int nsa,int nw,int repl[],atom_id index[],
   }
 }
 
-static void update_topol(const char *topinout,int p_num,int n_num,
+static void update_topol(char *topinout,int p_num,int n_num,
 			 const char *p_name,const char *n_name,char *grpname)
 {
 #define TEMP_FILENM "temp.top"
@@ -355,7 +355,6 @@ int gmx_genion(int argc, char *argv[])
   bool        *bSet,bPDB;
   int         i,nw,nwa,nsa,nsalt,iqtot;
   FILE        *fplog;
-  output_env_t oenv;
   t_filenm fnm[] = {
     { efTPX, NULL,  NULL,      ffREAD  },
     { efXVG, "-table","table", ffOPTRD },
@@ -368,8 +367,8 @@ int gmx_genion(int argc, char *argv[])
 #define NFILE asize(fnm)
   
   CopyRight(stderr,argv[0]);
-  parse_common_args(&argc,argv,PCA_BE_NICE,NFILE,fnm,asize(pa),pa,
-                    asize(desc),desc, asize(bugs),bugs,&oenv);
+  parse_common_args(&argc,argv,PCA_BE_NICE,NFILE,fnm,asize(pa),pa,asize(desc),desc,
+		    asize(bugs),bugs);
   bPDB = ftp2bSet(efPDB,NFILE,fnm);
   if (bRandom && bPDB) {
     fprintf(stderr,"Not computing potential with random option!\n");
@@ -384,7 +383,7 @@ int gmx_genion(int argc, char *argv[])
   snew(top,1);
   fplog = init_calcpot(ftp2fn(efLOG,NFILE,fnm),ftp2fn(efTPX,NFILE,fnm),
 		       opt2fn("-table",NFILE,fnm),mtop,top,&inputrec,&cr,
-		       &graph,&mdatoms,&fr,&enerd,&pot,box,&x,oenv);
+		       &graph,&mdatoms,&fr,&enerd,&pot,box,&x);
 
   atoms = gmx_mtop_global_atoms(mtop);
 

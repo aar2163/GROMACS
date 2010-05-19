@@ -96,20 +96,17 @@ int gmx_nmens(int argc,char *argv[])
   matrix     box;
   real       *eigval,totmass,*invsqrtm,t,disp;
   int        natoms,neigval;
-  char       *grpname,title[STRLEN];
-  const char *indexfile;
+  char       *grpname,*indexfile,title[STRLEN];
   int        i,j,d,s,v;
   int        nout,*iout,noutvec,*outvec;
   atom_id    *index;
   real       rfac,invfr,rhalf,jr;
   int *      eigvalnr;
-  output_env_t oenv;
   
   unsigned long      jran;
   const unsigned long im = 0xffff;
   const unsigned long ia = 1093;
   const unsigned long ic = 18257;
-
 
   t_filenm fnm[] = { 
     { efTRN, "-v",    "eigenvec",    ffREAD  },
@@ -122,7 +119,7 @@ int gmx_nmens(int argc,char *argv[])
 
   CopyRight(stderr,argv[0]); 
   parse_common_args(&argc,argv,PCA_BE_NICE,
-		    NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL,&oenv); 
+		    NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL); 
 
   indexfile=ftp2fn_null(efNDX,NFILE,fnm);
 
@@ -142,7 +139,7 @@ int gmx_nmens(int argc,char *argv[])
   snew(invsqrtm,natoms);
   if (bDMA) {
     for(i=0; (i<natoms); i++)
-      invsqrtm[i] = gmx_invsqrt(atoms->atom[index[i]].m);
+      invsqrtm[i] = invsqrt(atoms->atom[index[i]].m);
   } else {
     for(i=0; (i<natoms); i++)
       invsqrtm[i]=1.0;
@@ -199,7 +196,7 @@ int gmx_nmens(int argc,char *argv[])
 
   snew(xout1,natoms);
   snew(xout2,atoms->nr);
-  out=open_trx(ftp2fn(efTRO,NFILE,fnm),"w");
+  out=open_trx(ftp2fn(efTRX,NFILE,fnm),"w");
   jran = (unsigned long)((real)im*rando(&seed));
   for(s=0; s<nstruct; s++) {
     for(i=0; i<natoms; i++)

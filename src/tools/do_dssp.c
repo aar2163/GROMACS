@@ -57,8 +57,7 @@
 static int strip_dssp(char *dsspfile,int nres,
 		       bool bPhobres[],real t,
 		       real *acc,FILE *fTArea,
-		       t_matrix *mat,int average_area[],
-                       const output_env_t oenv)
+		       t_matrix *mat,int average_area[])
 {
   static bool bFirst=TRUE;
   static char *ssbuf;
@@ -129,7 +128,7 @@ static int strip_dssp(char *dsspfile,int nres,
     
     sprintf(mat->title,"Secondary structure");
     mat->legend[0]=0;
-    sprintf(mat->label_x,"%s",get_time_label(oenv));
+    sprintf(mat->label_x,"%s",time_label());
     sprintf(mat->label_y,"Residue");
     mat->bDiscrete=TRUE;
     mat->ny=nr;
@@ -260,7 +259,7 @@ void prune_ss_legend(t_matrix *mat)
   }
 }
 
-void write_sas_mat(const char *fn,real **accr,int nframe,int nres,t_matrix *mat)
+void write_sas_mat(char *fn,real **accr,int nframe,int nres,t_matrix *mat)
 {
   real lo,hi;
   int i,j,nlev;
@@ -283,8 +282,7 @@ void write_sas_mat(const char *fn,real **accr,int nframe,int nres,t_matrix *mat)
   }
 }
 
-void analyse_ss(const char *outfile, t_matrix *mat, const char *ss_string,
-                const output_env_t oenv)
+void analyse_ss(char *outfile, t_matrix *mat, const char *ss_string)
 {
   FILE *fp;
   t_mapping *map;
@@ -299,8 +297,8 @@ void analyse_ss(const char *outfile, t_matrix *mat, const char *ss_string,
     leg[s+1]=strdup(map[s].desc);
   
   fp=xvgropen(outfile,"Secondary Structure",
-	      get_xvgr_tlabel(oenv),"Number of Residues",oenv);
-  if (get_print_xvgr_codes(oenv))
+	      xvgr_tlabel(),"Number of Residues");
+  if (bPrintXvgrCodes())
     fprintf(fp,"@ subtitle \"Structure = ");
   for(s=0; s<strlen(ss_string); s++) {
     if (s>0)
@@ -310,7 +308,7 @@ void analyse_ss(const char *outfile, t_matrix *mat, const char *ss_string,
 	fprintf(fp,"%s",map[f].desc);
   }
   fprintf(fp,"\"\n");
-  xvgr_legend(fp,mat->nmap+1,leg,oenv);
+  xvgr_legend(fp,mat->nmap+1,leg);
   
   for(f=0; f<mat->nx; f++) {
     ss_count=0;
@@ -376,7 +374,7 @@ int main(int argc,char *argv[])
   int        status;
   FILE       *tapein;
   FILE       *ss,*acc,*fTArea,*tmpf;
-  const char *fnSCount,*fnArea,*fnTArea,*fnAArea;
+  char       *fnSCount,*fnArea,*fnTArea,*fnAArea;
   char *leg[] = { "Phobic", "Phylic" };
   t_topology top;
   int        ePBC;
@@ -396,7 +394,6 @@ int main(int argc,char *argv[])
   char       pdbfile[32],tmpfile[32],title[256];
   char       dssp[256];
   const char *dptr;
-  output_env_t oenv;
   
   
   t_filenm   fnm[] = {
@@ -414,9 +411,8 @@ int main(int argc,char *argv[])
 #define NFILE asize(fnm)
 
   CopyRight(stderr,argv[0]);
-  parse_common_args(&argc,argv,
-                    PCA_CAN_TIME | PCA_CAN_VIEW | PCA_TIME_UNIT | PCA_BE_NICE ,
-		    NFILE,fnm, asize(pa),pa, asize(desc),desc,0,NULL,&oenv);
+  parse_common_args(&argc,argv,PCA_CAN_TIME | PCA_CAN_VIEW | PCA_TIME_UNIT | PCA_BE_NICE ,
+		    NFILE,fnm, asize(pa),pa, asize(desc),desc,0,NULL);
   fnSCount= opt2fn("-sc",NFILE,fnm);
   fnArea  = opt2fn_null("-a", NFILE,fnm);
   fnTArea = opt2fn_null("-ta",NFILE,fnm);
@@ -473,8 +469,8 @@ int main(int argc,char *argv[])
   
   if (fnTArea) {
     fTArea=xvgropen(fnTArea,"Solvent Accessible Surface Area",
-		    get_xvgr_tlabel(oenv),"Area (nm\\S2\\N)",oenv);
-    xvgr_legend(fTArea,2,leg,oenv);
+		    xvgr_tlabel(),"Area (nm\\S2\\N)");
+    xvgr_legend(fTArea,2,leg);
   } else
     fTArea=NULL;
   
@@ -482,7 +478,7 @@ int main(int argc,char *argv[])
   mat.nmap=getcmap(libopen(opt2fn("-map",NFILE,fnm)),
 		   opt2fn("-map",NFILE,fnm),&(mat.map));
   
-  natoms=read_first_x(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box);
+  natoms=read_first_x(&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box);
   if (natoms > atoms->nr) 
     gmx_fatal(FARGS,"\nTrajectory does not match topology!");
   if (gnx > natoms)
@@ -494,7 +490,7 @@ int main(int argc,char *argv[])
   accr=NULL;
   naccr=0;
   do {
-    t = conv_time(oenv,t);
+    t = convert_time(t);
     if (bDoAccSurf && nframe>=naccr) {
       naccr+=10;
       srenew(accr,naccr);
@@ -524,11 +520,11 @@ int main(int argc,char *argv[])
         accr_ptr = accr[nframe];
 
     nres_plus_separators = strip_dssp(tmpfile,nres,bPhbres,t,
-                                      accr_ptr,fTArea,&mat,average_area,oenv);
+	       accr_ptr,fTArea,&mat,average_area);
     remove(tmpfile);
     remove(pdbfile);
     nframe++;
-  } while(read_next_x(oenv,status,&t,natoms,x,box));
+  } while(read_next_x(status,&t,natoms,x,box));
   fprintf(stderr,"\n");
   close_trj(status);
   if (fTArea)
@@ -551,7 +547,7 @@ int main(int argc,char *argv[])
     fclose(ss);
     sfree(ss_str);
   }
-  analyse_ss(fnSCount,&mat,ss_string,oenv);
+  analyse_ss(fnSCount,&mat,ss_string);
 
   if (bDoAccSurf) {
     write_sas_mat(fnArea,accr,nframe,nres_plus_separators,&mat);
@@ -563,14 +559,14 @@ int main(int argc,char *argv[])
     
     if (fnAArea) {
       acc=xvgropen(fnAArea,"Average Accessible Area",
-		   "Residue","A\\S2",oenv);
+		   "Residue","A\\S2");
       for(i=0; (i<nres); i++)
 	fprintf(acc,"%5d  %10g %10g\n",i+1,av_area[i], norm_av_area[i]);
       ffclose(acc);
     }
   }
 
-  view_all(oenv, NFILE, fnm);
+  view_all(NFILE, fnm);
 
   thanx(stderr);
   

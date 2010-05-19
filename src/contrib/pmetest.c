@@ -60,8 +60,8 @@
 #ifdef GMX_LIB_MPI
 #include <mpi.h>
 #endif
-#ifdef GMX_THREADS
-#include "tmpi.h"
+#ifdef GMX_THREAD_MPI
+#include "thread_mpi.h"
 #endif
 
 #include "block_tx.h"
@@ -162,7 +162,7 @@ static void do_my_pme(FILE *fp,real tm,bool bVerbose,t_inputrec *ir,
 		     nsb,nrnb,vir,fr->ewaldcoeff,FALSE,0,&dvdl,FALSE);
       vcorr = ewald_LRcorrection(fp,nsb,cr,fr,qptr,qptr,excl,xbuf,box,mu_tot,
 				 ir->ewald_geometry,ir->epsilon_surface,
-				 0,&dvdl,&vdip,&vcharge,TRUE);
+				 0,&dvdl,&vdip,&vcharge,TRUE,NULL);
       gmx_sum(1,&ener,cr);
       gmx_sum(1,&vcorr,cr);
       if (ngroups > 1)
@@ -287,7 +287,7 @@ int main(int argc,char *argv[])
   if (nnodes > 1) 
     gmx_fatal(FARGS,"GROMACS compiled without MPI support - can't do parallel runs");
 #endif
-#ifndef GMX_THREAD_SHM_FDECOMP
+#ifndef GMX_THREADS
   if(nthreads > 1)
     gmx_fatal(FARGS,"GROMACS compiled without threads support - can only use one thread");
 #endif
@@ -476,7 +476,7 @@ int main(int argc,char *argv[])
   }
   
   /* Finish the parallel stuff */  
-  if (gmx_parallel_env_initialized())
+  if (gmx_parallel_env)
     gmx_finalize(cr);
 
   /* Thank the audience, as usual */

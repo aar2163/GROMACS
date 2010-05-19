@@ -42,7 +42,7 @@
 
 #include "typedefs.h"
 	
-extern void calc_h_pos(int nht, rvec xa[], rvec xh[], int *l);
+extern void calc_h_pos(int nht, rvec xa[], rvec xh[]);
 /*
  *    w.f. van gunsteren, groningen, july 1981 
  *
@@ -59,8 +59,6 @@ extern void calc_h_pos(int nht, rvec xa[], rvec xh[], int *l);
  *               generated
  *    xa(1..4) : atomic positions of the control atoms i, j and k and l
  *    default bond lengths and angles are defined internally
- *   
- *    l : dynamically changed index
  */
 
 #endif	/* _calch_h */

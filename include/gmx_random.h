@@ -93,6 +93,7 @@ gmx_rng_init(unsigned int seed);
  *
  * \threadsafe Yes.
  */
+
 int uniform_int(gmx_rng_t rng,int max);
 
 unsigned int

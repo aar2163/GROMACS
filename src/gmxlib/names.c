@@ -53,7 +53,7 @@ const char *ens_names[ensNR+1]=
 
 const char *ei_names[eiNR+1]=
 {
-  "md", "steep", "cg", "gsa", "ss", "bd", "sd", "nm", "l-bfgs", "tpi", "tpic", "sd1", "mc", NULL 
+  "md", "steep", "cg", "bd", "sd", "nm", "l-bfgs", "tpi", "tpic", "sd1", "mc", NULL 
 };
 
 const char *bool_names[BOOL_NR+1]=
@@ -177,7 +177,7 @@ const char *epull_names[epullNR+1] = {
 };
 
 const char *epullg_names[epullgNR+1] = { 
-  "distance", "direction", "cylinder", "position", "direction_periodic", NULL
+  "distance", "direction", "cylinder", "position", NULL
 };
 
 const char *eQMmethod_names[eQMmethodNR+1] = {

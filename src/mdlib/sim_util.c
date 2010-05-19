@@ -89,18 +89,16 @@
 #ifdef GMX_LIB_MPI
 #include <mpi.h>
 #endif
-#ifdef GMX_THREADS
-#include "tmpi.h"
+#ifdef GMX_THREAD_MPI
+#include "thread_mpi.h"
 #endif
 
 
 #include "qmmm.h"
 
-#if 0
 typedef struct gmx_timeprint {
     
 } t_gmx_timeprint;
-#endif
 
 
 double
@@ -128,17 +126,14 @@ gmx_gettime()
 
 #define difftime(end,start) ((double)(end)-(double)(start))
 
-void print_time(FILE *out,gmx_runtime_t *runtime,gmx_large_int_t step,   
-                t_inputrec *ir, t_commrec *cr)
+void print_time(FILE *out,gmx_runtime_t *runtime,gmx_step_t step,t_inputrec *ir)
 {
   time_t finish;
 
   double dt;
   char buf[48];
 
-#ifndef GMX_THREADS
-  if (!PAR(cr))
-#endif
+  if (!gmx_parallel_env)
     fprintf(out,"\r");
   fprintf(out,"step %s",gmx_step_str(step,buf));
   if ((step >= ir->nstlist)) {
@@ -159,10 +154,8 @@ void print_time(FILE *out,gmx_runtime_t *runtime,gmx_large_int_t step,
     else
       fprintf(out,", remaining runtime: %5d s          ",(int)dt);
   }
-#ifndef GMX_THREADS
-  if (PAR(cr))
+  if (gmx_parallel_env)
     fprintf(out,"\n");
-#endif
 
   fflush(out);
 }
@@ -201,7 +194,6 @@ static double set_proctime(gmx_runtime_t *runtime)
 void runtime_start(gmx_runtime_t *runtime)
 {
     runtime->real = gmx_gettime();
-    runtime->proc          = 0;
     set_proctime(runtime);
     runtime->realtime      = 0;
     runtime->proctime      = 0;
@@ -289,48 +281,36 @@ static void sum_forces(int start,int end,rvec f[],rvec flr[])
  * Solution: implement a self-consitent electric field into PME.
  */
 static void calc_f_el(FILE *fp,int  start,int homenr,
-                      real charge[],rvec x[],rvec f[],
-                      t_cosines Ex[],t_cosines Et[],double t)
+		      real charge[],rvec x[],rvec f[],
+		      t_cosines Ex[],t_cosines Et[],double t)
 {
-    rvec Ext;
-    real t0;
-    int  i,m;
-    
-    for(m=0; (m<DIM); m++)
-    {
-        if (Et[m].n > 0)
-        {
-            if (Et[m].n == 3)
-            {
-                t0 = Et[m].a[1];
-                Ext[m] = cos(Et[m].a[0]*(t-t0))*exp(-sqr(t-t0)/(2.0*sqr(Et[m].a[2])));
-            }
-            else
-            {
-                Ext[m] = cos(Et[m].a[0]*t);
-            }
-        }
-        else
-        {
-            Ext[m] = 1.0;
-        }
-        if (Ex[m].n > 0)
-        {
-            /* Convert the field strength from V/nm to MD-units */
-            Ext[m] *= Ex[m].a[0]*FIELDFAC;
-            for(i=start; (i<start+homenr); i++)
-                f[i][m] += charge[i]*Ext[m];
-        }
-        else
-        {
-            Ext[m] = 0;
-        }
+  rvec Ext;
+  real t0;
+  int  i,m;
+  
+  for(m=0; (m<DIM); m++) {
+    if (Et[m].n) {
+      if (Et[m].n == 3) {
+	t0 = Et[m].a[1];
+	Ext[m] = cos(Et[m].a[0]*(t-t0))*exp(-sqr(t-t0)/(2.0*sqr(Et[m].a[2])));
+      }
+      else
+	Ext[m] = cos(Et[m].a[0]*t);
     }
-    if (fp != NULL)
-    {
-        fprintf(fp,"%10g  %10g  %10g  %10g #FIELD\n",t,
-                Ext[XX]/FIELDFAC,Ext[YY]/FIELDFAC,Ext[ZZ]/FIELDFAC);
+    else
+      Ext[m] = 1.0;
+    if (Ex[m].n) {
+      /* Convert the field strength from V/nm to MD-units */
+      Ext[m] *= Ex[m].a[0]*FIELDFAC;
+      for(i=start; (i<start+homenr); i++)
+	f[i][m] += charge[i]*Ext[m];
     }
+    else
+      Ext[m] = 0;
+  }
+  if (fp) 
+    fprintf(fp,"%10g  %10g  %10g  %10g #FIELD\n",t,
+	    Ext[XX]/FIELDFAC,Ext[YY]/FIELDFAC,Ext[ZZ]/FIELDFAC);
 }
 
 static void calc_virial(FILE *fplog,int start,int homenr,rvec x[],rvec f[],
@@ -366,7 +346,7 @@ static void calc_virial(FILE *fplog,int start,int homenr,rvec x[],rvec f[],
 }
 
 static void print_large_forces(FILE *fp,t_mdatoms *md,t_commrec *cr,
-			       gmx_large_int_t step,real pforce,rvec *x,rvec *f)
+			       gmx_step_t step,real pforce,rvec *x,rvec *f)
 {
   int  i;
   real pf2,fn2;
@@ -385,11 +365,11 @@ static void print_large_forces(FILE *fp,t_mdatoms *md,t_commrec *cr,
 
 void do_force(FILE *fplog,t_commrec *cr,
               t_inputrec *inputrec,
-              gmx_large_int_t step,t_nrnb *nrnb,gmx_wallcycle_t wcycle,
+              gmx_step_t step,t_nrnb *nrnb,gmx_wallcycle_t wcycle,
               gmx_localtop_t *top,
               gmx_mtop_t *mtop,
               gmx_groups_t *groups,
-              matrix box,rvec x[],history_t *hist,
+              matrix box,rvec x[],history_t *hist,gmx_mc_move *mc_move,
               rvec f[],
               tensor vir_force,
               t_mdatoms *mdatoms,
@@ -403,7 +383,7 @@ void do_force(FILE *fplog,t_commrec *cr,
     int    cg0,cg1,i,j;
     int    start,homenr;
     double mu[2*DIM]; 
-    bool   bSepDVDL,bStateChanged,bNS,bFillGrid,bCalcCGCM,bBS;
+    bool   bSepDVDL,bStateChanged,bNS,bFillGrid,bCalcCGCM,bBS,do_ns;
     bool   bDoLongRange,bDoForces,bSepLRF;
     matrix boxs;
     real   e,v,dvdl;
@@ -439,12 +419,13 @@ void do_force(FILE *fplog,t_commrec *cr,
     }
 
     bStateChanged = (flags & GMX_FORCE_STATECHANGED);
-    bNS           = (flags & GMX_FORCE_NS) && (fr->bAllvsAll==FALSE); 
+    bNS           = (flags & GMX_FORCE_NS);
     bFillGrid     = (bNS && bStateChanged);
     bCalcCGCM     = (bFillGrid && !DOMAINDECOMP(cr));
     bDoLongRange  = (fr->bTwinRange && bNS && (flags & GMX_FORCE_DOLR));
     bDoForces     = (flags & GMX_FORCE_FORCES);
     bSepLRF       = (bDoLongRange && bDoForces && (flags & GMX_FORCE_SEPLRF));
+    //do_ns         = bNS && (!mc_move || (mc_move && mc_move->bNS[mc_move->cgsnr]));
 
     if (bStateChanged)
     {
@@ -462,7 +443,7 @@ void do_force(FILE *fplog,t_commrec *cr,
     /* Compute shift vectors every step,
      * because of pressure coupling or box deformation!
      */
-    if ((flags & GMX_FORCE_DYNAMICBOX) && bStateChanged)
+    if (DYNAMIC_BOX(*inputrec) && bStateChanged)
       calc_shifts(box,fr->shift_vec);
     
     if (bCalcCGCM) { 
@@ -578,8 +559,8 @@ void do_force(FILE *fplog,t_commrec *cr,
         /* Do the actual neighbour searching and if twin range electrostatics
          * also do the calculation of long range forces and energies.
          */
-        dvdl = 0; 
-        ns(fplog,fr,x,box,
+        dvdl = 0;
+         ns(fplog,fr,x,box,
            groups,&(inputrec->opts),top,mdatoms,
            cr,nrnb,lambda,&dvdl,&enerd->grpp,bFillGrid,
            bDoLongRange,bDoForces,bSepLRF ? fr->f_twin : f);
@@ -595,7 +576,7 @@ void do_force(FILE *fplog,t_commrec *cr,
     if (inputrec->implicit_solvent && bNS) 
     {
         make_gb_nblist(cr,mtop->natoms,inputrec->gb_algorithm,inputrec->rlist,
-                       x,box,fr,&top->idef,graph,fr->born);
+                       x,fr,&top->idef,fr->born);
     }
 	
     if (DOMAINDECOMP(cr))
@@ -696,15 +677,13 @@ void do_force(FILE *fplog,t_commrec *cr,
         enerd->dvdl_lin += dvdl;
         inc_nrnb(nrnb,eNR_POSRES,top->idef.il[F_POSRES].nr/2);
     }
-
     /* Compute the bonded and non-bonded energies and optionally forces */    
     do_force_lowlevel(fplog,step,fr,inputrec,&(top->idef),
                       cr,nrnb,wcycle,mdatoms,&(inputrec->opts),
                       x,hist,f,enerd,fcd,mtop,top,fr->born,
                       &(top->atomtypes),bBornRadii,box,
                       lambda,graph,&(top->excls),fr->mu_tot,
-                      flags,&cycles_pme);
-    
+                      flags,&cycles_pme,mc_move);
     cycles_force = wallcycle_stop(wcycle,ewcFORCE);
     GMX_BARRIER(cr->mpi_comm_mygroup);
     
@@ -724,13 +703,10 @@ void do_force(FILE *fplog,t_commrec *cr,
     
     if (bDoForces)
     {
-        if (IR_ELEC_FIELD(*inputrec))
-        {
-            /* Compute forces due to electric field */
-            calc_f_el(MASTER(cr) ? field : NULL,
-                      start,homenr,mdatoms->chargeA,x,fr->f_novirsum,
-                      inputrec->ex,inputrec->et,t);
-        }
+        /* Compute forces due to electric field */
+        calc_f_el(MASTER(cr) ? field : NULL,
+                  start,homenr,mdatoms->chargeA,x,f,
+                  inputrec->ex,inputrec->et,t);
         
         /* Communicate the forces */
         if (PAR(cr))
@@ -739,12 +715,8 @@ void do_force(FILE *fplog,t_commrec *cr,
             if (DOMAINDECOMP(cr))
             {
                 dd_move_f(cr->dd,f,fr->fshift);
-                /* Do we need to communicate the separate force array
-                 * for terms that do not contribute to the single sum virial?
-                 * Position restraints and electric fields do not introduce
-                 * inter-cg forces, only full electrostatics methods do.
-                 * When we do not calculate the virial, fr->f_novirsum = f,
-                 * so we have already communicated these forces.
+                /* Position restraint do not introduce inter-cg forces.
+                 * When we do not calculate the virial, fr->f_novirsum = f.
                  */
                 if (EEL_FULL(fr->eeltype) && cr->dd->n_intercg_excl &&
                     (flags & GMX_FORCE_VIRIAL))
@@ -894,7 +866,7 @@ void do_constrain_first(FILE *fplog,gmx_constr_t constr,
                         t_forcerec *fr,t_idef *idef)
 {
     int    i,m,start,end;
-    gmx_large_int_t step;
+    gmx_step_t step;
     double mass,tmass,vcm[4];
     real   dt=inputrec->delta_t;
     real   dvdlambda;
@@ -1139,7 +1111,7 @@ void calc_enervirdiff(FILE *fplog,int eDispCorr,t_forcerec *fr)
 }
 
 void calc_dispcorr(FILE *fplog,t_inputrec *ir,t_forcerec *fr,
-                   gmx_large_int_t step,int natoms,matrix box,real lambda,
+                   gmx_step_t step,int natoms,matrix box,real lambda,
                    tensor pres,tensor virial,gmx_enerdata_t *enerd)
 {
     bool bCorrAll,bCorrPres;
@@ -1308,7 +1280,7 @@ void do_pbc_mtop(FILE *fplog,int ePBC,matrix box,
   low_do_pbc_mtop(fplog,ePBC,box,mtop,x,FALSE);
 }
 
-void finish_run(FILE *fplog,t_commrec *cr,const char *confout,
+void finish_run(FILE *fplog,t_commrec *cr,char *confout,
                 t_inputrec *inputrec,
                 t_nrnb nrnb[],gmx_wallcycle_t wcycle,
                 gmx_runtime_t *runtime,
@@ -1389,13 +1361,13 @@ void finish_run(FILE *fplog,t_commrec *cr,const char *confout,
 }
 
 void init_md(FILE *fplog,
-             t_commrec *cr,t_inputrec *ir,const output_env_t oenv,
+             t_commrec *cr,t_inputrec *ir,
              double *t,double *t0,
              real *lambda,double *lam0,
              t_nrnb *nrnb,gmx_mtop_t *mtop,
              gmx_update_t *upd,
-             int nfile,const t_filenm fnm[],
-             int *fp_trn,int *fp_xtc,ener_file_t *fp_ene,const char **fn_cpt,
+             int nfile,t_filenm fnm[],
+             int *fp_trn,int *fp_xtc,int *fp_ene,char **fn_cpt,
              FILE **fp_dhdl,FILE **fp_field,
              t_mdebin **mdebin,
              tensor force_vir,tensor shake_vir,rvec mu_tot,
@@ -1403,9 +1375,9 @@ void init_md(FILE *fplog,
 {
     int  i,j,n;
     real tmpt,mod;
-    char filemode[3];
+    char filemode[2];
     
-    sprintf(filemode, (Flags & MD_APPENDFILES) ? "a+" : "w+");  
+    sprintf(filemode, (Flags & MD_APPENDFILES) ? "a" : "w");
 	
     /* Initial values */
     *t = *t0       = ir->init_t;
@@ -1462,7 +1434,7 @@ void init_md(FILE *fplog,
     if (nfile != -1)
     {
         *fp_trn = -1;
-        *fp_ene = NULL;
+        *fp_ene = -1;
         *fp_xtc = -1;
         
         if (MASTER(cr)) 
@@ -1483,7 +1455,7 @@ void init_md(FILE *fplog,
                 }
                 else
                 {
-                    *fp_dhdl = open_dhdl(opt2fn("-dhdl",nfile,fnm),ir,oenv);
+                    *fp_dhdl = open_dhdl(opt2fn("-dhdl",nfile,fnm),ir);
                 }
             }
             
@@ -1498,12 +1470,11 @@ void init_md(FILE *fplog,
                 {				  
                     *fp_field = xvgropen(opt2fn("-field",nfile,fnm),
                                          "Applied electric field","Time (ps)",
-                                         "E (V/nm)",oenv);
+                                         "E (V/nm)");
                 }
             }
         }
-        *mdebin = init_mdebin( (Flags & MD_APPENDFILES) ? NULL : *fp_ene,
-                                mtop,ir);
+        *mdebin = init_mdebin( (Flags & MD_APPENDFILES) ? -1 : *fp_ene,mtop,ir);
     }
     
     /* Initiate variables */  

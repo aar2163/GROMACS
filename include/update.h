@@ -60,20 +60,14 @@ extern void get_stochd_state(gmx_update_t sd,t_state *state);
 /* Set the random in sd from state */
 extern void set_stochd_state(gmx_update_t sd,t_state *state);
 
-void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
-/* Makes a random move in x */ 
-
-void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
-void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
-void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph);
 /* Store the box at step step
  * as a reference state for simulations with box deformation.
  */
 extern void set_deform_reference_box(gmx_update_t upd,
-				     gmx_large_int_t step,matrix box);
+				     gmx_step_t step,matrix box);
 
 extern void update(FILE         *fplog,
-		   gmx_large_int_t   step,
+		   gmx_step_t   step,
 		   real         *dvdlambda, /* FEP stuff */
 		   t_inputrec   *inputrec,  /* input record and box stuff */
 		   t_mdatoms    *md,
@@ -162,13 +156,13 @@ extern real calc_pres(int ePBC,int nwall,matrix box,
  * a long range correction based on Ewald/PPPM is made (see c-code)
  */
 
-extern void parrinellorahman_pcoupl(FILE *fplog,gmx_large_int_t step,
+extern void parrinellorahman_pcoupl(FILE *fplog,gmx_step_t step,
 				    t_inputrec *ir,real dt,tensor pres,
 				    tensor box,tensor box_rel,tensor boxv,
 				    tensor M,matrix mu,
 				    bool bFirstStep);
   
-extern void berendsen_pcoupl(FILE *fplog,gmx_large_int_t step,
+extern void berendsen_pcoupl(FILE *fplog,gmx_step_t step,
 			     t_inputrec *ir,real dt,tensor pres,matrix box,
 			     matrix mu);
 

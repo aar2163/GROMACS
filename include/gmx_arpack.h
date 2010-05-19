@@ -40,8 +40,7 @@
 
 
 
-/*! \file
- * \brief Selected routines from ARPACK
+/*! \file Selected routines from ARPACK
  *
  * This file contains a subset of ARPACK functions to perform
  * diagonalization and SVD for sparse matrices in Gromacs.

@@ -51,10 +51,10 @@ gmx_setup_kernels(FILE *fplog);
 
 void
 do_nonbonded(t_commrec *cr,t_forcerec *fr,
-             rvec x[],rvec f[],t_mdatoms *md,t_blocka *excl,
+             rvec x[],rvec f[],t_mdatoms *md,
              real egnb[],real egcoul[],real egb[],rvec box_size,
              t_nrnb *nrnb,real lambda,real *dvdlambda,
-             int nls,int eNL,int flags);
+             int nls,int eNL,int flags,gmx_mc_move *mc_move);
 
 /* Calculate VdW/charge pair interactions (usually 1-4 interactions).
  * global_atom_index is only passed for printing error messages.

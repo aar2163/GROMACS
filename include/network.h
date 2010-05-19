@@ -50,8 +50,8 @@
 #ifdef GMX_LIB_MPI
 #include <mpi.h>
 #endif
-#ifdef GMX_THREADS
-#include "tmpi.h"
+#ifdef GMX_THREAD_MPI
+#include "thread_mpi.h"
 #endif
 
 #include "typedefs.h"

@@ -44,18 +44,12 @@
 #include <stdio.h>
 #include "network.h"
 
-extern bool gmx_parallel_env_initialized(void); 
-/* 1 when running in a parallel environment, so could also be 1 if
-   mdrun was started with: mpirun -np 1.
-  
-   Use this function only to check whether a parallel environment has
-   been initialized, for example when checking whether gmx_finalize()
-   needs to be called. Use PAR(cr) to check whether the simulation actually
-   has more than one node/thread. */
+extern int  gmx_parallel_env; /* 1 when running in a parallel environment,
+			       * so could also be 1 when mdrun was started
+			       * with: mpirun -np 1 
+			       */
 
-
-extern void gmx_log_open(const char *fn,const t_commrec *cr,
-                          bool bMasterOnly, unsigned long Flags, FILE**);
+extern FILE *gmx_log_open(char *fn,const t_commrec *cr,bool bMasterOnly, unsigned long Flags);
 /* Open the log file, if necessary (nprocs > 1) the logfile name is
  * communicated around the ring.
  */
@@ -70,8 +64,8 @@ extern void check_multi_int(FILE *log,const gmx_multisim_t *ms,
  * if the val's don't match.
  */
 
-extern void init_multisystem(t_commrec *cr,int nsim,int nfile,
-                             const t_filenm fnm[], bool bParFn);
+extern void init_multisystem(t_commrec *cr,int nsim,int nfile,t_filenm fnm[],
+			     bool bParFn);
 /* Splits the communication into nsim seperate simulations
  * and creates a communication structure between the master
  * these simulations.
@@ -85,11 +79,6 @@ extern t_commrec *init_par(int *argc,char ***argv_ptr);
  * Arguments are the number of command line arguments, and a pointer to the
  * array of argument strings.
  */
-
-extern t_commrec *init_par_threads(t_commrec *cro);
-/* Initiate the communication records for thread-parallel simulations. 
-   Must be called before any communication takes place by the individual
-   threads. cro is the old shared commrec */
 
 
 extern t_commrec *init_cr_nopar(void);

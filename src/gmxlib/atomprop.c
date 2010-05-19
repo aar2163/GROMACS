@@ -90,9 +90,7 @@ static int get_prop_index(aprop_t *ap,t_aa_names *aan,
 			  char *resnm,char *atomnm,
 			  bool *bExact)
 {
-  int  i,j=NOTFOUND;
-  long int alen,rlen;
-  long int malen,mrlen;
+  int  i,j=NOTFOUND,alen,rlen,malen,mrlen;
   bool bProtein,bProtWild;
   
   bProtein  = is_protein(aan,resnm);
@@ -119,8 +117,8 @@ static int get_prop_index(aprop_t *ap,t_aa_names *aan,
     }
   }
   
-  *bExact = ((malen == (long int)strlen(atomnm)) &&
-	     ((mrlen == (long int)strlen(resnm)) || 
+  *bExact = ((malen == strlen(atomnm)) &&
+	     ((mrlen == strlen(resnm)) || 
 	      ((mrlen == WILDPROT) && bProtWild) ||
 	      ((mrlen == WILDCARD) && !bProtein && !bProtWild)));
   

@@ -57,7 +57,6 @@
 #include "names.h"
 #include "atomprop.h"
 #include "physics.h"
-#include "tpxio.h"
 
 typedef struct {
   atom_id  aa,ab;
@@ -93,7 +92,7 @@ void add_rec(t_conect c[],atom_id i,atom_id j,real d2)
   }
 }
 
-void do_conect(const char *fn,int n,rvec x[])
+void do_conect(char *fn,int n,rvec x[])
 {
   FILE     *fp;
   int      i,j;
@@ -124,7 +123,7 @@ void do_conect(const char *fn,int n,rvec x[])
   sfree(c);
 }
 
-void connelly_plot(const char *fn,int ndots,real dots[],rvec x[],t_atoms *atoms,
+void connelly_plot(char *fn,int ndots,real dots[],rvec x[],t_atoms *atoms,
 		   t_symtab *symtab,int ePBC,matrix box,bool bSave)
 {
   static const char *atomnm="DOT";
@@ -218,23 +217,21 @@ real calc_radius(char *atom)
 
 void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
 	      real qcut,bool bSave,real minarea,bool bPBC,
-	      real dgs_default,bool bFindex, const output_env_t oenv)
+	      real dgs_default,bool bFindex)
 {
   FILE         *fp,*fp2,*fp3=NULL,*vp;
   char   *flegend[] = { "Hydrophobic", "Hydrophilic", 
 			      "Total", "D Gsolv" };
   char   *vlegend[] = { "Volume (nm\\S3\\N)", "Density (g/l)" };
-  const char   *vfile;
+  char         *vfile;
   real         t;
   gmx_atomprop_t aps=NULL;
   int          status,ndefault;
   int          i,j,ii,nfr,natoms,flag,nsurfacedots,res;
-  rvec         *xtop,*x;
-  matrix       topbox,box;
-  t_topology   top;
-  char         title[STRLEN];
+  rvec         *x;
+  matrix       box;
+  t_topology   *top;
   int          ePBC;
-  bool         bTop;
   t_atoms      *atoms;
   bool         *bOut,*bPhobic;
   bool         bConnelly;
@@ -251,27 +248,21 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
   bITP   = opt2bSet("-i",nfile,fnm);
   bResAt = opt2bSet("-or",nfile,fnm) || opt2bSet("-oa",nfile,fnm) || bITP;
 
-  bTop = read_tps_conf(ftp2fn(efTPS,nfile,fnm),title,&top,&ePBC,
-		       &xtop,NULL,topbox,FALSE);
-  atoms = &(top.atoms);
+  top   = read_top(ftp2fn(efTPX,nfile,fnm),&ePBC);
+  atoms = &(top->atoms);
   
-  if (!bTop) {
-    fprintf(stderr,"No tpr file, will not compute Delta G of solvation\n");
-    bDGsol = FALSE;
-  } else {
-    bDGsol = strcmp(*(atoms->atomtype[0]),"?") != 0;
-    if (!bDGsol) {
-      fprintf(stderr,"Warning: your tpr file is too old, will not compute "
-	      "Delta G of solvation\n");
-    } else {
-      printf("In case you use free energy of solvation predictions:\n");
-      please_cite(stdout,"Eisenberg86a");
-    }
+  bDGsol = strcmp(*(atoms->atomtype[0]),"?") != 0;
+  if (!bDGsol) 
+    fprintf(stderr,"Warning: your tpr file is too old, will not compute "
+	    "Delta G of solvation\n");
+  else {
+    printf("In case you use free energy of solvation predictions:\n");
+    please_cite(stdout,"Eisenberg86a");
   }
 
   aps = gmx_atomprop_init();
   
-  if ((natoms=read_first_x(oenv,&status,ftp2fn(efTRX,nfile,fnm),
+  if ((natoms=read_first_x(&status,ftp2fn(efTRX,nfile,fnm),
 			   &t,&x,box))==0)
     gmx_fatal(FARGS,"Could not read coordinates from statusfile\n");
 
@@ -284,11 +275,11 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
   snew(index,2);
   snew(grpname,2);
   fprintf(stderr,"Select a group for calculation of surface and a group for output:\n");
-  get_index(atoms,ftp2fn_null(efNDX,nfile,fnm),2,nx,index,grpname);
+  get_index(&(top->atoms),ftp2fn_null(efNDX,nfile,fnm),2,nx,index,grpname);
 
   if (bFindex) {
     fprintf(stderr,"Select a group of hydrophobic atoms:\n");
-    get_index(atoms,ftp2fn_null(efNDX,nfile,fnm),1,&nphobic,&findex,&fgrpname);
+    get_index(&(top->atoms),ftp2fn_null(efNDX,nfile,fnm),1,&nphobic,&findex,&fgrpname);
   }
   snew(bOut,natoms);
   for(i=0; i<nx[1]; i++)
@@ -311,8 +302,8 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
   ndefault = 0;
   for(i=0; (i<natoms); i++) {
     if (!gmx_atomprop_query(aps,epropVDW,
-			    *(atoms->resinfo[atoms->atom[i].resind].name),
-			    *(atoms->atomname[i]),&radius[i]))
+			    *(top->atoms.resinfo[top->atoms.atom[i].resind].name),
+			    *(top->atoms.atomname[i]),&radius[i]))
       ndefault++;
     /* radius[i] = calc_radius(*(top->atoms.atomname[i])); */
     radius[i] += solsize;
@@ -362,15 +353,12 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
 	  nphobic,nx[1]);
   
   fp=xvgropen(opt2fn("-o",nfile,fnm),"Solvent Accessible Surface","Time (ps)",
-	      "Area (nm\\S2\\N)",oenv);
-  xvgr_legend(fp,asize(flegend) - (bDGsol ? 0 : 1),flegend,oenv);
+	      "Area (nm\\S2\\N)");
+  xvgr_legend(fp,asize(flegend) - (bDGsol ? 0 : 1),flegend);
   vfile = opt2fn_null("-tv",nfile,fnm);
   if (vfile) {
-    if (!bTop) {
-      gmx_fatal(FARGS,"Need a tpr file for option -tv");
-    }
-    vp=xvgropen(vfile,"Volume and Density","Time (ps)","",oenv);
-    xvgr_legend(vp,asize(vlegend),vlegend,oenv);
+    vp=xvgropen(vfile,"Volume and Density","Time (ps)","");
+    xvgr_legend(vp,asize(vlegend),vlegend);
     totmass  = 0;
     ndefault = 0;
     for(i=0; (i<nx[0]); i++) {
@@ -383,7 +371,7 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
 	ndefault++;
       totmass += mm;
       */
-      totmass += atoms->atom[ii].m;
+      totmass += top->atoms.atom[ii].m;
     }
     if (ndefault)
       fprintf(stderr,"WARNING: Using %d default masses for density calculation, which most likely are inaccurate\n",ndefault);
@@ -396,19 +384,15 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
   nfr=0;
   do {
     if (bPBC)
-      rm_pbc(&top.idef,ePBC,natoms,box,x,x);
+      rm_pbc(&top->idef,ePBC,natoms,box,x,x);
     
     bConnelly = (nfr==0 && opt2bSet("-q",nfile,fnm));
-    if (bConnelly) {
-      if (!bTop)
-	gmx_fatal(FARGS,"Need a tpr file for Connelly plot");
+    if (bConnelly)
       flag = FLAG_ATOM_AREA | FLAG_DOTS;
-    } else {
+    else
       flag = FLAG_ATOM_AREA;
-    }
-    if (vp) {
+    if (vp)
       flag = flag | FLAG_VOLUME;
-    }
       
     if (debug)
       write_sto_conf("check.pdb","pbc check",atoms,x,NULL,ePBC,box);
@@ -417,12 +401,12 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
 			  &area,&totvolume,&surfacedots,&nsurfacedots,
 			  index[0],ePBC,bPBC ? box : NULL);
     if (retval)
-      gmx_fatal(FARGS,"Something wrong in nsc_dclm_pbc");
+      gmx_fatal(FARGS,"Something wrong in nsc_dclm2");
     
     if (bConnelly)
       connelly_plot(ftp2fn(efPDB,nfile,fnm),
 		    nsurfacedots,surfacedots,x,atoms,
-		    &(top.symtab),ePBC,box,bSave);
+		    &(top->symtab),ePBC,box,bSave);
     harea  = 0; 
     tarea  = 0;
     dgsolv = 0;
@@ -470,7 +454,7 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
       surfacedots = NULL;
     }
     nfr++;
-  } while (read_next_x(oenv,status,&t,natoms,x,box));
+  } while (read_next_x(status,&t,natoms,x,box));
   
   fprintf(stderr,"\n");
   close_trj(status);
@@ -490,9 +474,9 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
     }
     fprintf(stderr,"Printing out areas per atom\n");
     fp  = xvgropen(opt2fn("-or",nfile,fnm),"Area per residue","Residue",
-		   "Area (nm\\S2\\N)",oenv);
+		   "Area (nm\\S2\\N)");
     fp2 = xvgropen(opt2fn("-oa",nfile,fnm),"Area per atom","Atom #",
-		   "Area (nm\\S2\\N)",oenv);
+		   "Area (nm\\S2\\N)");
     if (bITP) {
       fp3 = ftp2FILE(efITP,nfile,fnm,"w");
       fprintf(fp3,"[ position_restraints ]\n"
@@ -523,30 +507,7 @@ void sas_plot(int nfile,t_filenm fnm[],real solsize,int ndots,
     fclose(fp);
   }
 
-    /* Be a good citizen, keep our memory free! */
-    sfree(x);
-    sfree(nx);
-    for(i=0;i<2;i++)
-    {
-        sfree(index[i]);
-        sfree(grpname[i]);
-    }
-    sfree(bOut);
-    sfree(radius);
-    sfree(bPhobic);
-    
-    if(bResAt)
-    {
-        sfree(atom_area);
-        sfree(atom_area2);
-        sfree(res_a);
-        sfree(res_area);
-        sfree(res_area2);
-    }
-    if(bDGsol)
-    {
-        sfree(dgs_factor);
-    }
+  sfree(x);
 }
 
 int gmx_sas(int argc,char *argv[])
@@ -577,7 +538,6 @@ int gmx_sas(int argc,char *argv[])
     "high density."
   };
 
-  output_env_t oenv;
   static real solsize = 0.14;
   static int  ndots   = 24;
   static real qcut    = 0.2;
@@ -603,7 +563,7 @@ int gmx_sas(int argc,char *argv[])
   };
   t_filenm  fnm[] = {
     { efTRX, "-f",   NULL,       ffREAD },
-    { efTPS, "-s",   NULL,       ffREAD },
+    { efTPX, "-s",   NULL,       ffREAD },
     { efXVG, "-o",   "area",     ffWRITE },
     { efXVG, "-or",  "resarea",  ffOPTWR },
     { efXVG, "-oa",  "atomarea", ffOPTWR },
@@ -616,7 +576,7 @@ int gmx_sas(int argc,char *argv[])
 
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,PCA_CAN_VIEW | PCA_CAN_TIME | PCA_BE_NICE,
-		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL,&oenv);
+		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL);
   if (solsize < 0) {
     solsize=1e-3;
     fprintf(stderr,"Probe size too small, setting it to %g\n",solsize);
@@ -628,12 +588,11 @@ int gmx_sas(int argc,char *argv[])
 
   please_cite(stderr,"Eisenhaber95");
     
-  sas_plot(NFILE,fnm,solsize,ndots,qcut,bSave,minarea,bPBC,dgs_default,bFindex,
-          oenv);
+  sas_plot(NFILE,fnm,solsize,ndots,qcut,bSave,minarea,bPBC,dgs_default,bFindex);
   
-  do_view(oenv,opt2fn("-o",NFILE,fnm),"-nxy");
-  do_view(oenv,opt2fn_null("-or",NFILE,fnm),"-nxy");
-  do_view(oenv,opt2fn_null("-oa",NFILE,fnm),"-nxy");
+  do_view(opt2fn("-o",NFILE,fnm),"-nxy");
+  do_view(opt2fn_null("-or",NFILE,fnm),"-nxy");
+  do_view(opt2fn_null("-oa",NFILE,fnm),"-nxy");
 
   thanx(stderr);
   

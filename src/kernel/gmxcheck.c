@@ -129,7 +129,7 @@ static void tpx2params(FILE *fp,t_inputrec *ir)
   fprintf(fp,"\n\n");
 }
 
-static void tpx2methods(const char *tpx,const char *tex)
+static void tpx2methods(char *tpx,char *tex)
 {
   FILE         *fp;
   t_tpxheader sh;
@@ -212,7 +212,7 @@ static void chk_bonds(t_idef *idef,int ePBC,rvec *x,matrix box,real tol)
 	switch (ftype) {
 	case F_BONDS:
 	case F_G96BONDS:
-	  b0 = idef->iparams[type].harmonic.rA;
+	  b0 = sqrt(idef->iparams[type].harmonic.rA);
 	  break;
 	case F_MORSE:
 	  b0 = idef->iparams[type].morse.b0;
@@ -238,7 +238,7 @@ static void chk_bonds(t_idef *idef,int ePBC,rvec *x,matrix box,real tol)
     }
 }
 
-void chk_trj(const output_env_t oenv,const char *fn,const char *tpr,real tol)
+void chk_trj(char *fn,char *tpr,real tol)
 {
   t_trxframe   fr;
   t_count      count;
@@ -290,7 +290,7 @@ void chk_trj(const output_env_t oenv,const char *fn,const char *tpr,real tol)
   last.bF = 0;
   last.bBox = 0;
 
-  read_first_frame(oenv,&status,fn,&fr,TRX_READ_X | TRX_READ_V | TRX_READ_F);
+  read_first_frame(&status,fn,&fr,TRX_READ_X | TRX_READ_V | TRX_READ_F);
 
   do {
     if (j == 0) {
@@ -340,7 +340,7 @@ void chk_trj(const output_env_t oenv,const char *fn,const char *tpr,real tol)
     INC(fr,count,first,last,bBox);
 #undef INC
     fpos = gmx_fio_ftell(status);
-  } while (read_next_frame(oenv,status,&fr));
+  } while (read_next_frame(status,&fr));
   
   fprintf(stderr,"\n");
 
@@ -360,7 +360,7 @@ void chk_trj(const output_env_t oenv,const char *fn,const char *tpr,real tol)
   PRINTITEM ( "Box",        bBox );
 }  
 
-void chk_tps(const char *fn, real vdw_fac, real bon_lo, real bon_hi)
+void chk_tps(char *fn, real vdw_fac, real bon_lo, real bon_hi)
 {
   int       natom,i,j,k;
   char      title[STRLEN];
@@ -516,7 +516,7 @@ void chk_tps(const char *fn, real vdw_fac, real bon_lo, real bon_hi)
   }
 }
 
-void chk_ndx(const char *fn)
+void chk_ndx(char *fn)
 {
   t_blocka *grps;
   char **grpname=NULL;
@@ -542,10 +542,9 @@ void chk_ndx(const char *fn)
   done_blocka(grps);
 }
 
-void chk_enx(const char *fn)
+void chk_enx(char *fn)
 {
-  int        nre,fnr,ndr;
-  ener_file_t in;
+  int        in,nre,fnr,ndr;
   gmx_enxnm_t *enm=NULL;
   t_enxframe *fr;
   bool       bShowTStep;
@@ -633,15 +632,12 @@ int main(int argc,char *argv[])
     { efTEX, "-m",  NULL, ffOPTWR }
   };
 #define NFILE asize(fnm)
-  const char *fn1=NULL,*fn2=NULL,*tex=NULL;
- 
-  output_env_t oenv;
+  char *fn1=NULL,*fn2=NULL,*tex=NULL;
+  
   static real vdw_fac=0.8;
   static real bon_lo=0.4;
   static real bon_hi=0.7;
-  static bool bRMSD=FALSE;
   static real ftol=0.001;
-  static real abstol=0.001;
   static bool bCompAB=FALSE;
   static char *lastener=NULL;
   static t_pargs pa[] = {
@@ -651,12 +647,8 @@ int main(int argc,char *argv[])
       "Min. fract. of sum of VdW radii for bonded atoms" },
     { "-bonhi",  FALSE, etREAL, {&bon_hi},
       "Max. fract. of sum of VdW radii for bonded atoms" },
-    { "-rmsd",   FALSE, etBOOL, {&bRMSD},
-      "Print RMSD for x, v and f" },
-    { "-tol",    FALSE, etREAL, {&ftol},
+     { "-tol",    FALSE, etREAL, {&ftol},
       "Relative tolerance for comparing real values defined as 2*(a-b)/(|a|+|b|)" },
-    { "-abstol",    FALSE, etREAL, {&abstol},
-      "Absolute tolerance, useful when sums are close to zero." },
     { "-ab",     FALSE, etBOOL, {&bCompAB},
       "Compare the A and B topology from one file" }, 
     { "-lastener",FALSE, etSTR,  {&lastener},
@@ -665,15 +657,15 @@ int main(int argc,char *argv[])
 
   CopyRight(stdout,argv[0]);
   parse_common_args(&argc,argv,0,NFILE,fnm,asize(pa),pa,
-		    asize(desc),desc,0,NULL,&oenv);
+		    asize(desc),desc,0,NULL);
 
   fn1 = opt2fn_null("-f",NFILE,fnm);
   fn2 = opt2fn_null("-f2",NFILE,fnm);
   tex = opt2fn_null("-m",NFILE,fnm);
   if (fn1 && fn2)
-    comp_trx(oenv,fn1,fn2,bRMSD,ftol,abstol);
+    comp_trx(fn1,fn2,ftol);
   else if (fn1)
-    chk_trj(oenv,fn1,opt2fn_null("-s1",NFILE,fnm),ftol);
+    chk_trj(fn1,opt2fn_null("-s1",NFILE,fnm),ftol);
   else if (fn2)
     fprintf(stderr,"Please give me TWO trajectory (.xtc/.trr/.trj) files!\n");
   
@@ -685,7 +677,7 @@ int main(int argc,char *argv[])
 	gmx_fatal(FARGS,"With -ab you need to set the -s1 option");
       fn2 = NULL;
     }
-    comp_tpx(fn1,fn2,bRMSD,ftol,abstol);
+    comp_tpx(fn1,fn2,ftol);
   } else if (fn1 && tex)
     tpx2methods(fn1,tex);
   else if ((fn1 && !opt2fn_null("-f",NFILE,fnm)) || (!fn1 && fn2)) {
@@ -696,7 +688,7 @@ int main(int argc,char *argv[])
   fn1 = opt2fn_null("-e",NFILE,fnm);
   fn2 = opt2fn_null("-e2",NFILE,fnm);
   if (fn1 && fn2)
-    comp_enx(fn1,fn2,ftol,abstol,lastener);
+    comp_enx(fn1,fn2,ftol,lastener);
   else if (fn1)
     chk_enx(ftp2fn(efEDR,NFILE,fnm));
   else if (fn2)

@@ -38,7 +38,7 @@
 #endif
 
 
-#include <thread_mpi.h>
+#include <gmx_thread.h>
 
 
 #include <stdio.h>
@@ -66,8 +66,6 @@
 #include "nb_free_energy.h"
 #include "nb_generic.h"
 #include "nb_generic_cg.h"
-
-
 /* 1,4 interactions uses kernel 330 directly */
 #include "nb_kernel_c/nb_kernel330.h" 
 
@@ -82,7 +80,7 @@
 #if defined(GMX_IA32_SSE2) 
 #include "nb_kernel_ia32_sse2/nb_kernel_ia32_sse2.h"
 #endif
- 
+
 #if defined(GMX_X86_64_SSE)
 #include "nb_kernel_x86_64_sse/nb_kernel_x86_64_sse.h"
 #endif
@@ -111,14 +109,13 @@
 #include "nb_kernel_ia64_single/nb_kernel_ia64_single.h"
 #endif
 
-#ifdef GMX_POWER6
-#include "nb_kernel_power6/nb_kernel_power6.h"
-#endif
-
 #ifdef GMX_BLUEGENE
 #include "nb_kernel_bluegene/nb_kernel_bluegene.h"
 #endif
 
+#ifdef GMX_POWER6
+#include "nb_kernel_power6/nb_kernel_power6.h"
+#endif
 
 
 enum { TABLE_NONE, TABLE_COMBINED, TABLE_COUL, TABLE_VDW, TABLE_NR };
@@ -225,7 +222,7 @@ gmx_setup_kernels(FILE *fplog)
         {
             fprintf(fplog,
                     "Found environment variable GMX_NB_GENERIC.\n"
-                    "Disabling interaction-specific nonbonded kernels.\n\n");
+                    "Disabling all interaction-specific nonbonded kernels.\n\n");
         }
         return;
     }
@@ -242,7 +239,7 @@ gmx_setup_kernels(FILE *fplog)
         if(fplog)
             fprintf(fplog,
                     "Found environment variable GMX_NOOPTIMIZEDKERNELS.\n"
-                    "Disabling SSE/SSE2/Altivec/ia64/Power6/Bluegene specific kernels.\n\n");
+                    "Disabling all SSE/SSE2/Altivec/ia64/Power6/Bluegene specific kernels.\n\n");
         return;
     }
     
@@ -308,16 +305,88 @@ gmx_setup_kernels(FILE *fplog)
 	    fprintf(fplog,"\n\n");
     }
 }
+void do_mclist(gmx_mc_move *mc_move,t_nblist *nlist,t_nblists **nblists_mc,int ind1,int ind2,bool bLR)
+{
+ int n,nn0,nn1,nj0,nj1,ii,jnr,k,kk,jj,nri;
+ t_nblists *nlists;
+ t_nblist *nlist2;
 
+  /*srenew(nlist2,1);
+  srenew(jindex,nlist->nri+1);
+  nlist2->jindex = jindex;
+  srenew(iinr,nlist->nri);
+  nlist2->iinr = iinr;
+  nj1 = nlist->jindex[nlist->nri+1];    
+  srenew(jjnr,nj1);
+  nlist2->jjnr = jjnr;*/
+  nlists = &nblists_mc[mc_move->cgsnr][ind1];
+  if(bLR)
+  {
+   nlist2 = &nlists->nlist_lr[ind2];
+  }
+  else 
+  {
+   nlist2 = &nlists->nlist_sr[ind2];
+  }
 
+  if(mc_move->bNS[mc_move->cgsnr])
+  {
+   
+   nlist2->enlist = nlist->enlist;
+   nlist2->il_code = nlist->il_code;
+   nlist2->icoul = nlist->icoul;
+   nlist2->ivdw = nlist->ivdw;
+   nlist2->free_energy = nlist->free_energy;
+   nlist2->nri = nlist->nri;
+   nlist2->maxnri = nlist->maxnri;
+   nlist2->nrj = nlist->nrj;
+   nlist2->maxnrj = nlist2->maxnrj;  
+   nlist2->maxlen = nlist->maxlen;
+   nlist2->iinr_end = nlist->iinr_end;
+   nlist2->jjnr_end = nlist->jjnr_end;
+   nlist2->count = nlist->count;
+   nlist2->mtx = nlist->mtx;    
+   srenew(nlist2->jjnr,nlist->maxnrj);
+ 
+        for(n=0; (n<nlist->nri); n++)
+        {   
+            nlist2->iinr[n] = nlist->iinr[n];        
+            nlist2->jindex[n] = nlist->jindex[n];
+            nlist2->jindex[n+1] = nlist->jindex[n+1];
+            nlist2->gid[n] = nlist->gid[n];
+            nlist2->shift[n] = nlist->shift[n];
+
+            for(k=nlist->jindex[n]; (k<nlist->jindex[n+1]); k++)
+            {
+
+                nlist2->jjnr[k]  = nlist->jjnr[k]; 
+            }
+        }
+  }
+  else 
+  {
+   //nlist = nlist2;
+        for(n=0; (n<nlist->nri); n++)
+        {   
+            for(k=nlist->jindex[n]; (k<nlist->jindex[n+1]); k++)
+            {
+            //if(mc_move->cgsnr == 20)
+             //printf("false %d %d %d %d\n",n,k,ind1,ind2);
+            }
+        }
+  }
+
+ return;
+}
 void do_nonbonded(t_commrec *cr,t_forcerec *fr,
-                  rvec x[],rvec f[],t_mdatoms *mdatoms,t_blocka *excl,
+                  rvec x[],rvec f[],t_mdatoms *mdatoms,
                   real egnb[],real egcoul[],real egpol[],rvec box_size,
                   t_nrnb *nrnb,real lambda,real *dvdlambda,
-                  int nls,int eNL,int flags)
+                  int nls,int eNL,int flags,gmx_mc_move *mc_move)
 {
     bool            bLR,bDoForces,bForeignLambda;
-	t_nblist *      nlist;
+	t_nblist *      nlist,*nlist2=NULL;
+	t_nblists *      nlists;
 	real *          fshift;
 	int             n,n0,n1,i,i0,i1,nrnb_ind,sz;
 	t_nblists       *nblists;
@@ -328,7 +397,9 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
 	int             nthreads = 1;
 	int             tabletype;
 	int             outeriter,inneriter;
+        int             *jindex,nj1,nri,*iinr,*jjnr;
 	real *          tabledata = NULL;
+	real *          enerd = NULL;
 	gmx_gbdata_t    gbdata;
 
     bLR            = (flags & GMX_DONB_LR);
@@ -337,53 +408,6 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
 
 	gbdata.gb_epsilon_solvent = fr->gb_epsilon_solvent;
 	gbdata.gpol               = egpol;
-    
-    if(fr->bAllvsAll) 
-    {
-        if(fr->bGB)
-        {
-#if (defined GMX_SSE2 || defined GMX_X86_64_SSE || defined GMX_X86_64_SSE2 || defined GMX_IA32_SSE || defined GMX_IA32_SSE2)
-# ifdef GMX_DOUBLE
-            /* double not done yet */
-            gmx_fatal(FARGS,"Death horror - allvsall double precision kernel not done yet!");
-/*
- nb_kernel_allvsallgb_sse2_double(fr,mdatoms,excl,x[0],f[0],egcoul,egnb,egpol,
-                                             &outeriter,&inneriter,&fr->AllvsAll_work);
- */
-#  else
-            nb_kernel_allvsallgb_sse2_single(fr,mdatoms,excl,x[0],f[0],egcoul,egnb,egpol,
-                                             &outeriter,&inneriter,&fr->AllvsAll_work);
-#  endif
-#else
-            nb_kernel_allvsallgb(fr,mdatoms,excl,x[0],f[0],egcoul,egnb,egpol,
-                                 &outeriter,&inneriter,&fr->AllvsAll_work);        
-#endif     
-            inc_nrnb(nrnb,eNR_NBKERNEL_ALLVSALLGB,inneriter);
-        }
-        else
-        { 
-#if (defined GMX_SSE2 || defined GMX_X86_64_SSE || defined GMX_X86_64_SSE2 || defined GMX_IA32_SSE || defined GMX_IA32_SSE2)
-# ifdef GMX_DOUBLE
-            /* double not done yet */
-            gmx_fatal(FARGS,"Death horror - allvsall double precision kernel not done yet!");
-/*
-            nb_kernel_allvsall_sse2_double(fr,mdatoms,excl,x[0],f[0],egcoul,egnb,
-                                           &outeriter,&inneriter,&fr->AllvsAll_work);
- */
-#  else
-            nb_kernel_allvsall_sse2_single(fr,mdatoms,excl,x[0],f[0],egcoul,egnb,
-                                           &outeriter,&inneriter,&fr->AllvsAll_work);
-#  endif
-#else
-            nb_kernel_allvsall(fr,mdatoms,excl,x[0],f[0],egcoul,egnb,
-                               &outeriter,&inneriter,&fr->AllvsAll_work);
-#endif            
-            
-            inc_nrnb(nrnb,eNR_NBKERNEL_ALLVSALL,inneriter);
-        }
-        inc_nrnb(nrnb,eNR_NBKERNEL_OUTER,outeriter);
-        return;
-    }
 	
     if (eNL >= 0) 
     {
@@ -414,6 +438,7 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
   
     fshift = fr->fshift[0];
   
+
 	for(n=n0; (n<n1); n++) 
 	{
 		nblists = &fr->nblists[n];
@@ -563,15 +588,33 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                     else
                     {
                         /* Call nonbonded kernel from function pointer */
-                        
-                        (*kernelptr)( &(nlist->nri),
-                                      nlist->iinr,
-                                      nlist->jindex,
-                                      nlist->jjnr,
-                                      nlist->shift,
+                      if(mc_move) 
+                      {
+                       if(mc_move->bNS[mc_move->cgsnr])
+                       {
+                        do_mclist(mc_move,nlist,fr->nblists_mc,n,i,bLR);
+                       }
+                       else
+                       {
+                        nlists = &fr->nblists_mc[mc_move->cgsnr][n];
+                        if(bLR)
+                        {
+                         nlist2 = &nlists->nlist_lr[i];
+                        }
+                        else 
+                        {
+                         nlist2 = &nlists->nlist_sr[i];
+                        }
+                       }
+                      }
+                        (*kernelptr)( mc_move && nlist2 ? &(nlist2->nri) : &(nlist->nri),
+                                      mc_move && nlist2 ? nlist2->iinr : nlist->iinr,
+                                      mc_move && nlist2 ? nlist2->jindex : nlist->jindex,
+                                      mc_move && nlist2 ? nlist2->jjnr : nlist->jjnr,
+                                      mc_move && nlist2 ? nlist2->shift : nlist->shift,
                                       fr->shift_vec[0],
                                       fshift,
-                                      nlist->gid,
+                                      mc_move && nlist2 ? nlist2->gid : nlist->gid,
                                       x[0],
                                       f[0],
                                       mdatoms->chargeA,
@@ -585,6 +628,9 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                                       egnb,
                                       &(nblists->tab.scale),
                                       tabledata,
+                                      enerd,
+                                      &mc_move->cgsnr,
+                                      NULL,
                                       fr->invsqrta,
                                       fr->dvda,
                                       &(fr->gbtabscale),
@@ -650,14 +696,14 @@ do_listed_vdw_q(int ftype,int nbonds,
     int       icoul,ivdw;
     bool      bMolPBC,bFreeEnergy;
     
-#if GMX_THREAD_SHM_FDECOMP
+#if GMX_THREADS
     pthread_mutex_t mtx;
 #else
     void *    mtx = NULL;
 #endif
 
     
-#if GMX_THREAD_SHM_FDECOMP
+#if GMX_THREADS
     pthread_mutex_initialize(&mtx);
 #endif
 
@@ -879,6 +925,9 @@ do_listed_vdw_q(int ftype,int nbonds,
                   egnb,
                   &tabscale,
                   tab,
+                  NULL,
+                  NULL,
+                  NULL,
                   NULL,
                   NULL,
                   NULL,

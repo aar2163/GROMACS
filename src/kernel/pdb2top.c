@@ -1,5 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
- *
+/*
  * 
  *                This source code is part of
  * 
@@ -362,19 +361,19 @@ void write_top(FILE *out, char *pr,char *molname,
 static atom_id search_res_atom(const char *type,int resind,
 			       int natom,t_atom at[],
 			       char ** const *aname,
-			       const char *bondtype,bool bAllowMissing)
+			       const char *bondtype,bool bMissing)
 {
   int i;
 
   for(i=0; (i<natom); i++)
     if (at[i].resind == resind)
-      return search_atom(type,i,natom,at,aname,bondtype,bAllowMissing);
+      return search_atom(type,i,natom,at,aname,bondtype,bMissing);
   
   return NO_ATID;
 }
 
 static void do_ssbonds(t_params *ps,int natoms,t_atom atom[],char **aname[],
-		       int nssbonds,t_ssbond *ssbonds,bool bAllowMissing)
+		       int nssbonds,t_ssbond *ssbonds,bool bMissing)
 {
   int     i,ri,rj;
   atom_id ai,aj;
@@ -383,9 +382,9 @@ static void do_ssbonds(t_params *ps,int natoms,t_atom atom[],char **aname[],
     ri = ssbonds[i].res1;
     rj = ssbonds[i].res2;
     ai = search_res_atom(ssbonds[i].a1,ri,natoms,atom,aname,
-			 "special bond",bAllowMissing);
+			 "special bond",bMissing);
     aj = search_res_atom(ssbonds[i].a2,rj,natoms,atom,aname,
-			 "special bond",bAllowMissing);
+			 "special bond",bMissing);
     if ((ai == NO_ATID) || (aj == NO_ATID))
       gmx_fatal(FARGS,"Trying to make impossible special bond (%s-%s)!",
 		  ssbonds[i].a1,ssbonds[i].a2);
@@ -721,12 +720,12 @@ void pdb2top(FILE *top_file, char *posre_fn, char *molname,
 	     t_atoms *atoms, rvec **x, gpp_atomtype_t atype, t_symtab *tab,
 	     int bts[], int nrtp, t_restp   rtp[],
 	     int nterpairs,t_hackblock **ntdb, t_hackblock **ctdb,
-	     int *rn, int *rc, bool bAllowMissing,
+	     int *rn, int *rc, bool bMissing,
 	     bool bH14, bool bAlldih, bool bRemoveDih,
 	     bool bVsites, bool bVsiteAromatics, char *ff, real mHmult,
 	     int nssbonds, t_ssbond *ssbonds, int nrexcl, 
 	     real long_bond_dist, real short_bond_dist,
-	     bool bDeuterate, bool bChargeGroups, bool bCmap)
+	     bool bDeuterate, bool bChargeGroups)
 {
   t_hackblock *hb;
   t_restp  *restp;
@@ -761,11 +760,11 @@ void pdb2top(FILE *top_file, char *posre_fn, char *molname,
   /* specbonds: disulphide bonds & heme-his */
   do_ssbonds(&(plist[F_BONDS]),
 	     atoms->nr, atoms->atom, atoms->atomname, nssbonds, ssbonds,
-	     bAllowMissing);
+	     bMissing);
   
   nmissat = name2type(atoms, &cgnr, atype, restp);
   if (nmissat) {
-    if (bAllowMissing)
+    if (bMissing)
       fprintf(stderr,"There were %d missing atoms in molecule %s\n",
 	      nmissat,molname);
     else
@@ -791,21 +790,13 @@ void pdb2top(FILE *top_file, char *posre_fn, char *molname,
   init_nnb(&nnb,atoms->nr,4);
   gen_nnb(&nnb,plist);
   print_nnb(&nnb,"NNB");
-  gen_pad(&nnb,atoms,nrexcl,bH14,plist,excls,hb,bAlldih,bRemoveDih,
-          bAllowMissing);
+  gen_pad(&nnb,atoms,nrexcl,bH14,plist,excls,hb,bAlldih,bRemoveDih,bMissing);
   done_nnb(&nnb);
   
-    /* Make CMAP */
-    if (TRUE == bCmap)
-    {
-		gen_cmap(&(plist[F_CMAP]), restp, atoms->nr, atoms->atom, atoms->atomname, atoms->nres);
-        if (plist[F_CMAP].nr > 0)
-        {
-            fprintf(stderr, "There are %4d cmap torsion pairs\n",
-                    plist[F_CMAP].nr);
-        }
-    }
-
+  /* Make CMAP */
+  gen_cmap(&(plist[F_CMAP]), restp, atoms->nr, atoms->atom, atoms->atomname, atoms->nres);
+  fprintf(stderr, "there are %4d cmap torsions\n",plist[F_CMAP].nr);
+	
   /* set mass of all remaining hydrogen atoms */
   if (mHmult != 1.0)
     do_h_mass(&(plist[F_BONDS]),vsite_type,atoms,mHmult,bDeuterate);

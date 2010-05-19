@@ -33,15 +33,14 @@
  * Green Red Orange Magenta Azure Cyan Skyblue
  */
 	
-extern FILE *init_calcpot(const char *log,const char *tpx,const char *table,
+extern FILE *init_calcpot(char *log,char *tpx,char *table,
 			  gmx_mtop_t *mtop,
-			  gmx_localtop_t *top,t_inputrec *inputrec,
-                          t_commrec **cr,
+			  gmx_localtop_t *top,t_inputrec *inputrec,t_commrec **cr,
 			  t_graph **graph,t_mdatoms **mdatoms,
 			  t_forcerec **fr,
 			  gmx_enerdata_t *enerdata,
 			  real **coulomb,
-			  matrix box,rvec **x, const output_env_t oenv);
+			  matrix box,rvec **x);
 
 extern void calc_pot(FILE *logf,t_commrec *cr,
 		     gmx_mtop_t *mtop,

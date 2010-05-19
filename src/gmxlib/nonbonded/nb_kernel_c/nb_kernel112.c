@@ -34,7 +34,7 @@
 #include <math.h>
 
 #include "vec.h"
-#include "thread_mpi.h"
+#include "gmx_thread.h"
 
 #include "nb_kernel112.h"
 
@@ -66,7 +66,7 @@ void nb_kernel112(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real *          VFtab,
+                    real * VFtab,real * enerd,int * start,int * end,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -107,6 +107,7 @@ void nb_kernel112(
     real          dx33,dy33,dz33,rsq33,rinv33;
     real          qO,qH,qqOO,qqOH,qqHH;
     real          c6,c12;
+    bool          b1;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -136,14 +137,14 @@ void nb_kernel112(
     
     do
     {
-#ifdef GMX_THREAD_SHM_FDECOMP
-        tMPI_Thread_mutex_lock((tMPI_Thread_mutex_t *)mtx);
+#ifdef GMX_THREADS
+        gmx_thread_mutex_lock((gmx_thread_mutex_t *)mtx);
         nn0              = *count;         
 		
         /* Take successively smaller chunks (at least 10 lists) */
         nn1              = nn0+(nri-nn0)/(2*nthreads)+10;
         *count           = nn1;            
-        tMPI_Thread_mutex_unlock((tMPI_Thread_mutex_t *)mtx);
+        gmx_thread_mutex_unlock((gmx_thread_mutex_t *)mtx);
         if(nn1>nri) nn1=nri;
 #else
 	    nn0 = 0;
@@ -154,11 +155,6 @@ void nb_kernel112(
         for(n=nn0; (n<nn1); n++)
         {
 
-            /* Load shift vector for this list */
-            is3              = 3*shift[n];     
-            shX              = shiftvec[is3];  
-            shY              = shiftvec[is3+1];
-            shZ              = shiftvec[is3+2];
 
             /* Load limits for loop over neighbors */
             nj0              = jindex[n];      
@@ -166,39 +162,48 @@ void nb_kernel112(
 
             /* Get outer coordinate index */
             ii               = iinr[n];        
-            ii3              = 3*ii;           
+            ii3              = 3*ii;
+           
+                 /* Load shift vector for this list */
+                 is3              = 3*shift[n];     
+                 shX              = shiftvec[is3];  
+                 shY              = shiftvec[is3+1];
+                 shZ              = shiftvec[is3+2];
+                 /* Load i atom data, add shift vector */
+                 ix1              = shX + pos[ii3+0];
+                 iy1              = shY + pos[ii3+1];
+                 iz1              = shZ + pos[ii3+2];
+                 ix2              = shX + pos[ii3+3];
+                 iy2              = shY + pos[ii3+4];
+                 iz2              = shZ + pos[ii3+5];
+                 ix3              = shX + pos[ii3+6];
+                 iy3              = shY + pos[ii3+7];
+                 iz3              = shZ + pos[ii3+8];
+                 /* Clear i atom forces */
+                 fix1             = 0;              
+                 fiy1             = 0;              
+                 fiz1             = 0;              
+                 fix2             = 0;              
+                 fiy2             = 0;              
+                 fiz2             = 0;              
+                 fix3             = 0;              
+                 fiy3             = 0;              
+                 fiz3             = 0;              
 
-            /* Load i atom data, add shift vector */
-            ix1              = shX + pos[ii3+0];
-            iy1              = shY + pos[ii3+1];
-            iz1              = shZ + pos[ii3+2];
-            ix2              = shX + pos[ii3+3];
-            iy2              = shY + pos[ii3+4];
-            iz2              = shZ + pos[ii3+5];
-            ix3              = shX + pos[ii3+6];
-            iy3              = shY + pos[ii3+7];
-            iz3              = shZ + pos[ii3+8];
 
             /* Zero the potential energy for this list */
             vctot            = 0;              
             Vvdwtot          = 0;              
-
-            /* Clear i atom forces */
-            fix1             = 0;              
-            fiy1             = 0;              
-            fiz1             = 0;              
-            fix2             = 0;              
-            fiy2             = 0;              
-            fiz2             = 0;              
-            fix3             = 0;              
-            fiy3             = 0;              
-            fiz3             = 0;              
             
             for(k=nj0; (k<nj1); k++)
             {
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
+                if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
+                {
+                 continue;
+                }
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -251,15 +256,15 @@ void nb_kernel112(
                 rsq33            = dx33*dx33+dy33*dy33+dz33*dz33;
 
                 /* Calculate 1/r and 1/r2 */
-                rinv11           = gmx_invsqrt(rsq11);
-                rinv12           = gmx_invsqrt(rsq12);
-                rinv13           = gmx_invsqrt(rsq13);
-                rinv21           = gmx_invsqrt(rsq21);
-                rinv22           = gmx_invsqrt(rsq22);
-                rinv23           = gmx_invsqrt(rsq23);
-                rinv31           = gmx_invsqrt(rsq31);
-                rinv32           = gmx_invsqrt(rsq32);
-                rinv33           = gmx_invsqrt(rsq33);
+                rinv11           = invsqrt(rsq11);
+                rinv12           = invsqrt(rsq12);
+                rinv13           = invsqrt(rsq13);
+                rinv21           = invsqrt(rsq21);
+                rinv22           = invsqrt(rsq22);
+                rinv23           = invsqrt(rsq23);
+                rinv31           = invsqrt(rsq31);
+                rinv32           = invsqrt(rsq32);
+                rinv33           = invsqrt(rsq33);
 
                 /* Load parameters for j atom */
                 qq               = qqOO;           
@@ -556,7 +561,7 @@ void nb_kernel112nf(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real *          VFtab,
+                    real * VFtab,real * enerd,int * start,int * end,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -625,14 +630,14 @@ void nb_kernel112nf(
     
     do
     {
-#ifdef GMX_THREAD_SHM_FDECOMP
-        tMPI_Thread_mutex_lock((tMPI_Thread_mutex_t *)mtx);
+#ifdef GMX_THREADS
+        gmx_thread_mutex_lock((gmx_thread_mutex_t *)mtx);
         nn0              = *count;         
 		
         /* Take successively smaller chunks (at least 10 lists) */
         nn1              = nn0+(nri-nn0)/(2*nthreads)+10;
         *count           = nn1;            
-        tMPI_Thread_mutex_unlock((tMPI_Thread_mutex_t *)mtx);
+        gmx_thread_mutex_unlock((gmx_thread_mutex_t *)mtx);
         if(nn1>nri) nn1=nri;
 #else
 	    nn0 = 0;
@@ -643,42 +648,44 @@ void nb_kernel112nf(
         for(n=nn0; (n<nn1); n++)
         {
 
-            /* Load shift vector for this list */
-            is3              = 3*shift[n];     
-            shX              = shiftvec[is3];  
-            shY              = shiftvec[is3+1];
-            shZ              = shiftvec[is3+2];
+                 /* Zero the potential energy for this list */
+                 vctot            = 0;              
+                 Vvdwtot          = 0;   
 
-            /* Load limits for loop over neighbors */
-            nj0              = jindex[n];      
-            nj1              = jindex[n+1];    
+                 /* Load limits for loop over neighbors */
+                 nj0              = jindex[n];      
+                 nj1              = jindex[n+1];    
 
-            /* Get outer coordinate index */
-            ii               = iinr[n];        
-            ii3              = 3*ii;           
+                 /* Get outer coordinate index */
+                 ii               = iinr[n];        
+                 ii3              = 3*ii;   
+        
+                 /* Load shift vector for this list */
+                 is3              = 3*shift[n];     
+                 shX              = shiftvec[is3];  
+                 shY              = shiftvec[is3+1];
+                 shZ              = shiftvec[is3+2];
+                 /* Load i atom data, add shift vector */
+                 ix1              = shX + pos[ii3+0];
+                 iy1              = shY + pos[ii3+1];
+                 iz1              = shZ + pos[ii3+2];
+                 ix2              = shX + pos[ii3+3];
+                 iy2              = shY + pos[ii3+4];
+                 iz2              = shZ + pos[ii3+5];
+                 ix3              = shX + pos[ii3+6];
+                 iy3              = shY + pos[ii3+7];
+                 iz3              = shZ + pos[ii3+8];
 
-            /* Load i atom data, add shift vector */
-            ix1              = shX + pos[ii3+0];
-            iy1              = shY + pos[ii3+1];
-            iz1              = shZ + pos[ii3+2];
-            ix2              = shX + pos[ii3+3];
-            iy2              = shY + pos[ii3+4];
-            iz2              = shZ + pos[ii3+5];
-            ix3              = shX + pos[ii3+6];
-            iy3              = shY + pos[ii3+7];
-            iz3              = shZ + pos[ii3+8];
 
-            /* Zero the potential energy for this list */
-            vctot            = 0;              
-            Vvdwtot          = 0;              
-
-            /* Clear i atom forces */
-            
             for(k=nj0; (k<nj1); k++)
             {
 
                 /* Get j neighbor index, and coordinate index */
-                jnr              = jjnr[k];        
+                jnr              = jjnr[k];
+                if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
+                {
+                 continue;
+                }
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -731,15 +738,15 @@ void nb_kernel112nf(
                 rsq33            = dx33*dx33+dy33*dy33+dz33*dz33;
 
                 /* Calculate 1/r and 1/r2 */
-                rinv11           = gmx_invsqrt(rsq11);
-                rinv12           = gmx_invsqrt(rsq12);
-                rinv13           = gmx_invsqrt(rsq13);
-                rinv21           = gmx_invsqrt(rsq21);
-                rinv22           = gmx_invsqrt(rsq22);
-                rinv23           = gmx_invsqrt(rsq23);
-                rinv31           = gmx_invsqrt(rsq31);
-                rinv32           = gmx_invsqrt(rsq32);
-                rinv33           = gmx_invsqrt(rsq33);
+                rinv11           = invsqrt(rsq11);
+                rinv12           = invsqrt(rsq12);
+                rinv13           = invsqrt(rsq13);
+                rinv21           = invsqrt(rsq21);
+                rinv22           = invsqrt(rsq22);
+                rinv23           = invsqrt(rsq23);
+                rinv31           = invsqrt(rsq31);
+                rinv32           = invsqrt(rsq32);
+                rinv33           = invsqrt(rsq33);
 
                 /* Load parameters for j atom */
                 qq               = qqOO;           
@@ -813,7 +820,6 @@ void nb_kernel112nf(
 
                 /* Inner loop uses 143 flops/iteration */
             }
-            
 
             /* Add i forces to mem and shifted force list */
 
@@ -824,7 +830,6 @@ void nb_kernel112nf(
 
             /* Increment number of inner iterations */
             ninner           = ninner + nj1 - nj0;
-
             /* Outer loop uses 11 flops/iteration */
         }
         

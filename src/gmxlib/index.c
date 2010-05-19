@@ -62,9 +62,6 @@ static const char *ResTP[erestNR] = { "OTHER", "PROTEIN", "DNA" };
 static const char   *Sugars[]     = { "A", "T", "G", "C", "U" };
 #define  NDNA asize(Sugars)
 
-static const char *Negate[] = { "SOL" };
-#define  NNEGATE asize(Negate)
-
 static bool gmx_ask_yesno(bool bASK)
 {
   char c;
@@ -90,7 +87,7 @@ t_blocka *new_blocka(void)
   return block;
 }
 
-void write_index(const char *outf, t_blocka *b,char **gnames)
+void write_index(char *outf, t_blocka *b,char **gnames)
 {
   FILE *out;
   int  i,j,k;
@@ -175,16 +172,10 @@ atom_id *mk_aid(t_atoms *atoms,eRestp restp[],eRestp res,int *nra,
   return a;
 }
 
-typedef struct {
-  char *rname;
-  bool bNeg;
-  char *gname;
-} restp_t;
-
 static void analyse_other(eRestp Restp[],t_atoms *atoms,
 			  t_blocka *gb,char ***gn,bool bASK,bool bVerb)
 {
-  restp_t *restp=NULL;
+  char **restp=NULL;
   char **attp=NULL;
   char *rname,*aname;
   atom_id *other_ndx,*aid,*aaid;
@@ -203,24 +194,11 @@ static void analyse_other(eRestp Restp[],t_atoms *atoms,
       rname = *atoms->resinfo[resind].name;
       if (Restp[resind] == etOther) {
 	for(l=0; (l<nrestp); l++)
-	  if (strcmp(restp[l].rname,rname) == 0)
+	  if (strcmp(restp[l],rname) == 0)
 	    break;
 	if (l==nrestp) {
-	  srenew(restp,nrestp+1);
-	  restp[nrestp].rname = strdup(rname);
-	  restp[nrestp].bNeg  = FALSE;
-	  restp[nrestp].gname = strdup(rname);
-	  nrestp++;
-	  for(i=0; i<NNEGATE; i++) {
-	    if (strcmp(rname,Negate[i]) == 0) {
-	      srenew(restp,nrestp+1);
-	      restp[nrestp].rname = strdup(rname);
-	      restp[nrestp].bNeg  = TRUE;
-	      snew(restp[nrestp].gname,4+strlen(rname)+1);
-	      sprintf(restp[nrestp].gname,"%s%s","non-",rname);
-	      nrestp++;
-	    }
-	  }
+	  srenew(restp,++nrestp);
+	  restp[nrestp-1]=strdup(rname);
 	}
       }
     }
@@ -229,14 +207,12 @@ static void analyse_other(eRestp Restp[],t_atoms *atoms,
       naid=0;
       for(j=0; (j<atoms->nr); j++) {
 	rname = *atoms->resinfo[atoms->atom[j].resind].name;
-	if ((strcmp(restp[i].rname,rname) == 0 && !restp[i].bNeg) ||
-	    (strcmp(restp[i].rname,rname) != 0 &&  restp[i].bNeg)) {
+	if (strcmp(restp[i],rname) == 0) 
 	  aid[naid++] = j;
-	}
       }
-      add_grp(gb,gn,naid,aid,restp[i].gname);
+      add_grp(gb,gn,naid,aid,restp[i]);
       if (bASK) {
-	printf("split %s into atoms (y/n) ? ",restp[i].gname);
+	printf("split %s into atoms (y/n) ? ",restp[i]);
 	fflush(stdout);
 	if (gmx_ask_yesno(bASK)) {
 	  natp=0;
@@ -316,12 +292,11 @@ static void analyse_prot(eRestp restp[],t_atoms *atoms,
      specify -1 to always add group */
   const int compareto[NCH] = { -1,-1,-1,-1,-1,-1,-1,-1,-1, 0 };
 
-  int     n,j;
+  int     i,n,j;
   atom_id *aid;
   int     nra,nnpres,npres;
   bool    match;
   char    ndx_name[STRLEN],*atnm;
-  int i;
 
   if (bVerb)
     printf("Analysing Protein...\n");
@@ -334,7 +309,7 @@ static void analyse_prot(eRestp restp[],t_atoms *atoms,
       npres++;
 
   /* find matching or complement atoms */
-  for(i=0; (i<(int)NCH); i++) {
+  for(i=0; (i<NCH); i++) {
     nra=0;
     for(n=0; (n<atoms->nr); n++) {
       if (restp[atoms->atom[n].resind] == etProt) {
@@ -363,7 +338,7 @@ static void analyse_prot(eRestp restp[],t_atoms *atoms,
   }
   
   if (bASK) {
-    for(i=0; (i<(int)NCH); i++) {
+    for(i=0; (i<NCH); i++) {
       printf("Split %12s into %5d residues (y/n) ? ",ch_name[i],npres);
       if (gmx_ask_yesno(bASK)) {
 	int resind;
@@ -517,7 +492,7 @@ void analyse(t_atoms *atoms,t_blocka *gb,char ***gn,bool bASK,bool bVerb)
   /* Non-Protein */
   aid=mk_aid(atoms,restp,etProt,&nra,FALSE);
   if ((nra > 0) && (nra < atoms->nr))
-    add_grp(gb,gn,nra,aid,"non-Protein"); 
+    add_grp(gb,gn,nra,aid,"Non-Protein"); 
   sfree(aid);
 
   /* DNA */
@@ -530,7 +505,10 @@ void analyse(t_atoms *atoms,t_blocka *gb,char ***gn,bool bASK,bool bVerb)
 
   /* Other */
   analyse_other(restp,atoms,gb,gn,bASK,bVerb);
-
+  aid=mk_aid(atoms,restp,etOther,&nra,TRUE);
+  if ((nra > 0) && (nra < atoms->nr))
+    add_grp(gb,gn,nra,aid,"Other"); 
+  sfree(aid);
   sfree(restp);
 }
 
@@ -548,7 +526,7 @@ void check_index(char *gname,int n,atom_id index[],char *traj,int natoms)
 		gname ? gname : "Index",i+1, index[i]+1);
 }
 
-t_blocka *init_index(const char *gfile, char ***grpname)
+t_blocka *init_index(char *gfile, char ***grpname)
 {
   FILE     *in;
   t_blocka  *b;
@@ -584,7 +562,7 @@ t_blocka *init_index(const char *gfile, char ***grpname)
 	    maxentries+=1024;
 	    srenew(b->a,maxentries);
 	  }
-	  b->a[i]=strtol(str, NULL, 10)-1;
+	  b->a[i]=atoi(str)-1;
 	  b->index[b->nr]++;
 	  (b->nra)++;
 	  pt=strstr(pt,str)+strlen(str);
@@ -682,28 +660,27 @@ int find_group(char s[], int ngrps, char **grpname)
 
 static int qgroup(int *a, int ngrps, char **grpname)
 {
-    char s[STRLEN];
-    int  aa;
-    bool bInRange;
-    char *end;
-
-    do {
-        fprintf(stderr,"Select a group: ");
-        do {
-            if ( scanf("%s",s)!=1 ) 
-                gmx_fatal(FARGS,"Cannot read from input");
-            trim(s); /* remove spaces */
-        } while (strlen(s)==0);
-        aa = strtol(s, &end, 10);
-        if (aa==0 && end[0] != '\0') /* string entered */
-            aa = find_group(s, ngrps, grpname);
-        bInRange = (aa >= 0 && aa < ngrps);
-        if (!bInRange)
-            printf("Error: No such group '%s'\n", s);
-    } while (!bInRange);
-    printf("Selected %d: '%s'\n", aa, grpname[aa]);
-    *a = aa;
-    return aa;
+  char s[STRLEN];
+  int  aa;
+  bool bInRange;
+  
+  do {
+  fprintf(stderr,"Select a group: ");
+  do {
+    if ( scanf("%s",s)!=1 ) 
+      gmx_fatal(FARGS,"Cannot read from input");
+  trim(s); /* remove spaces */
+  } while (strlen(s)==0);
+  aa = atoi(s);
+    if (aa==0 && strcmp(s,"0")!=0 ) /* string entered */
+      aa = find_group(s, ngrps, grpname);
+    bInRange = aa>=0 && aa<ngrps;
+    if (!bInRange)
+      printf("Error: No such group '%s'\n", s);
+  } while (!bInRange);
+  printf("Selected %d: '%s'\n", aa, grpname[aa]);
+  *a = aa;
+  return aa;
 }
 
 static void rd_groups(t_blocka *grps,char **grpname,char *gnames[],
@@ -735,7 +712,7 @@ static void rd_groups(t_blocka *grps,char **grpname,char *gnames[],
   }
 }
 
-void rd_index(const char *statfile,int ngrps,int isize[],
+void rd_index(char *statfile,int ngrps,int isize[],
 	      atom_id *index[],char *grpnames[])
 {
   char    **gnames;
@@ -762,7 +739,7 @@ void rd_index_nrs(char *statfile,int ngrps,int isize[],
   rd_groups(grps,gnames,grpnames,ngrps,isize,index,grpnr);
 }
 
-void get_index(t_atoms *atoms, const char *fnm, int ngrps,
+void get_index(t_atoms *atoms, char *fnm, int ngrps,
 	       int isize[], atom_id *index[],char *grpnames[])
 {
   char    ***gnames;
@@ -785,7 +762,7 @@ void get_index(t_atoms *atoms, const char *fnm, int ngrps,
   rd_groups(grps,*gnames,grpnames,ngrps,isize,index,grpnr);
 }
 
-t_cluster_ndx *cluster_index(FILE *fplog,const char *ndx)
+t_cluster_ndx *cluster_index(FILE *fplog,char *ndx)
 {
   t_cluster_ndx *c;
   int i;

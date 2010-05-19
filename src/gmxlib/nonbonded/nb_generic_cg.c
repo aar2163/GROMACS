@@ -150,7 +150,7 @@
                      dy               = iy - jy;      
                      dz               = iz - jz;      
                      rsq              = dx*dx+dy*dy+dz*dz;
-                     rinv             = gmx_invsqrt(rsq);
+                     rinv             = invsqrt(rsq);
                      rinvsq           = rinv*rinv;  
                      fscal            = 0;
 

@@ -1134,12 +1134,9 @@ int main(int argc,char *argv[])
   };
 #define NPA asize(pa)
 
-  output_env_t oenv;
   char     title[STRLEN];
   int      nndxin;   
-  const char *stxfile; 
-  char     **ndxinfiles;
-  const char *ndxoutfile;
+  char     *stxfile, **ndxinfiles, *ndxoutfile;
   bool     bNatoms;
   int      i,j;
   t_atoms  *atoms;
@@ -1158,7 +1155,7 @@ int main(int argc,char *argv[])
   CopyRight(stderr,argv[0]);
   
   parse_common_args(&argc,argv,0,NFILE,fnm,NPA,pa,asize(desc),desc,
-		    0,NULL,&oenv);
+		    0,NULL);
   
   stxfile = ftp2fn_null(efSTX,NFILE,fnm);
   if (opt2bSet("-n",NFILE,fnm)) {

@@ -53,8 +53,7 @@
 #include "gstat.h"
 #include "trnio.h"
 
-static void dump_dih_trn(int nframes,int nangles,real **dih,const char *fn,
-                         real dt)
+static void dump_dih_trn(int nframes,int nangles,real **dih,char *fn,real dt)
 {
   int    i,j,k,l,m,na,trn;
   rvec   *x;
@@ -160,14 +159,12 @@ int gmx_angle(int argc,char *argv[])
 #define NFILE asize(fnm)
   int     npargs;
   t_pargs *ppa;
-  output_env_t oenv;
   
   CopyRight(stderr,argv[0]);
   npargs = asize(pa);
   ppa    = add_acf_pargs(&npargs,pa);
   parse_common_args(&argc,argv,PCA_CAN_VIEW | PCA_CAN_TIME | PCA_BE_NICE,
-		    NFILE,fnm,npargs,ppa,asize(desc),desc,asize(bugs),bugs,
-                    &oenv);
+		    NFILE,fnm,npargs,ppa,asize(desc),desc,asize(bugs),bugs);
 		    
   mult   = 4;
   maxang = 360.0;
@@ -237,15 +234,14 @@ int gmx_angle(int argc,char *argv[])
   read_ang_dih(ftp2fn(efTRX,NFILE,fnm),(mult == 3),
 	       bALL || bCorr || bTrans || opt2bSet("-or",NFILE,fnm),
 	       bRb,bPBC,maxangstat,angstat,
-	       &nframes,&time,isize,index,&trans_frac,&aver_angle,dih,
-               oenv);
+	       &nframes,&time,isize,index,&trans_frac,&aver_angle,dih);
   
   dt=(time[nframes-1]-time[0])/(nframes-1);
   
   if (bAver) {
     sprintf(title,"Average Angle: %s",grpname);
     out=xvgropen(opt2fn("-ov",NFILE,fnm),
-		 title,"Time (ps)","Angle (degrees)",oenv);
+		 title,"Time (ps)","Angle (degrees)");
     for(i=0; (i<nframes); i++) {
       fprintf(out,"%10.5f  %8.3f",time[i],aver_angle[i]*RAD2DEG);
       if (bALL) {
@@ -267,7 +263,7 @@ int gmx_angle(int argc,char *argv[])
   if (bFrac) {
     sprintf(title,"Trans fraction: %s",grpname);
     out=xvgropen(opt2fn("-of",NFILE,fnm),
-		  title,"Time (ps)","Fraction",oenv);
+		  title,"Time (ps)","Fraction");
     tfrac = 0.0;
     for(i=0; (i<nframes); i++) {
       fprintf(out,"%10.5f  %10.3f\n",time[i],trans_frac[i]);
@@ -282,7 +278,7 @@ int gmx_angle(int argc,char *argv[])
   
   if (bTrans) 
     ana_dih_trans(opt2fn("-ot",NFILE,fnm),opt2fn("-oh",NFILE,fnm),
-		  dih,nframes,nangles,grpname,time[0],dt,bRb,oenv);
+		  dih,nframes,nangles,grpname,time[0],dt,bRb);
 		  
   if (bCorr) {
     /* Autocorrelation function */
@@ -311,9 +307,8 @@ int gmx_angle(int argc,char *argv[])
 	mode = eacNormal;
       else
 	mode = eacCos;
-      do_autocorr(opt2fn("-oc",NFILE,fnm), oenv,
-                  "Dihedral Autocorrelation Function",
-                  nframes,nangles,dih,dt,mode,bAverCorr);
+      do_autocorr(opt2fn("-oc",NFILE,fnm),"Dihedral Autocorrelation Function",
+		  nframes,nangles,dih,dt,mode,bAverCorr);
     }
   }
 
@@ -349,8 +344,8 @@ int gmx_angle(int argc,char *argv[])
   
   bPeriodic=(mult==4) && (first==0) && (last==maxangstat-1);
   
-  out=xvgropen(opt2fn("-od",NFILE,fnm),title,"Degrees","",oenv);
-  if (get_print_xvgr_codes(oenv))
+  out=xvgropen(opt2fn("-od",NFILE,fnm),title,"Degrees","");
+  if (bPrintXvgrCodes())
     fprintf(out,"@    subtitle \"average angle: %g\\So\\N\"\n",aver);
   norm_fac=1.0/(nangles*nframes*binwidth);
   if (bPeriodic) {
@@ -375,9 +370,9 @@ int gmx_angle(int argc,char *argv[])
   
   fclose(out);
 
-  do_view(oenv,opt2fn("-od",NFILE,fnm),"-nxy");
+  do_view(opt2fn("-od",NFILE,fnm),"-nxy");
   if (bAver)
-    do_view(oenv,opt2fn("-ov",NFILE,fnm),"-nxy");
+    do_view(opt2fn("-ov",NFILE,fnm),"-nxy");
     
   thanx(stderr);
     

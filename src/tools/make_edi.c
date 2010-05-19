@@ -174,7 +174,7 @@ int sscan_list(int *list[], const char *str, const char *listname) {
         case sNumber: if (c==',') {
              /*store number*/
              srenew(*list,nvecs+1);
-             (*list)[nvecs++]=number=strtol(start,NULL,10);
+             (*list)[nvecs++]=number=atoi(start);
              status=sBefore;
              if (number==0)
                  status=sZero;
@@ -204,8 +204,8 @@ int sscan_list(int *list[], const char *str, const char *listname) {
         case sRange:
             if (c==',') {
                /*store numbers*/
-               end_number=strtol(end,NULL,10);
-               number=strtol(start,NULL,10);
+               end_number=atoi(end);
+               number=atoi(start);
                status=sBefore;
                if (number==0) {
                   status=sZero; break;
@@ -215,7 +215,7 @@ int sscan_list(int *list[], const char *str, const char *listname) {
                }
                srenew(*list,nvecs+end_number-number+1);
 	       if (step) {
-		 istep=strtol(step,NULL,10);
+		 istep=atoi(step);
 		 step=NULL;
 	       } else istep=1;
                for (i=number;i<=end_number;i+=istep)
@@ -278,10 +278,10 @@ void write_eigvec(FILE* fp, int natoms, int eig_list[], rvec** eigvecs,int nvec,
       copy_rvec(eigvecs[eig_list[n]-1][i],x);
       sum+=norm2(x);
       fprintf(fp,"%8.5f %8.5f %8.5f\n",x[XX],x[YY],x[ZZ]);      
-    }    
+    };    
     n++;
-  }
-}
+  };
+};
 
 
 /*enum referring to the different lists of eigenvectors*/
@@ -290,9 +290,7 @@ enum { evLINFIX, evLINACC, evFLOOD, evRADFIX, evRADACC, evRADCON , evMON,  evEND
 #define MAGIC 669
 
 
-void write_the_whole_thing(FILE* fp, t_edipar *edpars, rvec** eigvecs, 
-                           int nvec, int *eig_listen[], real* evStepList[]) 
-{
+void write_the_whole_thing(FILE* fp, t_edipar *edpars, rvec** eigvecs, int nvec, int *eig_listen[], real* evStepList[]) {
 /* write edi-file */
 
     /*Header*/
@@ -321,10 +319,9 @@ void write_the_whole_thing(FILE* fp, t_edipar *edpars, rvec** eigvecs,
     /*Target and Origin positions */
     write_t_edx(fp,edpars->star,"NTARGET, XTARGET");
     write_t_edx(fp,edpars->sori,"NORIGIN, XORIGIN");
-} 
+}; 
 
-int read_conffile(const char *confin,char *title,rvec *x[]) 
-{
+int read_conffile(char *confin,char *title,rvec *x[]) {
 /* read coordinates out of STX file  */
   int natoms;
   t_atoms  confat;
@@ -343,12 +340,10 @@ int read_conffile(const char *confin,char *title,rvec *x[])
     snew(*x,natoms);
     read_stx_conf(confin,title,&confat,*x,NULL,NULL,box);
     return natoms;
-}  
+};   
 
 
-void read_eigenvalues(int vecs[],const char *eigfile, real values[], 
-                      bool bHesse, real kT) 
-{
+void read_eigenvalues(int vecs[],char *eigfile, real values[], bool bHesse, real kT) {
   int  neig,nrow,i;
   double **eigval;
   
@@ -379,7 +374,7 @@ void read_eigenvalues(int vecs[],const char *eigfile, real values[],
   for (i=0; i<nrow; i++)
     sfree(eigval[i]);
   sfree(eigval);
-}
+};
 
 
 static real *scan_vecparams(const char *str,const char * par, int nvecs)
@@ -410,11 +405,9 @@ void init_edx(struct edix *edx) {
   edx->nr=0;
   snew(edx->x,1);
   snew(edx->anrs,1);
-}
+};
 
-void filter2edx(struct edix *edx,int nindex, atom_id index[],int ngro, 
-                atom_id igro[],rvec *x,const char* structure) 
-{
+void filter2edx(struct edix *edx,int nindex, atom_id index[],int ngro, atom_id igro[],rvec *x,char* structure) {
 /* filter2edx copies coordinates from x to edx which are given in index
 */
   
@@ -429,13 +422,13 @@ void filter2edx(struct edix *edx,int nindex, atom_id index[],int ngro,
               gmx_fatal(FARGS,"Couldn't find atom with index %d in structure %s",index[i],structure);
          edx->anrs[ix]=index[i];
          copy_rvec(x[pos],edx->x[ix]);
-   }
-}
+   };
+};
 
-void get_structure(t_atoms *atoms,const char *IndexFile,
-                   const char *StructureFile,struct edix *edx,int nfit,
-                   atom_id ifit[],int natoms, atom_id index[]) 
-{
+void get_structure(t_atoms *atoms,char *IndexFile,char *StructureFile,struct edix *edx,int nfit,
+                    atom_id ifit[],int natoms, atom_id index[]) {
+
+
   atom_id *igro;  /*index corresponding to target or origin structure*/
   int ngro;
   int ntar;
@@ -454,7 +447,7 @@ void get_structure(t_atoms *atoms,const char *IndexFile,
   filter2edx(edx,nfit,ifit,ngro,igro,xtar,StructureFile);
   if (ifit!=index) /*if fit structure is different append these coordinates, too -- don't mind duplicates*/
      filter2edx(edx,natoms,index,ngro,igro,xtar,StructureFile);
-}
+};
 
 int main(int argc,char *argv[])
 {
@@ -623,8 +616,7 @@ int main(int argc,char *argv[])
     rvec       *xav1,**eigvec1=NULL;
     t_atoms    *atoms=NULL;
     int natoms;
-    char       *grpname;
-    const char *indexfile;
+    char       *grpname,*indexfile;
     int        i;
     atom_id    *index,*ifit;
     int        nfit;
@@ -632,12 +624,11 @@ int main(int argc,char *argv[])
     int nvecs;
     real *eigval1=NULL; /* in V3.3 this is parameter of read_eigenvectors */
     
-    const char *EdiFile;
-    const char *TargetFile;
-    const char *OriginFile;
-    const char *EigvecFile;
-   
-    output_env_t oenv;
+    char       *EdiFile;
+    char       *TargetFile;
+    char       *OriginFile;
+    char       *EigvecFile;
+    
     
     /*to read topology file*/
     t_topology top;
@@ -660,7 +651,7 @@ int main(int argc,char *argv[])
     edi_params.outfrq=100; edi_params.slope=0.0; edi_params.maxedsteps=0;
     CopyRight(stderr,argv[0]);
     parse_common_args(&argc,argv, 0 ,
-                      NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL,&oenv);
+                      NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL);
     
     indexfile=ftp2fn_null(efNDX,NFILE,fnm);
     EdiFile=ftp2fn(efEDI,NFILE,fnm);

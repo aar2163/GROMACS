@@ -18,7 +18,7 @@
 #define _NB_KERNEL332_SSE2_SINGLE_H_
 
 
-/*! \file
+/*! \file  nb_kernel332_sse.h
  *  \brief SSE-intrinsics ptimized versions of nonbonded kernel 332
  *
  *  \internal

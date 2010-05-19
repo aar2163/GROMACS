@@ -220,8 +220,7 @@ int main(int argc,char *argv[])
     { "-hq", FALSE, etREAL, {&hq},
       "Ignore angles with atoms with mass < 1.5 and |q| < hq" }
   };
- 
-  output_env_t oenv;
+  
   FILE       *out;
   t_topology *top;
   int        i,j,ntype;
@@ -238,7 +237,7 @@ int main(int argc,char *argv[])
 
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,0,NFILE,fnm,asize(pa),pa,
-		    asize(desc),desc,0,NULL,&oenv);
+		    asize(desc),desc,0,NULL);
 
 
   ft = select_ftype(opt[0],&nft,&mult);

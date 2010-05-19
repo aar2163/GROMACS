@@ -188,7 +188,6 @@ int gmx_gyrate(int argc,char *argv[])
   char       *grpname,title[256];
   int        i,j,m,gnx,nam,mol;
   atom_id    *index;
-  output_env_t oenv;
   char *leg[]  = { "Rg", "RgX", "RgY", "RgZ" }; 
   char *legI[] = { "Itot", "I1", "I2", "I3" }; 
 #define NLEG asize(leg) 
@@ -208,7 +207,7 @@ int gmx_gyrate(int argc,char *argv[])
   ppa    = add_acf_pargs(&npargs,pa);
 
   parse_common_args(&argc,argv,PCA_CAN_TIME | PCA_CAN_VIEW | PCA_BE_NICE,
-		    NFILE,fnm,npargs,ppa,asize(desc),desc,0,NULL,&oenv); 
+		    NFILE,fnm,npargs,ppa,asize(desc),desc,0,NULL); 
   bACF = opt2bSet("-acf",NFILE,fnm);
   if (bACF && nmol!=1)
     gmx_fatal(FARGS,"Can only do acf with nmol=1");
@@ -236,27 +235,27 @@ int gmx_gyrate(int argc,char *argv[])
   }
   nam = gnx/nmol;
 
-  natoms=read_first_x(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box); 
+  natoms=read_first_x(&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box); 
   snew(x_s,natoms); 
 
   j  = 0; 
   t0 = t;
   if (bQ) 
     out=xvgropen(ftp2fn(efXVG,NFILE,fnm), 
-		 "Radius of Charge","Time (ps)","Rg (nm)",oenv); 
+		 "Radius of Charge","Time (ps)","Rg (nm)"); 
   else if (bMOI)
     out=xvgropen(ftp2fn(efXVG,NFILE,fnm), 
-		 "Moments of inertia","Time (ps)","I (a.m.u. nm\\S2\\N)",oenv); 
+		 "Moments of inertia","Time (ps)","I (a.m.u. nm\\S2\\N)"); 
   else 
     out=xvgropen(ftp2fn(efXVG,NFILE,fnm), 
-		 "Radius of gyration","Time (ps)","Rg (nm)",oenv); 
+		 "Radius of gyration","Time (ps)","Rg (nm)"); 
   if (bMOI) 
-    xvgr_legend(out,NLEG,legI,oenv);
+    xvgr_legend(out,NLEG,legI);
   else {
     if (bRot)
-      if (get_print_xvgr_codes(oenv))
+      if (bPrintXvgrCodes())
 	fprintf(out,"@ subtitle \"Axes are principal component axes\"\n");
-    xvgr_legend(out,NLEG,leg,oenv);
+    xvgr_legend(out,NLEG,leg);
   }
   do {
     if (nz == 0)
@@ -296,7 +295,7 @@ int gmx_gyrate(int argc,char *argv[])
 		t,gyro,gvec[XX],gvec[YY],gvec[ZZ]); }
     }
     j++;
-  } while(read_next_x(oenv,status,&t,natoms,x,box));
+  } while(read_next_x(status,&t,natoms,x,box));
   close_trj(status);
   
   fclose(out);
@@ -304,13 +303,13 @@ int gmx_gyrate(int argc,char *argv[])
   if (bACF) {
     int mode = eacVector;
   
-    do_autocorr(opt2fn("-acf",NFILE,fnm),oenv,
+    do_autocorr(opt2fn("-acf",NFILE,fnm),
 		"Moment of inertia vector ACF",
 		j,3,moi_trans,(t-t0)/j,mode,FALSE);
-    do_view(oenv,opt2fn("-acf",NFILE,fnm),"-nxy");
+    do_view(opt2fn("-acf",NFILE,fnm),"-nxy");
   }
   
-  do_view(oenv,ftp2fn(efXVG,NFILE,fnm),"-nxy");
+  do_view(ftp2fn(efXVG,NFILE,fnm),"-nxy");
   
   thanx(stderr);
   

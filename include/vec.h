@@ -52,7 +52,7 @@
   collection of in-line ready operations:
   
   lookup-table optimized scalar operations:
-  real gmx_invsqrt(real x)
+  real invsqrt(real x)
   void vecinvsqrt(real in[],real out[],int n)
   void vecrecip(real in[],real out[],int n)
   real sqr(real x)
@@ -126,7 +126,6 @@
 #include "macros.h"
 #include "gmx_fatal.h"
 #include "mpelogging.h"
-#include "physics.h"
 
 #define EXP_LSB         0x00800000
 #define EXP_MASK        0x7f800000
@@ -143,7 +142,7 @@
 extern const unsigned int *  gmx_invsqrt_exptab;
 extern const unsigned int *  gmx_invsqrt_fracttab;
 #endif
-
+int blahey;
 
 typedef union 
 {
@@ -153,7 +152,7 @@ typedef union
 
 
 #ifdef GMX_SOFTWARE_INVSQRT
-static real gmx_invsqrt(real x)
+static real invsqrt(real x)
 {
   const real  half=0.5;
   const real  three=3.0;
@@ -184,7 +183,7 @@ static real gmx_invsqrt(real x)
 #endif /* gmx_invsqrt */
 
 #ifdef GMX_POWERPC_SQRT
-static real gmx_invsqrt(real x)
+static real invsqrt(real x)
 {
   const real  half=0.5;
   const real  three=3.0;
@@ -218,7 +217,7 @@ static real gmx_invsqrt(real x)
 
 
 #ifndef INVSQRT_DONE
-#define gmx_invsqrt(x) (1.0f/sqrt(x))
+#define invsqrt(x) (1.0f/sqrt(x))
 #endif
 
 
@@ -526,7 +525,7 @@ static inline real cos_angle(const rvec a,const rvec b)
   }
   ipab = ipa*ipb;
   if (ipab > 0)
-    cosval = ip*gmx_invsqrt(ipab);		/*  7		*/
+    cosval = ip*invsqrt(ipab);		/*  7		*/
   else 
     cosval = 1;
 					/* 25 TOTAL	*/
@@ -757,7 +756,7 @@ static inline void unitv(const rvec src,rvec dest)
 {
   real linv;
   
-  linv=gmx_invsqrt(norm2(src));
+  linv=invsqrt(norm2(src));
   dest[XX]=linv*src[XX];
   dest[YY]=linv*src[YY];
   dest[ZZ]=linv*src[ZZ];
@@ -809,19 +808,6 @@ static void m_rveccopy(int dim, rvec *a, rvec *b)
         copy_rvec(a[i],b[i]);
 } 
 
-/*computer matrix vectors from base vectors and angles */
-static void matrix_convert(matrix box, rvec vec, rvec angle)
-{
-    svmul(DEG2RAD,angle,angle);
-    box[XX][XX] = vec[XX];
-    box[YY][XX] = vec[YY]*cos(angle[ZZ]);
-    box[YY][YY] = vec[YY]*sin(angle[ZZ]);
-    box[ZZ][XX] = vec[ZZ]*cos(angle[YY]);
-    box[ZZ][YY] = vec[ZZ]
-                         *(cos(angle[XX])-cos(angle[YY])*cos(angle[ZZ]))/sin(angle[ZZ]);
-    box[ZZ][ZZ] = sqrt(sqr(vec[ZZ])
-                       -box[ZZ][XX]*box[ZZ][XX]-box[ZZ][YY]*box[ZZ][YY]);
-}
 
 #define divide(a,b) _divide((a),(b),__FILE__,__LINE__)
 #define mod(a,b)    _mod((a),(b),__FILE__,__LINE__)

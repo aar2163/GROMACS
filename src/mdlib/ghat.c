@@ -135,7 +135,7 @@ void mk_ghat(FILE *fp,int nx,int ny,int nz,real ***ghat,
     symmetrize_ghat(nx,ny,nz,ghat);
 }
 
-void wr_ghat(const char *fn,const output_env_t oenv,  
+void wr_ghat(const char *fn,
 	     int n1max,int n2max,int n3max,real h1,real h2,real h3,
 	     real ***ghat,int nalias,int porder,int niter,bool bSym,rvec beta,
 	     real r1,real rc,real pval,real zval,real eref,real qopt)
@@ -180,7 +180,7 @@ void wr_ghat(const char *fn,const output_env_t oenv,
   }
   gmx_fio_fclose(fp);
   
-  fp=xvgropen("ghat.xvg","G-Hat","k","gk",oenv);
+  fp=xvgropen("ghat.xvg","G-Hat","k","gk");
   for(ii=0; (ii<N1MAX); ii++) {
     rx=sqr((real)(ii*h1));
     for(jj=0; (jj<N2MAX); jj++) {
@@ -194,8 +194,7 @@ void wr_ghat(const char *fn,const output_env_t oenv,
   gmx_fio_fclose(fp);
 }
 
-void pr_scalar_gk(const char *fn,const output_env_t oenv,int nx,int ny,int nz,
-                  rvec box,real ***ghat)
+void pr_scalar_gk(const char *fn,int nx,int ny,int nz,rvec box,real ***ghat)
 {
   FILE *fp;
   int  ii,jj,kk;
@@ -204,7 +203,7 @@ void pr_scalar_gk(const char *fn,const output_env_t oenv,int nx,int ny,int nz,
   
   calc_lll(box,lll);
   
-  fp=xvgropen(fn,"G-Hat","k","gk",oenv);
+  fp=xvgropen(fn,"G-Hat","k","gk");
   for(ii=0; (ii<nx); ii++) {
     for(jj=0; (jj<ny); jj++) {
       for(kk=0; (kk<nz); kk++) {
@@ -217,8 +216,8 @@ void pr_scalar_gk(const char *fn,const output_env_t oenv,int nx,int ny,int nz,
   gmx_fio_fclose(fp);
 }
 
-real ***rd_ghat(FILE *log,const output_env_t oenv,char *fn,ivec igrid,
-                rvec gridspace, rvec beta,int *porder,real *r1,real *rc)
+real ***rd_ghat(FILE *log,char *fn,ivec igrid,rvec gridspace,
+		rvec beta,int *porder,real *r1,real *rc)
 {
   FILE   *in;
   real   ***gh;
@@ -287,7 +286,7 @@ real ***rd_ghat(FILE *log,const output_env_t oenv,char *fn,ivec igrid,
       }
   gmx_fio_fclose(in);
 
-  wr_ghat("output.hat",oenv,igrid[XX],igrid[YY],igrid[ZZ],gx,gy,gz,gh,
+  wr_ghat("output.hat",igrid[XX],igrid[YY],igrid[ZZ],gx,gy,gz,gh,
 	  nalias,*porder,niter,bSym,beta,
 	  *r1,*rc,pval,zval,eref,qopt);
     

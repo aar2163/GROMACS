@@ -207,12 +207,11 @@ static void split_group(int isize,int *index,char *grpname,
   *coi_out = coi;
 }
 
-static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
-		   const char *fnRDF,const char *fnCNRDF, const char *fnHQ,
+static void do_rdf(char *fnNDX,char *fnTPS,char *fnTRX,
+		   char *fnRDF,char *fnCNRDF, char *fnHQ,
 		   bool bCM,const char *close,
 		   const char **rdft,bool bXY,bool bPBC,bool bNormalize,
-		   real cutoff,real binwidth,real fade,int ng,
-                   const output_env_t oenv)
+		   real cutoff,real binwidth,real fade,int ng)
 {
   FILE       *fp;
   int        status;
@@ -298,7 +297,7 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
     isize0 = isize[0];
   }
   
-  natoms=read_first_x(oenv,&status,fnTRX,&t,&x,box);
+  natoms=read_first_x(&status,fnTRX,&t,&x,box);
   if ( !natoms )
     gmx_fatal(FARGS,"Could not read coordinates from statusfile\n");
   if (fnTPS)
@@ -499,7 +498,7 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
       }
     }
     nframes++;
-  } while (read_next_x(oenv,status,&t,natoms,x,box));
+  } while (read_next_x(status,&t,natoms,x,box));
   fprintf(stderr,"\n");
   
   close_trj(status);
@@ -561,7 +560,7 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
 	    rdft[0][0]=='m' ? "molecule" : "residue",
 	    rdft[0][6]=='m' ? "COM" : "COG");
   }
-  fp=xvgropen(fnRDF,gtitle,"r","",oenv);
+  fp=xvgropen(fnRDF,gtitle,"r","");
   if (bCM) {
     sprintf(refgt," %s","COM");
   } else if (bClose) {
@@ -570,13 +569,13 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
     sprintf(refgt,"%s","");
   }
   if (ng==1) {
-    if (get_print_xvgr_codes(oenv))
+    if (bPrintXvgrCodes())
       fprintf(fp,"@ subtitle \"%s%s - %s\"\n",grpname[0],refgt,grpname[1]);
   }
   else {
-    if (get_print_xvgr_codes(oenv))
-        fprintf(fp,"@ subtitle \"reference %s%s\"\n",grpname[0],refgt);
-    xvgr_legend(fp,ng,grpname+1,oenv);
+    if (bPrintXvgrCodes())
+      fprintf(fp,"@ subtitle \"reference %s%s\"\n",grpname[0],refgt);
+    xvgr_legend(fp,ng,grpname+1);
   }
   for(i=0; (i<nrdf); i++) {
     fprintf(fp,"%10g",i*binwidth);
@@ -586,7 +585,7 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
   }
   ffclose(fp);
   
-  do_view(oenv,fnRDF,NULL);
+  do_view(fnRDF,NULL);
 
   /* h(Q) function: fourier transform of rdf */  
   if (fnHQ) {
@@ -607,26 +606,26 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
       }
       hq[i] = print_and_integrate(debug,nrdf,binwidth,integrand,NULL,0);
     }
-    fp=xvgropen(fnHQ,"h(Q)","Q(/nm)","h(Q)",oenv);
+    fp=xvgropen(fnHQ,"h(Q)","Q(/nm)","h(Q)");
     for(i=0; (i<nhq); i++) 
       fprintf(fp,"%10g %10g\n",i*0.5,hq[i]);
     ffclose(fp);
-    do_view(oenv,fnHQ,NULL);
+    do_view(fnHQ,NULL);
     sfree(hq);
     sfree(integrand);
   }
   
   if (fnCNRDF) {  
     normfac = 1.0/(isize0*nframes);
-    fp=xvgropen(fnCNRDF,"Cumulative Number RDF","r","number",oenv);
+    fp=xvgropen(fnCNRDF,"Cumulative Number RDF","r","number");
     if (ng==1) {
-      if (get_print_xvgr_codes(oenv))
+      if (bPrintXvgrCodes())
 	fprintf(fp,"@ subtitle \"%s-%s\"\n",grpname[0],grpname[1]);
     }
     else {
-      if (get_print_xvgr_codes(oenv))
+      if (bPrintXvgrCodes())
 	fprintf(fp,"@ subtitle \"reference %s\"\n",grpname[0]);
-      xvgr_legend(fp,ng,grpname+1,oenv);
+      xvgr_legend(fp,ng,grpname+1);
     }
     snew(sum,ng);
     for(i=0; (i<=nbin/2); i++) {
@@ -641,7 +640,7 @@ static void do_rdf(const char *fnNDX,const char *fnTPS,const char *fnTRX,
     ffclose(fp);
     sfree(sum);
     
-    do_view(oenv,fnCNRDF,NULL);
+    do_view(fnCNRDF,NULL);
   }
 
   for(g=0; g<ng; g++)
@@ -891,8 +890,8 @@ void compute_structure_factor (structure_factor * sf, matrix box,
     } sfree (counter); free(tmpSF[0][0]); free(tmpSF[0]); free(tmpSF);
 }
 
-void save_data (structure_factor * sf, const char *file, int ngrps, 
-                real start_q, real end_q, const output_env_t oenv)
+void save_data (structure_factor * sf, char *file, int ngrps, real start_q,
+	   real end_q)
 {
 
     FILE *fp;
@@ -900,7 +899,7 @@ void save_data (structure_factor * sf, const char *file, int ngrps,
     double *tmp, polarization_factor, A;
 
     fp = xvgropen (file, "Scattering Intensity", "q (1/nm)",
-		   "Intensity (a.u.)",oenv);
+		   "Intensity (a.u.)");
 
     snew (tmp, ngrps);
 
@@ -930,10 +929,9 @@ void save_data (structure_factor * sf, const char *file, int ngrps,
     ffclose (fp);
 }
 
-int do_scattering_intensity (const char* fnTPS, const char* fnNDX, 
-                             const char* fnXVG, const char *fnTRX, 
-                             real start_q,real end_q, 
-                             real energy,int ng,const output_env_t oenv)
+int
+do_scattering_intensity (char* fnTPS, char* fnNDX, char* fnXVG, char *fnTRX,
+		         real start_q,real end_q, real energy,int ng)
 {
     int i,*isize,status,flags = TRX_READ_X,**index_atp;
     char **grpname,title[STRLEN];
@@ -969,7 +967,7 @@ int do_scattering_intensity (const char* fnTPS, const char* fnNDX,
 	rd_index (fnNDX, ng, isize, index, grpname);
 
     /* The first time we read data is a little special */
-    read_first_frame (oenv,&status, fnTRX, &fr, flags);
+    read_first_frame (&status, fnTRX, &fr, flags);
 
     sf->total_n_atoms = fr.natoms;
     
@@ -1003,9 +1001,9 @@ int do_scattering_intensity (const char* fnTPS, const char* fnNDX,
 				      start_q, end_q, i, sf_table);
 	}
     }
-    while (read_next_frame (oenv,status, &fr));
+    while (read_next_frame (status, &fr));
 
-    save_data (sf, fnXVG, ng, start_q, end_q,oenv);
+    save_data (sf, fnXVG, ng, start_q, end_q);
 
     return 0;
 }
@@ -1098,9 +1096,8 @@ int gmx_rdf(int argc,char *argv[])
      "Energy of the incoming X-ray (keV) "}
   };
 #define NPA asize(pa)
-  const char *fnTPS,*fnNDX;
+  char       *fnTPS,*fnNDX;
   bool       bSQ,bRDF;
-  output_env_t oenv;
   
   t_filenm   fnm[] = {
     { efTRX, "-f",  NULL,     ffREAD },
@@ -1116,7 +1113,7 @@ int gmx_rdf(int argc,char *argv[])
   
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,PCA_CAN_VIEW | PCA_CAN_TIME | PCA_BE_NICE,
-		    NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL,&oenv);
+		    NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL);
 
   bSQ   = opt2bSet("-sq",NFILE,fnm);
   bRDF  = opt2bSet("-o",NFILE,fnm) || !bSQ;
@@ -1142,16 +1139,14 @@ int gmx_rdf(int argc,char *argv[])
 	      "Nothing to do!");
  
   if  (bSQ) 
-   do_scattering_intensity(fnTPS,fnNDX,opt2fn("-sq",NFILE,fnm),
-                           ftp2fn(efTRX,NFILE,fnm),
-		           start_q, end_q, energy, ngroups,oenv);
+   do_scattering_intensity(fnTPS,fnNDX,opt2fn("-sq",NFILE,fnm),ftp2fn(efTRX,NFILE,fnm),
+		           start_q, end_q, energy, ngroups  );
 
   if (bRDF) 
     do_rdf(fnNDX,fnTPS,ftp2fn(efTRX,NFILE,fnm),
 	   opt2fn("-o",NFILE,fnm),opt2fn_null("-cn",NFILE,fnm),
 	   opt2fn_null("-hq",NFILE,fnm),
-	   bCM,closet[0],rdft,bXY,bPBC,bNormalize,cutoff,binwidth,fade,ngroups,
-           oenv);
+	   bCM,closet[0],rdft,bXY,bPBC,bNormalize,cutoff,binwidth,fade,ngroups);
 
   thanx(stderr);
   

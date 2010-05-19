@@ -200,12 +200,11 @@ int gmx_mdmat(int argc,char *argv[])
   real       *mean_n;
   int        *tot_n;
   matrix     box;
-  output_env_t oenv;
   
   CopyRight(stderr,argv[0]);
 
   parse_common_args(&argc,argv,PCA_CAN_TIME | PCA_BE_NICE,NFILE,fnm,
-		    asize(pa),pa,asize(desc),desc,0,NULL,&oenv);
+		    asize(pa),pa,asize(desc),desc,0,NULL);
   
   fprintf(stderr,"Will truncate at %f nm\n",truncate);
   bCalcN = opt2bSet("-no",NFILE,fnm);
@@ -267,7 +266,7 @@ int gmx_mdmat(int argc,char *argv[])
   for(i=0; (i<nres); i++)
     snew(totmdmat[i],nres);
   
-  trxnat=read_first_x(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box);
+  trxnat=read_first_x(&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box);
   
   nframes=0;
   
@@ -291,7 +290,7 @@ int gmx_mdmat(int argc,char *argv[])
       write_xpm(out,0,label,"Distance (nm)","Residue Index","Residue Index",
 		nres,nres,resnr,resnr,mdmat,0,truncate,rlo,rhi,&nlevels);
     }
-  } while (read_next_x(oenv,status,&t,trxnat,x,box));
+  } while (read_next_x(status,&t,trxnat,x,box));
   fprintf(stderr,"\n");
   close_trj(status);
   if (bFrames)
@@ -309,7 +308,7 @@ int gmx_mdmat(int argc,char *argv[])
   if ( bCalcN ) {
     tot_nmat(nres,natoms,nframes,totnmat,tot_n,mean_n);
     fp=xvgropen(ftp2fn(efXVG,NFILE,fnm),
-		"Increase in number of contacts","Residue","Ratio",oenv);
+		"Increase in number of contacts","Residue","Ratio");
     fprintf(fp,"@ legend on\n");
     fprintf(fp,"@ legend box on\n");
     fprintf(fp,"@ legend loctype view\n");

@@ -168,8 +168,7 @@ static void write_trx_x(int status,t_trxframe *fr,real *mass,bool bCom,
 }
 
 static void make_legend(FILE *fp,int ngrps,int isize,atom_id index[],
-			char **name,bool bCom,bool bMol,bool bDim[],
-                        const output_env_t oenv)
+			char **name,bool bCom,bool bMol,bool bDim[])
 {
   char **leg;
   const char *dimtxt[] = { " X", " Y", " Z", "" };
@@ -194,7 +193,7 @@ static void make_legend(FILE *fp,int ngrps,int isize,atom_id index[],
 	  sprintf(leg[j],"atom %d%s",index[i]+1,dimtxt[d]);
 	j++;
       }
-  xvgr_legend(fp,j,leg,oenv);
+  xvgr_legend(fp,j,leg);
   for(i=0; i<j; i++)
     sfree(leg[i]);
   sfree(leg);
@@ -325,12 +324,11 @@ static void remove_jump(matrix box,int natoms,rvec xp[],rvec x[])
     }
 }
 
-static void write_pdb_bfac(const char *fname,const char *xname,
+static void write_pdb_bfac(char *fname,char *xname,
 			   const char *title,t_atoms *atoms,int ePBC,matrix box,
 			   int isize,atom_id *index,int nfr_x,rvec *x,
 			   int nfr_v,rvec *sum,
-			   bool bDim[],real scale_factor, 
-                           const output_env_t oenv)
+			   bool bDim[],real scale_factor)
 {
   FILE    *fp;
   real    max,len2,scale;
@@ -361,7 +359,7 @@ static void write_pdb_bfac(const char *fname,const char *xname,
     for(i=0; i<isize; i++)
       svmul(scale,sum[index[i]],sum[index[i]]);
       
-    fp=xvgropen(xname,title,"Atom","",oenv);
+    fp=xvgropen(xname,title,"Atom","");
     for(i=0; i<isize; i++)
       fprintf(fp,"%-5d  %10.3f  %10.3f  %10.3f\n",i,
 	      sum[index[i]][XX],sum[index[i]][YY],sum[index[i]][ZZ]);
@@ -442,14 +440,12 @@ static void update_histo(int gnx,atom_id index[],rvec v[],
   }
 }
 
-static void print_histo(const char *fn,int nhisto,int histo[],real binwidth,
-                        const output_env_t oenv)
+static void print_histo(char *fn,int nhisto,int histo[],real binwidth)
 {
   FILE *fp;
   int i;
   
-  fp = xvgropen(fn,"Velocity distribution","V (nm/ps)","arbitrary units",
-                oenv);
+  fp = xvgropen(fn,"Velocity distribution","V (nm/ps)","arbitrary units");
   for(i=0; (i<nhisto); i++) 
     fprintf(fp,"%10.3e  %10d\n",i*binwidth,histo[i]);
   fclose(fp);
@@ -519,8 +515,7 @@ int gmx_traj(int argc,char *argv[])
   t_topology top;
   int        ePBC;
   real       *mass,time;
-  char       title[STRLEN];
-  const char *indexfn;
+  char       title[STRLEN],*indexfn;
   t_trxframe fr,frout;
   int        flags,nvhisto=0,*vhisto=NULL;
   rvec       *xtop,*xp=NULL;
@@ -537,7 +532,6 @@ int gmx_traj(int argc,char *argv[])
   bool       bTop,bOX,bOXT,bOV,bOF,bOB,bOT,bEKT,bEKR,bCV,bCF;
   bool       bDim[4],bDum[4],bVD;
   char *box_leg[6] = { "XX", "YY", "ZZ", "YX", "ZX", "ZY" };
-  output_env_t oenv;
 
   t_filenm fnm[] = {
     { efTRX, "-f", NULL, ffREAD },
@@ -562,7 +556,7 @@ int gmx_traj(int argc,char *argv[])
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,
 		    PCA_CAN_TIME | PCA_TIME_UNIT | PCA_CAN_VIEW | PCA_BE_NICE,
-		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL,&oenv);
+		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL);
 
   if (bMol)
     fprintf(stderr,"Interpreting indexfile entries as molecules.\n"
@@ -637,8 +631,8 @@ int gmx_traj(int argc,char *argv[])
     flags = flags | TRX_READ_X;
     outx = xvgropen(opt2fn("-ox",NFILE,fnm),
 		    bCom ? "Center of mass" : "Coordinate",
-		    get_xvgr_tlabel(oenv),"Coordinate (nm)",oenv);
-    make_legend(outx,ngroups,isize0[0],index0[0],grpname,bCom,bMol,bDim,oenv);
+		    xvgr_tlabel(),"Coordinate (nm)");
+    make_legend(outx,ngroups,isize0[0],index0[0],grpname,bCom,bMol,bDim);
   }
   if (bOXT) {
     flags = flags | TRX_READ_X;
@@ -648,21 +642,20 @@ int gmx_traj(int argc,char *argv[])
     flags = flags | TRX_READ_V;
     outv = xvgropen(opt2fn("-ov",NFILE,fnm),
 		    bCom ? "Center of mass velocity" : "Velocity",
-		    get_xvgr_tlabel(oenv),"Velocity (nm/ps)",oenv);
-   make_legend(outv,ngroups,isize0[0],index0[0],grpname,bCom,bMol,bDim,oenv); 
+		    xvgr_tlabel(),"Velocity (nm/ps)");
+   make_legend(outv,ngroups,isize0[0],index0[0],grpname,bCom,bMol,bDim); 
   }
   if (bOF) {
     flags = flags | TRX_READ_F;
     outf = xvgropen(opt2fn("-of",NFILE,fnm),"Force",
-		    get_xvgr_tlabel(oenv),"Force (kJ mol\\S-1\\N nm\\S-1\\N)",
-                    oenv);
-    make_legend(outf,ngroups,isize0[0],index0[0],grpname,bCom,bMol,bDim,oenv);
+		    xvgr_tlabel(),"Force (kJ mol\\S-1\\N nm\\S-1\\N)");
+    make_legend(outf,ngroups,isize0[0],index0[0],grpname,bCom,bMol,bDim);
   }
   if (bOB) {
     outb = xvgropen(opt2fn("-ob",NFILE,fnm),"Box vector elements",
-		    get_xvgr_tlabel(oenv),"(nm)",oenv);
+		    xvgr_tlabel(),"(nm)");
    
-    xvgr_legend(outb,6,box_leg,oenv);
+    xvgr_legend(outb,6,box_leg);
   }
   if (bOT) {
     bDum[XX] = FALSE;
@@ -670,9 +663,8 @@ int gmx_traj(int argc,char *argv[])
     bDum[ZZ] = FALSE;
     bDum[DIM] = TRUE;
     flags = flags | TRX_READ_V;
-    outt = xvgropen(opt2fn("-ot",NFILE,fnm),"Temperature",
-                    get_xvgr_tlabel(oenv),"(K)", oenv);
-    make_legend(outt,ngroups,isize[0],index[0],grpname,bCom,bMol,bDum,oenv);
+    outt = xvgropen(opt2fn("-ot",NFILE,fnm),"Temperature",xvgr_tlabel(),"(K)");
+    make_legend(outt,ngroups,isize[0],index[0],grpname,bCom,bMol,bDum);
   }
   if (bEKT) {
     bDum[XX] = FALSE;
@@ -681,8 +673,8 @@ int gmx_traj(int argc,char *argv[])
     bDum[DIM] = TRUE;
     flags = flags | TRX_READ_V;
     outekt = xvgropen(opt2fn("-ekt",NFILE,fnm),"Center of mass translation",
-		      get_xvgr_tlabel(oenv),"Energy (kJ mol\\S-1\\N)",oenv);
-    make_legend(outekt,ngroups,isize[0],index[0],grpname,bCom,bMol,bDum,oenv);
+		      xvgr_tlabel(),"Energy (kJ mol\\S-1\\N)");
+    make_legend(outekt,ngroups,isize[0],index[0],grpname,bCom,bMol,bDum);
   }
   if (bEKR) {
     bDum[XX] = FALSE;
@@ -691,8 +683,8 @@ int gmx_traj(int argc,char *argv[])
     bDum[DIM] = TRUE;
     flags = flags | TRX_READ_X | TRX_READ_V;
     outekr = xvgropen(opt2fn("-ekr",NFILE,fnm),"Center of mass rotation",
-		      get_xvgr_tlabel(oenv),"Energy (kJ mol\\S-1\\N)",oenv);
-    make_legend(outekr,ngroups,isize[0],index[0],grpname,bCom,bMol,bDum,oenv);
+		      xvgr_tlabel(),"Energy (kJ mol\\S-1\\N)");
+    make_legend(outekr,ngroups,isize[0],index[0],grpname,bCom,bMol,bDum);
   }
   if (bVD)
     flags = flags | TRX_READ_V;
@@ -705,7 +697,7 @@ int gmx_traj(int argc,char *argv[])
     exit(0);
   }
 
-  read_first_frame(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&fr,flags);
+  read_first_frame(&status,ftp2fn(efTRX,NFILE,fnm),&fr,flags);
 
   if (bCV) {
     snew(sumxv,fr.natoms);
@@ -720,7 +712,7 @@ int gmx_traj(int argc,char *argv[])
   nr_ffr = 0;
   
   do {
-    time = conv_time(oenv,fr.time);
+    time = convert_time(fr.time);
 
     if (fr.bX && bNoJump && fr.bBox) {
       if (xp)
@@ -798,7 +790,7 @@ int gmx_traj(int argc,char *argv[])
       }
     }
     
-  } while(read_next_frame(oenv,status,&fr));
+  } while(read_next_frame(status,&fr));
   
 
   /* clean up a bit */
@@ -814,7 +806,7 @@ int gmx_traj(int argc,char *argv[])
   if (bEKR) fclose(outekr);
 
   if (bVD)
-    print_histo(opt2fn("-vd",NFILE,fnm),nvhisto,vhisto,binwidth,oenv);
+    print_histo(opt2fn("-vd",NFILE,fnm),nvhisto,vhisto,binwidth);
     
   if ((bCV || bCF) && (nr_vfr>1 || nr_ffr>1) && !bNoJump)
     fprintf(stderr,"WARNING: More than one frame was used for option -cv or -cf\n"
@@ -824,15 +816,15 @@ int gmx_traj(int argc,char *argv[])
     write_pdb_bfac(opt2fn("-cv",NFILE,fnm),
 		   opt2fn("-av",NFILE,fnm),"average velocity",&(top.atoms),
 		   ePBC,topbox,isize[0],index[0],nr_xfr,sumxv,
-		   nr_vfr,sumv,bDim,scale,oenv);
+		   nr_vfr,sumv,bDim,scale);
   if (bCF)
     write_pdb_bfac(opt2fn("-cf",NFILE,fnm),
 		   opt2fn("-af",NFILE,fnm),"average force",&(top.atoms),
 		   ePBC,topbox,isize[0],index[0],nr_xfr,sumxf,
-		   nr_ffr,sumf,bDim,scale,oenv);
+		   nr_ffr,sumf,bDim,scale);
 
   /* view it */
-  view_all(oenv,NFILE, fnm);
+  view_all(NFILE, fnm);
   
   thanx(stderr);
   

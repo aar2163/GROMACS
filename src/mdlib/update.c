@@ -103,7 +103,7 @@ typedef struct gmx_update
     rvec *xp;
     int  xp_nalloc;
     /* Variables for the deform algorithm */
-    gmx_large_int_t deformref_step;
+    gmx_step_t deformref_step;
     matrix     deformref_box;
 } t_gmx_update;
 
@@ -149,17 +149,23 @@ void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      copy_rvec(x[aj],r1);
      rvec_sub(x[aj],x[ai],r_ij);
      unitv(r_ij,u1);
-     svmul(mc_move->group[MC_BONDS].value,u1,u1);
-     rvec_add(r_ij,u1,v);
-     
-     rvec_add(x[ai],v,x[aj]);
 
-
-     rvec_sub(x[aj],r1,r_ij);
+     svmul(mc_move->group[MC_BONDS].value/2,u1,v);
      
+     rvec_add(x[aj],v,x[aj]);
      for(k=0;k<nr;k++) {
       ak=list[k];
-      rvec_add(x[ak],r_ij,x[ak]);
+      rvec_add(x[ak],v,x[ak]);
+     }
+
+     bond_rot(graph,aj,ai,list_r,&nr);
+     list=list_r;
+
+     svmul(-mc_move->group[MC_BONDS].value/2,u1,v);
+     rvec_add(x[ai],v,x[ai]);
+     for(k=0;k<nr;k++) {
+      ak=list[k];
+      rvec_add(x[ak],v,x[ak]);
      }
 }
 void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
@@ -223,7 +229,8 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   vec4 xrot;
   rvec xcm;
   matrix basis,basis_inv;
-  rvec delta_phi;
+  rvec delta_phi,delta;
+
      ai = mc_move->group[MC_ANGLES].ai;
      aj = mc_move->group[MC_ANGLES].aj;
      ak = mc_move->group[MC_ANGLES].ak;
@@ -252,9 +259,32 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 
      clear_rvec(xcm);
      clear_rvec(delta_phi);
-     delta_phi[XX]=mc_move->group[MC_ANGLES].value;
+
+     delta_phi[XX]=mc_move->group[MC_ANGLES].value/2;
+     //delta_phi[XX]=-0.000003;
 
      list[nr++]=ak;
+
+     for(k=0;k<nr;k++) {
+      al=list[k];
+      rvec_sub(x[al],x[aj],r_lj);
+      mvmul(basis_inv,r_lj,r1);
+      rand_rot_mc(r1,xrot,delta_phi,xcm);
+      for(i=0;i<DIM;i++)
+       r1[i]=xrot[i];
+      mvmul(basis,r1,r2);
+      rvec_add(x[aj],r2,x[al]);
+     }
+
+     nr = 0;
+     bond_rot(graph,aj,ai,list_r,&nr);
+     list=list_r;
+
+     clear_rvec(delta_phi);
+     delta_phi[XX]=-mc_move->group[MC_ANGLES].value/2;
+     //delta_phi[XX]=0.000003;
+
+     list[nr++]=ai;
 
      for(k=0;k<nr;k++) {
       al=list[k];
@@ -269,17 +299,32 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 }
 void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int start,int i)
 {
+ int a;
  group->value = fac;
  group->ai = start + (group->ilist)->iatoms[delta*i];
  group->aj = start + (group->ilist)->iatoms[delta*i+1];
+ group->bmove=TRUE;
 
  if(delta == 3) {
   group->ak = start + (group->ilist)->iatoms[delta*i+2];
+  if(uniform_int(rng,2))
+  {
+  /* a = group->ai;
+   group->ai = group->ak;
+   group->ak = a;*/
+  }
  }
-  
- 
+ else 
+ {
+  if(uniform_int(rng,2))
+  {
+  /* a = group->ai;
+   group->ai = group->aj;
+   group->aj = a;*/
+  }
+ }
 }
-void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
+static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 {
   int    n,i,k,start,end;
   int    ai,aj,ak;
@@ -287,13 +332,11 @@ void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   bool   b_translate,b_rotate;
   vec4 xrot;
   rvec xcm;
-  rvec delta_phi;
   start = mc_move->start;
   end = mc_move->end;
  
-  b_translate = (norm(mc_move->delta_x) > 0);
-  b_rotate = (norm(mc_move->delta_phi) > 0);
-
+  b_translate = (mc_move->mvgroup == MC_TRANSLATE);
+  b_rotate = (mc_move->mvgroup == MC_ROTATEX || mc_move->mvgroup == MC_ROTATEY || mc_move->mvgroup == MC_ROTATEZ);
    if(b_rotate) 
    {
     clear_rvec(xcm);
@@ -301,35 +344,37 @@ void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      rvec_add(x[k],xcm,xcm);
     } 
     svmul(1.0/(end-start),xcm,xcm);
+    copy_rvec(x[start],xcm);
    }
 
     for(n=start;n<end;n++) {
      if(b_rotate) 
      { 
       rand_rot_mc(x[n],xrot,mc_move->delta_phi,xcm);
-     }
       for(k=0;k<DIM;k++)
       {
-       if(b_rotate) 
-        x[n][k]=xrot[k];
-
-       if(b_translate)
-       rvec_add(x[n],mc_move->delta_x,x[n]);
+       x[n][k]=xrot[k];
       }
+     }
+     if(b_translate)
+     {
+      rvec_add(x[n],mc_move->delta_x,x[n]);
+     }
     }
+  
     /* INTERNAL COORDINATES */
     
-    if(mc_move->group[2].nr != -1 && mc_move->group[2].value) 
+    if(mc_move->mvgroup == MC_DIHEDRALS) 
     {
      rotate_dihedral(x,mc_move,graph);
     }
     /* STRETCHING BONDS */
-    if((mc_move->group[0].ilist)->nr != 0 && mc_move->group[0].value != 0)  
+    if(mc_move->mvgroup == MC_BONDS) 
     {
      stretch_bonds(x,mc_move,graph);
     }
     /* BENDING ANGLES */
-    if((mc_move->group[1].ilist)->nr != 0 && mc_move->group[1].value != 0) 
+    if(mc_move->mvgroup == MC_ANGLES) 
     {
      bend_angles(x,mc_move,graph);
     }
@@ -423,7 +468,6 @@ static void do_update_md(int start,int homenr,double dt,
 void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr)
 {
   int i,k;
-
   for(i=0;i<graph->nedge[aj];i++)
   {
    if(graph->edge[aj][i] != ai) 
@@ -978,7 +1022,7 @@ restore_ekinstate_from_state(t_commrec *cr,
   }
 }
 
-void set_deform_reference_box(gmx_update_t upd,gmx_large_int_t step,matrix box)
+void set_deform_reference_box(gmx_update_t upd,gmx_step_t step,matrix box)
 {
     upd->deformref_step = step;
     copy_mat(box,upd->deformref_box);
@@ -986,7 +1030,7 @@ void set_deform_reference_box(gmx_update_t upd,gmx_large_int_t step,matrix box)
 
 static void deform(gmx_update_t upd,
                    int start,int homenr,rvec x[],matrix box,matrix *scale_tot,
-                   const t_inputrec *ir,gmx_large_int_t step)
+                   const t_inputrec *ir,gmx_step_t step)
 {
     matrix bnew,invbox,mu;
     real   elapsed_time;
@@ -1045,7 +1089,7 @@ static void deform(gmx_update_t upd,
 static void combine_forces(int nstlist,
                            gmx_constr_t constr,
                            t_inputrec *ir,t_mdatoms *md,t_idef *idef,
-                           t_commrec *cr,gmx_large_int_t step,t_state *state,
+                           t_commrec *cr,gmx_step_t step,t_state *state,
                            int start,int homenr,
                            rvec f[],rvec f_lr[],
                            t_nrnb *nrnb)
@@ -1083,7 +1127,7 @@ static void combine_forces(int nstlist,
 }
 
 void update(FILE         *fplog,
-            gmx_large_int_t   step,
+            gmx_step_t   step,
             real         *dvdlambda,    /* FEP stuff */
             t_inputrec   *inputrec,     /* input record and box stuff	*/
             t_mdatoms    *md,
@@ -1117,6 +1161,9 @@ void update(FILE         *fplog,
     tensor           vir_con;
     rvec             *xprime;
     real             vnew,vfrac;
+    gmx_mc_move      *mc_move;
+
+   mc_move = state->mc_move;
     
     start  = md->start;
     homenr = md->homenr;
@@ -1265,20 +1312,20 @@ void update(FILE         *fplog,
      for(i=0;i<state->natoms;i++)
       copy_rvec(state->x[i],xprime[i]);
 
-     if (!(state->mc_move.update_box)) {
+     if (!(mc_move->update_box)) {
       if(PAR(cr)) { 
        if(DOMAINDECOMP(cr)) {
        }
        else {
        for(i=md->start;i<(md->start+md->homenr);i++) {
-        if(i >= state->mc_move.start && i <state->mc_move.end) {
+        if(i >= mc_move->start && i <mc_move->end) {
 //         do_update_mc(xprime[i],&(state->mc_move));
         }
        }
       }
      }
      else {
-      do_update_mc(xprime,&(state->mc_move),graph);
+      do_update_mc(xprime,mc_move,graph);
      }
     }
   } else {
@@ -1399,9 +1446,9 @@ void update(FILE         *fplog,
     if (inputrec->epc == epcBERENDSEN) {
         berendsen_pscale(inputrec,pcoupl_mu,state->box,state->box_rel,
                          start,homenr,state->x,md->cFREEZE,nrnb);
-    } else if(inputrec->epc == epcMC && state->mc_move.update_box) {
+    } else if(inputrec->epc == epcMC && state->mc_move->update_box) {
 
-     vnew = det(state->box) + state->mc_move.delta_v;
+     vnew = det(state->box) + state->mc_move->delta_v;
      vfrac = pow(vnew,1.0/3.0)/pow(det(state->box),1.0/3.0);
 
      pcoupl_mu[XX][XX]=vfrac;    pcoupl_mu[XX][YY] = 0;          pcoupl_mu[XX][ZZ] = 0;

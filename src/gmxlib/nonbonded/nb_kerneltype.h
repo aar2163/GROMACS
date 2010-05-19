@@ -20,8 +20,9 @@
 
 #include <types/simple.h>
 
-/** \file
- *  \brief Function interfaces and nonbonded kernel meta-data.
+/** Function interfaces and nonbonded kernel meta-data.
+ * 
+ *  \file nb_kernel.h
  *
  *  \internal
  *
@@ -323,6 +324,9 @@ nb_kernel_t(int *             nri,
             real *            vvdw,
             real *            tabscale,
             real *            vftab,
+            real *            enerd,
+            int  *            start,
+            int  *            end,
             real *            invsqrta,
             real *            dvda,
             real *            gbtabscale,

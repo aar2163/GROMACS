@@ -55,8 +55,8 @@
 #include "mtop_util.h"
 #include "gmxfio.h"
 
-#ifdef GMX_THREADS
-#include "thread_mpi.h"
+#ifdef GMX_THREAD_MPI
+#include "gmx_thread.h"
 #endif
 
 /* used for npri */
@@ -64,9 +64,6 @@
 #include <sys/schedctl.h>
 #include <sys/sysmp.h>
 #endif
-
-/* The source code in this file should be thread-safe. 
-      Please keep it that way. */
 
 /******************************************************************
  *
@@ -77,32 +74,27 @@
 /* read only time names */
 static const real timefactors[] =   { 0,  1e3,  1, 1e-3, 1e-6, 1e-9, 1e-12, 0 };
 static const real timeinvfactors[] ={ 0, 1e-3,  1,  1e3,  1e6,  1e9,  1e12, 0 };
-static const char *time_units_str[] = { NULL, "fs", "ps", "ns", "us", 
-                                        "ms", "s", NULL };
-static const char *time_units_xvgr[] = { NULL, "fs", "ps", "ns", 
-                                         "\\8m\\4s", "ms", "s" };
+static const char *time_units_str[] = { NULL, "fs", "ps", "ns", "us", "ms", "s", NULL };
+static const char *time_units_xvgr[] = { NULL, "fs", "ps", "ns", "\\8m\\4s", "ms", "s" };
 
 
 
-struct output_env
+struct env_info
 {
     int time_unit; /*  the time unit as index for the above-defined arrays */
-    bool view;  /* view of file requested */
-    bool xvgr_codes; /* xmgrace-style legends etc. in file output */
-#if 0
-    const char *program; /* the program name */
+    bool bView; 
+    bool bXvgrCodes;
+    char *program; /* the program name */
     char *cmdline; /* the re-assembled command line */
-#endif
 };
 
-/* inherently globally shared names: */
-static const char *program_name=NULL;
-static char *cmd_line=NULL;
+/* this is a global variable that should be removed */
+static struct env_info einf;
 
-#ifdef GMX_THREADS
+#ifdef GMX_THREAD_MPI
 /* For now, some things here are simply not re-entrant, so
-   we have to actively lock them. */
-static tMPI_Thread_mutex_t init_mutex=TMPI_THREAD_MUTEX_INITIALIZER;
+ we have to actively lock them out. */
+static gmx_thread_mutex_t init_mutex=GMX_THREAD_MUTEX_INITIALIZER;
 #endif
 
 
@@ -112,14 +104,38 @@ static tMPI_Thread_mutex_t init_mutex=TMPI_THREAD_MUTEX_INITIALIZER;
  *
  ****************************************************************/
 
-void init_output_env(output_env_t oenv,  int argc, char *argv[],
-                     bool view, bool xvgr_codes, const char *timenm)
+static void init_env_info(struct env_info *einf,  int argc, char *argv[],
+                          bool bView, bool bXvgrCodes, const char *timenm)
 {
-    set_output_env(oenv, view, xvgr_codes, timenm);
+    int i;
+    size_t cmdlength;
+    
+    cmdlength = strlen(argv[0]);
+    /* Check for double arguments */
+    for (i=1; i<argc; i++) 
+    {
+        cmdlength += strlen(argv[i]);
+    }
+    
+    /* Fill the cmdline string */
+    snew(einf->cmdline,cmdlength+argc+1);
+    for (i=0; i<argc; i++) 
+    {
+        strcat(einf->cmdline,argv[i]);
+        strcat(einf->cmdline," ");
+    }
+    
+    set_program(einf, argv[0]);
+    
+    /* now check for empty values */
+    if (einf->cmdline == NULL)
+        einf->cmdline = "GROMACS";
+    
+    set_env_info(einf, bView, bXvgrCodes, timenm);
 }
 
-void set_output_env(output_env_t oenv,  bool view, bool xvgr_codes, 
-                    const char *timenm)
+static void set_env_info(struct env_info *einf,  bool bView, bool bXvgrCodes, 
+                         const char *timenm)
 {
     int i;
     int time_unit=2; /* the default is ps */
@@ -136,109 +152,75 @@ void set_output_env(output_env_t oenv,  bool view, bool xvgr_codes,
         if (time_units_str[i])
             time_unit=i;
     }
-    oenv->time_unit=time_unit;
-    oenv->view=view;
-    oenv->xvgr_codes=xvgr_codes;
+    einf->time_unit=time_unit;
+    einf->bView=bView;
+    einf->bXvgrCodes=bXvgrCodes;
+}
+
+
+
+void set_program(struct env_info *einf, const char *argvzero)
+{
+    /* When you run a dynamically linked program before installing
+     * it, libtool uses wrapper scripts and prefixes the name with "lt-".
+     * Until libtool is fixed to set argv[0] right, rip away the prefix:
+     */
+    if(einf->program==NULL) {
+        if(strlen(argvzero)>3 && !strncmp(argvzero,"lt-",3))
+            einf->program = strdup(argvzero+3);
+        else
+            einf->program = strdup(argvzero);
+    }
+    if (einf->program==NULL)
+        einf->program="GROMACS";
+}
+
+
+const char *get_short_program(const struct env_info *einf)
+{
+    char *pr;
+    if ((pr=strrchr(einf->program,'/')) != NULL)
+        return pr+1;
+    else
+        return einf->program;
+}
+
+const char *get_program(const struct env_info *einf)
+{
+    return einf->program;
+}
+
+const char *get_command_line(const struct env_info *einf)
+{
+    return einf->cmdline;
 }
 
 
 const char *ShortProgram(void)
 {
-    const char *pr,*ret;
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&init_mutex);
-#endif
-    pr=ret=program_name; 
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&init_mutex);
-#endif
-    if ((pr=strrchr(ret,'/')) != NULL)
-        ret=pr+1;
-    /*else
-        ret=ret;*/
-    return ret;
+    return get_short_program(&einf);
 }
 
 const char *Program(void)
 {
-    const char *ret;
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&init_mutex);
-#endif
-    ret=program_name; 
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&init_mutex);
-#endif
-    return ret;
+    return get_program(&einf);
 }
 
 const char *command_line(void)
 {
-    const char *ret;
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&init_mutex);
-#endif
-    ret=cmd_line; 
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&init_mutex);
-#endif
-    return ret;
+    return get_command_line(&einf);
 }
 
 void set_program_name(const char *argvzero)
 {
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&init_mutex);
+#ifdef GMX_THREAD_MPI
+    gmx_thread_mutex_lock(&init_mutex);
 #endif
-    /* When you run a dynamically linked program before installing
-     * it, libtool uses wrapper scripts and prefixes the name with "lt-".
-     * Until libtool is fixed to set argv[0] right, rip away the prefix:
-     */
-    if (program_name == NULL)
-    {
-        if(strlen(argvzero)>3 && !strncmp(argvzero,"lt-",3))
-            program_name=strdup(argvzero+3);
-        else
-            program_name=strdup(argvzero);
-    }
-    if (program_name == NULL)
-        program_name="GROMACS";
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&init_mutex);
+    set_program(&einf, argvzero);
+#ifdef GMX_THREAD_MPI
+    gmx_thread_mutex_unlock(&init_mutex);
 #endif
 }
-
-
-void set_command_line(int argc, char *argv[])
-{
-    int i;
-    size_t cmdlength;
-
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&init_mutex);
-#endif
-    if (cmd_line==NULL)
-    {
-        cmdlength = strlen(argv[0]);
-        for (i=1; i<argc; i++) 
-        {
-            cmdlength += strlen(argv[i]);
-        }
-        
-        /* Fill the cmdline string */
-        snew(cmd_line,cmdlength+argc+1);
-        for (i=0; i<argc; i++) 
-        {
-            strcat(cmd_line,argv[i]);
-            strcat(cmd_line," ");
-        }
-    }
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&init_mutex);
-#endif
-
-}
-
 
 bool bRmod_fd(double a, double b, double c, bool bDouble)
 {
@@ -293,68 +275,97 @@ int check_times(real t)
 
 
 
-const char *get_time_unit(const output_env_t oenv)
+/* re-entrant first */
+const char *get_time_unit(const struct env_info *einf)
 {
-    return time_units_str[oenv->time_unit];
+    return time_units_str[einf->time_unit];
 }
 
-const char *get_time_label(const output_env_t oenv)
+const char *get_time_label(const struct env_info *einf)
 {
-    char *label;
-    snew(label, 20);
+    static char label[20];
     
-    sprintf(label,"Time (%s)",time_units_str[oenv->time_unit] ? 
-            time_units_str[oenv->time_unit]: "ps");
-    
-    return label;
-}
-
-const char *get_xvgr_tlabel(const output_env_t oenv)
-{
-    char *label;
-    snew(label, 20);
-    
-    sprintf(label,"Time (%s)", time_units_xvgr[oenv->time_unit] ?
-            time_units_xvgr[oenv->time_unit] : "ps");
+    sprintf(label,"Time (%s)",time_units_str[einf->time_unit] ? 
+            time_units_str[einf->time_unit]: "ps");
     
     return label;
 }
 
-
-real get_time_factor(const output_env_t oenv)
+const char *get_xvgr_tlabel(const struct env_info *einf)
 {
-    return timefactors[oenv->time_unit];
-}
-
-real get_time_invfactor(const output_env_t oenv)
-{
-    return timeinvfactors[oenv->time_unit];
-}
-
-real conv_time(const output_env_t oenv, real time)
-{
-    return time*timefactors[oenv->time_unit];
+    static char label[20];
+    
+    sprintf(label,"Time (%s)", time_units_xvgr[einf->time_unit] ?
+            time_units_xvgr[einf->time_unit] : "ps");
+    
+    return label;
 }
 
 
-void conv_times(const output_env_t oenv, int n, real *time)
+real get_time_factor(const struct env_info *einf)
+{
+    return timefactors[einf->time_unit];
+}
+
+real get_time_invfactor(const struct env_info *einf)
+{
+    return timeinvfactors[einf->time_unit];
+}
+
+real conv_time(const struct env_info *einf, real time)
+{
+    return time*timefactors[einf->time_unit];
+}
+
+
+void conv_times(const struct env_info *einf, int n, real *time)
 {
     int i;
-    double fact=timefactors[oenv->time_unit];
+    double fact=timefactors[einf->time_unit];
     
     if (fact!=1.)
         for(i=0; i<n; i++)
             time[i] *= fact;
 }
 
-bool get_view(const output_env_t oenv)
+
+
+
+const char *time_unit(void)
 {
-    return oenv->view;
+    return get_time_unit(&einf);
 }
 
-bool get_print_xvgr_codes(const output_env_t oenv)
+const char *time_label(void)
 {
-    return oenv->xvgr_codes;
+    return get_time_label(&einf);
+}
+
+const char *xvgr_tlabel(void)
+{
+    return get_xvgr_tlabel(&einf);
+}
+
+
+real time_factor(void)
+{
+    return get_time_factor(&einf);
+}
+
+real time_invfactor(void)
+{
+    return get_time_invfactor(&einf);
+}
+
+real convert_time(real time)
+{
+    return conv_time(&einf, time);
+}
+
+
+void convert_times(int n, real *time)
+{
+    return conv_times(&einf, n, time);
 }
 
 
@@ -417,12 +428,12 @@ int iscan(int argc,char *argv[],int *i)
     return var;
 }
 
-gmx_large_int_t istepscan(int argc,char *argv[],int *i)
+gmx_step_t istepscan(int argc,char *argv[],int *i)
 {
-    gmx_large_int_t var;
+    gmx_step_t var;
     
     if (argc > (*i)+1) {
-        if (!sscanf(argv[++(*i)],gmx_large_int_pfmt,&var))
+        if (!sscanf(argv[++(*i)],gmx_step_pfmt,&var))
             usage("an integer",argv[(*i)-1]);
     } else
         usage("an integer",argv[*i]);
@@ -445,16 +456,11 @@ double dscan(int argc,char *argv[],int *i)
 
 char *sscan(int argc,char *argv[],int *i)
 {
-    if (argc > (*i)+1) 
-    {
-        if ( (argv[(*i)+1][0]=='-') && (argc > (*i)+2) && 
-           (argv[(*i)+2][0]!='-') )
-        {
+    if (argc > (*i)+1) {
+        if ( (argv[(*i)+1][0]=='-') && (argc > (*i)+2) && (argv[(*i)+2][0]!='-') )
             fprintf(stderr,"Possible missing string argument for option %s\n\n",
                     argv[*i]);
-        }
-    } 
-    else
+    } else
         usage("a string",argv[*i]);
     
     return argv[++(*i)];
@@ -493,15 +499,24 @@ static void pdesc(char *desc)
     }
 }
 
-static FILE *man_file(const output_env_t oenv,const char *mantp)
+bool bDoView(void)
+{
+    return einf.bView;
+}
+
+bool bPrintXvgrCodes()
+{
+    return einf.bXvgrCodes;
+}
+
+static FILE *man_file(const struct env_info *einf,const char *mantp)
 {
     FILE   *fp;
     char   buf[256];
     const char *pr;
-    const char *program_name=Program();
     
-    if ( (pr=strrchr(program_name,'/')) == NULL)
-        pr=program_name;
+    if ((pr=strrchr(einf->program,'/')) == NULL)
+        pr=einf->program;
     else 
         pr+=1;
     
@@ -582,18 +597,14 @@ static char *mk_desc(t_pargs *pa, const char *time_unit_str)
     return newdesc;
 }
 
-
 void parse_common_args(int *argc,char *argv[],unsigned long Flags,
 		       int nfile,t_filenm fnm[],int npargs,t_pargs *pa,
 		       int ndesc,const char **desc,
-		       int nbugs,const char **bugs,
-                       output_env_t *oenv)
+		       int nbugs,const char **bugs)
 {
     bool bHelp=FALSE,bHidden=FALSE,bQuiet=FALSE;
-    const char *manstr[] = { NULL, "no", "html", "tex", "nroff", "ascii", 
-                            "completion", "py", "xml", "wiki", NULL };
-    const char *time_units[] = { NULL, "ps", "fs", "ns", "us", "ms", "s", 
-                                NULL };
+    const char *manstr[] = { NULL, "no", "html", "tex", "nroff", "ascii", "completion", "py", "xml", "wiki", NULL };
+    const char *time_units[] = { NULL, "ps", "fs", "ns", "us", "ms", "s", NULL };
     int  nicelevel=0,mantp=0,npri=0,debug_level=0;
     char *deffnm=NULL;
     real tbegin=0,tend=0,tdelta=0;
@@ -642,42 +653,46 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
     const char *envstr;
     
 #define FF(arg) ((Flags & arg)==arg)
-
-    snew(*oenv, 1);
     
     cmdlength = strlen(argv[0]);
     /* Check for double arguments */
-    for (i=1; (i<*argc); i++) 
-    {
+    for (i=1; (i<*argc); i++) {
         cmdlength += strlen(argv[i]);
-        if (argv[i] && (strlen(argv[i]) > 1) && (!isdigit(argv[i][1]))) 
-        {
-            for (j=i+1; (j<*argc); j++) 
-            {
+        if (argv[i] && (strlen(argv[i]) > 1) && (!isdigit(argv[i][1]))) {
+            for (j=i+1; (j<*argc); j++) {
                 if ( (argv[i][0]=='-') && (argv[j][0]=='-') && 
-                    (strcmp(argv[i],argv[j])==0) ) 
-                {
+                    (strcmp(argv[i],argv[j])==0) ) {
                     if (FF(PCA_NOEXIT_ON_ARGS))
-                        fprintf(stderr,"Double command line argument %s\n",
-                                argv[i]);
+                        fprintf(stderr,"Double command line argument %s\n",argv[i]);
                     else
-                        gmx_fatal(FARGS,"Double command line argument %s\n",
-                                  argv[i]);
+                        gmx_fatal(FARGS,"Double command line argument %s\n",argv[i]);
                 }
             }
         }
     }
     debug_gmx();
-    set_program_name(argv[0]);
-    set_command_line(*argc, argv);
+    
+    
+#if 0
+    /* Fill the cmdline string */
+    snew(cmdline,cmdlength+*argc+1);
+    for (i=0; (i<*argc); i++) {
+        strcat(cmdline,argv[i]);
+        strcat(cmdline," ");
+    }
+#endif
     
     /* Handle the flags argument, which is a bit field 
      * The FF macro returns whether or not the bit is set
      */
     bPrint        = !FF(PCA_SILENT);
     
+#if 0
+    set_program_name(argv[0]);
+#endif
+    
     /* Check ALL the flags ... */
-    max_pa = NPCA_PA + EXTRA_PA + npargs+1;
+    max_pa = NPCA_PA + EXTRA_PA + npargs;
     snew(all_pa,max_pa);
     
     for(i=npall=0; (i<NPCA_PA); i++)
@@ -686,11 +701,11 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
 #ifdef __sgi
     envstr = getenv("GMXNPRIALL");
     if (envstr)
-        npri=strtol(envstr,NULL,10);
+        npri=atoi(envstr);
     if (FF(PCA_BE_NICE)) {
         envstr = getenv("GMXNPRI");
         if (envstr)
-            npri=strtol(envstr,NULL,10);
+            npri=atoi(envstr);
     }
     npall = add_parg(npall,all_pa,&npri_pa);
 #endif
@@ -710,7 +725,8 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
     if (FF(PCA_TIME_UNIT)) {
         set_default_time_unit(time_units);
         npall = add_parg(npall,all_pa,&time_pa);
-    } 
+    } /*else      
+     set_default_time_unit("ps");*/
     if (FF(PCA_CAN_VIEW)) 
         npall = add_parg(npall,all_pa,&view_pa);
     
@@ -731,8 +747,14 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
     
     
     /* set program name, command line, and default values for output options */
-    init_output_env(*oenv, *argc, argv, bView, bXvgrCodes, time_units[1]);
-   
+#ifdef GMX_THREAD_MPI
+    gmx_thread_mutex_lock(&init_mutex);
+#endif        
+    init_env_info(&einf, *argc, argv, bView, bXvgrCodes, time_units[1]);
+#ifdef GMX_THREAD_MPI
+    gmx_thread_mutex_unlock(&init_mutex);
+#endif  
+    
     /* Now parse all the command-line options */
     get_pargs(argc,argv,npall,all_pa,FF(PCA_KEEP_ARGS));
     
@@ -759,11 +781,10 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
     /* Now copy the results back... */
     for(i=0,k=npall-npargs; (i<npargs); i++,k++) 
         memcpy(&(pa[i]),&(all_pa[k]),(size_t)sizeof(pa[i]));
-
-
+    
     for(i=0; (i<npall); i++)
-        all_pa[i].desc = mk_desc(&(all_pa[i]), get_time_unit(*oenv) );
-   
+        all_pa[i].desc = mk_desc(&(all_pa[i]), time_unit() );
+    
     bExit = bHelp || (strcmp(manstr[0],"no") != 0);
     
 #if (defined __sgi && USE_SGI_FPE)
@@ -782,31 +803,24 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
 #ifndef GMX_NO_NICE
     /* The some system, e.g. the catamount kernel on cray xt3 do not have nice(2). */
     if (nicelevel != 0 && !bExit)
-    {
-#ifdef GMX_THREADS
-        static bool nice_set=FALSE; /* only set it once */
-        tMPI_Thread_mutex_lock(&init_mutex);
-        if (!nice_set)
-        {
-#endif
-            i=nice(nicelevel); /* assign ret value to avoid warnings */
-#ifdef GMX_THREADS
-            nice_set=TRUE;
-        }
-        tMPI_Thread_mutex_unlock(&init_mutex);
-#endif
-    }
+        i=nice(nicelevel); /* assign ret value to avoid warnings */
 #endif
 #endif
     
-    set_output_env(*oenv, bView, bXvgrCodes, time_units[0]);
+#ifdef GMX_THREAD_MPI
+    gmx_thread_mutex_lock(&init_mutex);
+#endif        
+    set_env_info(&einf, bView, bXvgrCodes, time_units[0]);
     /*init_time_factor(tms);*/
-   
+#ifdef GMX_THREAD_MPI
+    gmx_thread_mutex_unlock(&init_mutex);
+#endif
+    
     
     if (!(FF(PCA_QUIET) || bQuiet )) {
         if (bHelp)
-            write_man(stderr,"help",Program(),ndesc,desc,nfile,
-                      fnm,npall,all_pa, nbugs,bugs,bHidden);
+            write_man(stderr,"help",get_program(&einf),ndesc,desc,nfile,fnm,npall,all_pa,
+                      nbugs,bugs,bHidden);
         else if (bPrint) {
             pr_fns(stderr,nfile,fnm);
             print_pargs(stderr,npall,all_pa,FALSE);
@@ -816,22 +830,22 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
     if (strcmp(manstr[0],"no") != 0) {
         if(!strcmp(manstr[0],"completion")) {
             /* one file each for csh, bash and zsh if we do completions */
-            fp=man_file(*oenv,"completion-zsh");
-            write_man(fp,"completion-zsh",Program(),ndesc,desc,nfile,
-                      fnm, npall,all_pa,nbugs,bugs,bHidden);
+            fp=man_file(&einf,"completion-zsh");
+            write_man(fp,"completion-zsh",get_program(&einf),ndesc,desc,nfile,fnm,
+                      npall,all_pa,nbugs,bugs,bHidden);
             gmx_fio_fclose(fp);
-            fp=man_file(*oenv,"completion-bash");
-            write_man(fp,"completion-bash",Program(),ndesc,desc,nfile,
-                      fnm, npall,all_pa,nbugs,bugs,bHidden);
+            fp=man_file(&einf,"completion-bash");
+            write_man(fp,"completion-bash",get_program(&einf),ndesc,desc,nfile,fnm,
+                      npall,all_pa,nbugs,bugs,bHidden);
             gmx_fio_fclose(fp);
-            fp=man_file(*oenv,"completion-csh");
-            write_man(fp,"completion-csh",Program(),ndesc,desc,nfile,
-                      fnm, npall,all_pa,nbugs,bugs,bHidden);
+            fp=man_file(&einf,"completion-csh");
+            write_man(fp,"completion-csh",get_program(&einf),ndesc,desc,nfile,fnm,
+                      npall,all_pa,nbugs,bugs,bHidden);
             gmx_fio_fclose(fp);
         } else {
-            fp=man_file(*oenv,manstr[0]);
-            write_man(fp,manstr[0],Program(),ndesc,desc,nfile,fnm,
-                      npall, all_pa,nbugs,bugs,bHidden);
+            fp=man_file(&einf,manstr[0]);
+            write_man(fp,manstr[0],get_program(&einf),ndesc,desc,nfile,fnm,npall,
+                      all_pa,nbugs,bugs,bHidden);
             gmx_fio_fclose(fp);
         }
     }
@@ -840,7 +854,7 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
     
     for(i=0; i<npall; i++) {
         if ((all_pa[i].type == etTIME) && (*all_pa[i].u.r >= 0)) {
-            *all_pa[i].u.r *= get_time_invfactor(*oenv);
+            *all_pa[i].u.r *= time_invfactor();
         }
     }
     
@@ -863,7 +877,7 @@ void parse_common_args(int *argc,char *argv[],unsigned long Flags,
         }
     } 
     if (bExit) {
-        if (gmx_parallel_env_initialized())
+        if (gmx_parallel_env)
             /*gmx_abort(gmx_node_rank(),gmx_node_num(),0);*/
             gmx_finalize();
         exit(0);

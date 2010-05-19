@@ -45,10 +45,6 @@
 #include "typedefs.h"
 #include "xdrf.h"
 
-/* Note that some functions list beow are NOT THREADSAFE
- * when multiple threads use the same file pointer.
- */
-
 /* Highest number of open input/output files. This is usually limited to 1024 by the OS, anyway. */
 #define GMX_MAXFILES    1024
 
@@ -57,7 +53,7 @@ enum { eitemHEADER, eitemIR, eitemBOX,
        eitemTOP, eitemX, eitemV, eitemF, eitemNR };
        
 /* Enumerated for data types in files */
-enum { eioREAL, eioDOUBLE, eioINT, eioGMX_LARGE_INT,
+enum { eioREAL, eioDOUBLE, eioINT, eioGMX_STEP_T,
        eioUCHAR, eioNUCHAR, eioUSHORT,
        eioRVEC, eioNRVEC, eioIVEC, eioSTRING, eioNR };
 
@@ -75,7 +71,8 @@ extern const char *comment_str[eitemNR];
  * Open and Close 
  ********************************************************/
 
-int gmx_fio_open(const char *fn,const char *mode);
+int 
+gmx_fio_open(const char *fn,const char *mode);
 /* Open a new file for reading or writing.
  * The file type will be deduced from the file name.
  * If fn is NULL, stdin / stdout will be used for Ascii I/O (TPA type)
@@ -85,13 +82,15 @@ int gmx_fio_open(const char *fn,const char *mode);
  * unix, but is important on windows.
  */
  
-int gmx_fio_close(int fp);
+int
+gmx_fio_close(int fp);
 /* Close the file corresponding to fp (if not stdio)
  * The routine will exit when an invalid fio is handled.
  * Returns 0 on success.
  */
 
-void gmx_fio_select(int fp);
+void 
+gmx_fio_select(int fp);
 /* This routine sets the global variables do_read and do_write
  * to point to the correct routines for fp.
  */
@@ -128,13 +127,14 @@ extern bool gmx_fio_getread(int fio);
 extern void gmx_fio_rewind(int fio);
 /* Rewind the tpa file in fio */
 
-int gmx_fio_flush(int fio);
+int
+gmx_fio_flush(int fio);
 /* Flush the fio, returns 0 on success */
 
 extern off_t gmx_fio_ftell(int fio);
 /* Return file position if possible */
 
-extern int gmx_fio_seek(int fio,off_t fpos);
+extern void gmx_fio_seek(int fio,off_t fpos);
 /* Set file position if possible, quit otherwise */
 
 extern FILE *gmx_fio_getfp(int fio);
@@ -144,13 +144,15 @@ extern XDR *gmx_fio_getxdr(int fio);
 /* Return the file pointer itself */
 
 /* Open a file, return a stream, record the entry in internal FIO object */
-FILE * gmx_fio_fopen(const char *fn,const char *mode);
+FILE *
+gmx_fio_fopen(const char *fn,const char *mode);
 
 /* Close a file previously opened with gmx_fio_fopen. 
  * Do not mix these calls with standard fopen/fclose ones!
  * Returns 0 on success.
  */
-int gmx_fio_fclose(FILE *fp);
+int
+gmx_fio_fclose(FILE *fp);
 
 /* Element with information about position in a currently open file.
  * off_t should be defined by autoconf if your system does not have it.
@@ -160,19 +162,11 @@ int gmx_fio_fclose(FILE *fp);
 typedef struct
 {
 	char      filename[STRLEN];
-	off_t     offset; 
-	unsigned char chksum[16];
-	int       chksum_size;
+	off_t     offset;    
 } 
 gmx_file_position_t;
 
 
-/*
- * Check if the file position is out of the range of off_t.
- * The result is stored along with the other file data of fio.
- */
-int
-gmx_fio_check_file_position(int fio);
 
 /*
  * Return the name and file pointer positions for all currently open
@@ -184,14 +178,14 @@ gmx_fio_check_file_position(int fio);
  */
 int
 gmx_fio_get_output_file_positions (gmx_file_position_t ** outputfiles,
-                                   int *nfiles );
-
-int gmx_fio_get_file_md5(int fio, off_t offset,  unsigned char digest[]);
+ 								   int *                  nfiles );
 
 
-extern int xtc_seek_frame(int frame, int fio, int natoms);
+extern int
+xtc_seek_frame(int frame, int fio, int natoms);
 
-extern int xtc_seek_time(real time, int fio, int natoms);
+extern int 
+xtc_seek_time(real time, int fio, int natoms);
 
 	
 extern void set_comment(const char *comment);
@@ -217,9 +211,9 @@ extern void unset_comment(void);
   do_read ((void *)&(item),1,eioINT,(#item),__FILE__,__LINE__) :\
   do_write((void *)&(item),1,eioINT,(#item),__FILE__,__LINE__))
 
-#define do_gmx_large_int(item)          (bRead ?			\
-  do_read ((void *)&(item),1,eioGMX_LARGE_INT,(#item),__FILE__,__LINE__) :\
-  do_write((void *)&(item),1,eioGMX_LARGE_INT,(#item),__FILE__,__LINE__))
+#define do_gmx_step_t(item)          (bRead ?			\
+  do_read ((void *)&(item),1,eioGMX_STEP_T,(#item),__FILE__,__LINE__) :\
+  do_write((void *)&(item),1,eioGMX_STEP_T,(#item),__FILE__,__LINE__))
  
 #define do_uchar(item)        (bRead ?\
   do_read ((void *)&(item),1,eioUCHAR,(#item),__FILE__,__LINE__) :\

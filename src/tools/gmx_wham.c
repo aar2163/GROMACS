@@ -102,7 +102,7 @@ typedef struct
 
 typedef struct
 {
-    const char *fnTpr,*fnPullf,*fnPdo,*fnPullx;
+    char *fnTpr,*fnPullf,*fnPdo,*fnPullx;
     bool bTpr,bPullf,bPdo,bPullx;
     int bins,cycl;
     bool verbose,bShift,bAuto,bBoundsOnly;
@@ -150,7 +150,7 @@ void searchOrderedTable(double xx[], int n, double x, int *j)
 
 
 /* Read and setup tabulated umbrella potential */
-void setup_tab(const char *fn,t_UmbrellaOptions *opt)
+void setup_tab(char *fn,t_UmbrellaOptions *opt)
 {
     int i,ny,nl;
     double **y;
@@ -181,8 +181,7 @@ void setup_tab(const char *fn,t_UmbrellaOptions *opt)
 }
 
 
-void read_pdo_header(FILE * file,t_UmbrellaHeader * header, 
-                     t_UmbrellaOptions *opt)
+void read_pdo_header(FILE * file,t_UmbrellaHeader * header, t_UmbrellaOptions *opt)
 {
     char Buffer0[256];
     char Buffer1[256];
@@ -652,9 +651,8 @@ double calc_z(double * profile,t_UmbrellaWindow * window, int nWindows, t_Umbrel
 
 
 void cyclicProfByWeightedCorr(double *profile,t_UmbrellaWindow *window,
-                              int nWindows, t_UmbrellaOptions * opt,
-                              bool bAppendCorr2File, const char *fn, 
-                              const output_env_t oenv)
+        int nWindows, t_UmbrellaOptions * opt,
+        bool bAppendCorr2File, char *fn)
 {
     int i,j,k,bins=opt->bins;
     static int first=1;
@@ -703,11 +701,9 @@ void cyclicProfByWeightedCorr(double *profile,t_UmbrellaWindow *window,
 
     if (bAppendCorr2File)
     {
-        fp=xvgropen(fn,"Corrections to enforce periodicity","z",
-                    "\\f{12}D\\f{}G(z)",oenv);
-        sprintf(buf,"corrections propotional to 1/(n\\si\\Nn\\si+1\\N)\\S%.2f",
-                opt->alpha);
-        xvgr_subtitle(fp,buf,oenv);
+        fp=xvgropen(fn,"Corrections to enforce periodicity","z","\\f{12}D\\f{}G(z)");
+        sprintf(buf,"corrections propotional to 1/(n\\si\\Nn\\si+1\\N)\\S%.2f",opt->alpha);
+        xvgr_subtitle(fp,buf);
         for (i=0;i<bins-1;i++)
             fprintf(fp,"%g %g\n",opt->min+opt->dz*(i+1),-corr[i]);
         fclose(fp);
@@ -808,8 +804,7 @@ void copy_pullgrp_to_synthwindow(t_UmbrellaWindow *synthWindow,
    which are distributed according to the histograms. Required to generate
    the "synthetic" histograms for the Bootstrap method */
 void calc_cummulants(t_UmbrellaWindow *window,int nWindows,
-                     t_UmbrellaOptions *opt,const char *fnhist, 
-                     const output_env_t oenv)
+        t_UmbrellaOptions *opt,char *fnhist)
 {
     int i,j,k,nbin;
     double last;
@@ -822,8 +817,7 @@ void calc_cummulants(t_UmbrellaWindow *window,int nWindows,
         snew(fn,strlen(fnhist)+10);
         snew(buf,strlen(fnhist)+10);
         sprintf(fn,"%s_cumul.xvg",strncpy(buf,fnhist,strlen(fnhist)-4));
-        fp=xvgropen(fn,"Cummulants of umbrella histograms","z","cummulant",
-                    oenv);
+        fp=xvgropen(fn,"Cummulants of umbrella histograms","z","cummulant");
     }
 
     nbin=opt->bins;
@@ -888,9 +882,8 @@ void searchCummulant(double xx[], int n, double x, int *j)
 }
 
 
-void create_synthetic_histo(t_UmbrellaWindow *synthWindow, 
-                            t_UmbrellaWindow *thisWindow,
-                            int pullid,t_UmbrellaOptions *opt)
+void create_synthetic_histo(t_UmbrellaWindow *synthWindow, t_UmbrellaWindow *thisWindow,
+        int pullid,t_UmbrellaOptions *opt)
 {
     int nsynth,N,i,nbins,r_index;
     double r;
@@ -935,19 +928,17 @@ void create_synthetic_histo(t_UmbrellaWindow *synthWindow,
 }
 
 
-void print_histograms(const char *fnhist, t_UmbrellaWindow * window, 
-                      int nWindows, int bs_index,t_UmbrellaOptions *opt, 
-                      const output_env_t oenv)
+void print_histograms(char *fnhist, t_UmbrellaWindow * window, int nWindows,
+        int bs_index,t_UmbrellaOptions *opt)
 {
-    char *fn;
-    char *buf=0,title[256];
+    char *fn,*buf=0,title[256];
     FILE *fp;
     int bins,l,i,j;
 
 
     if (bs_index<0)
     {
-        fn=strdup(fnhist);
+        fn=fnhist;
         strcpy(title,"Umbrella histograms");
     }
     else
@@ -958,7 +949,7 @@ void print_histograms(const char *fnhist, t_UmbrellaWindow * window,
         sprintf(title,"Umbrella histograms. Bootstrap #%d",bs_index);
     }
 
-    fp=xvgropen(fn,title,"z","count",oenv);
+    fp=xvgropen(fn,title,"z","count");
     bins=opt->bins;
 
     /* Write histograms */
@@ -985,10 +976,9 @@ void print_histograms(const char *fnhist, t_UmbrellaWindow * window,
 }
 
 
-void do_bootstrapping(const char *fnres, const char* fnprof, 
-                      const char *fnhist, char* ylabel, double *profile,
-                      t_UmbrellaWindow * window, int nWindows, 
-                      t_UmbrellaOptions *opt, const output_env_t oenv)
+void do_bootstrapping(char *fnres, char* fnprof, char *fnhist,
+        char* ylabel, double *profile,
+        t_UmbrellaWindow * window, int nWindows, t_UmbrellaOptions *opt)
 {
     t_UmbrellaWindow * synthWindow;
     double *bsProfile,*bsProfiles_av, *bsProfiles_av2,maxchange=1e20,tmp,stddev;
@@ -1050,11 +1040,11 @@ void do_bootstrapping(const char *fnres, const char* fnprof,
     }
     else
     {
-        calc_cummulants(window,nWindows,opt,fnhist,oenv);
+        calc_cummulants(window,nWindows,opt,fnhist);
     }
 
     /* do bootstrapping */
-    fp=xvgropen(fnprof,"Boot strap profiles","z",ylabel,oenv);
+    fp=xvgropen(fnprof,"Boot strap profiles","z",ylabel);
     for (ib=0;ib<opt->nBootStrap;ib++)
     {
         printf("  *******************************************\n"
@@ -1085,7 +1075,7 @@ void do_bootstrapping(const char *fnres, const char* fnprof,
 
         /* print histos in case of verbose output */
         if (opt->bs_verbose)
-            print_histograms(fnhist,synthWindow,nAllPull,ib,opt,oenv);
+            print_histograms(fnhist,synthWindow,nAllPull,ib,opt);
 
         /* do wham */
         i=0;
@@ -1106,8 +1096,7 @@ void do_bootstrapping(const char *fnres, const char* fnprof,
             prof_normalization_and_unit(bsProfile,opt);
         /* Force cyclic profile by wheighted correction */
         if (opt->cycl==enCycl_weighted)
-            cyclicProfByWeightedCorr(bsProfile,synthWindow,nAllPull,opt, 
-                                     FALSE, 0,oenv);
+            cyclicProfByWeightedCorr(bsProfile,synthWindow,nAllPull,opt, FALSE, 0);
 
         /* save stuff to get average and stddev */
         for (i=0;i<opt->bins;i++)
@@ -1140,7 +1129,7 @@ void do_bootstrapping(const char *fnres, const char* fnprof,
 }
 
 
-int whaminFileType(const char *fn)
+int whaminFileType(char *fn)
 {
     int len;
     len=strlen(fn);
@@ -1156,8 +1145,8 @@ int whaminFileType(const char *fn)
 }
 
 
-void read_wham_in(const char *fn,char ***filenamesRet, int *nfilesRet,
-                  t_UmbrellaOptions *opt)
+void read_wham_in(char *fn,char ***filenamesRet, int *nfilesRet,
+        t_UmbrellaOptions *opt)
 {
     char **filename,tmp[STRLEN];
     int nread,sizenow,i,block=10;
@@ -1192,7 +1181,7 @@ void read_wham_in(const char *fn,char ***filenamesRet, int *nfilesRet,
 }
 
 
-FILE *pdo_open_file(const char *fn)
+FILE *pdo_open_file(char *fn)
 {
     char Buffer[1024],gunzip[1024],*Path=0;
     FILE *fp;
@@ -1308,8 +1297,7 @@ void read_pdo_files(char **fn, int nfiles, t_UmbrellaHeader* header,
 
 #define int2YN(a) (((a)==0)?("N"):("Y"))
 
-void read_tpr_header(const char *fn,t_UmbrellaHeader* header,
-                     t_UmbrellaOptions *opt)
+void read_tpr_header(char *fn,t_UmbrellaHeader* header,t_UmbrellaOptions *opt)
 {
     t_inputrec  ir;
     int         i,ngrp,d;
@@ -1394,10 +1382,10 @@ double dist_ndim(double **dx,int ndim,int line)
 }
 
 
-void read_pull_xf(const char *fn, const char *fntpr, 
-                  t_UmbrellaHeader * header, t_UmbrellaWindow * window,
-                  t_UmbrellaOptions *opt, bool bGetMinMax,real *mintmp,
-                  real *maxtmp)
+void read_pull_xf(char *fn, char *fntpr, t_UmbrellaHeader * header,
+        t_UmbrellaWindow * window,
+        t_UmbrellaOptions *opt,
+        bool bGetMinMax,real *mintmp,real *maxtmp)
 {
     double **y,pos=0.,t,force,time0=0.,dt;
     int ny,nt,bins,ibin,i,g,dstep=1,nColPerGrp,nColRef,nColExpect;
@@ -1573,9 +1561,9 @@ void read_pull_xf(const char *fn, const char *fntpr,
 }
 
 
-void read_tpr_pullxf_files(char **fnTprs,char **fnPull,
-                           int nfiles, t_UmbrellaHeader* header,
-                           t_UmbrellaWindow **window, t_UmbrellaOptions *opt)
+void read_tpr_pullxf_files(char **fnTprs,char **fnPull,int nfiles,
+        t_UmbrellaHeader* header,
+        t_UmbrellaWindow **window, t_UmbrellaOptions *opt)
 {
     int i;
     real mintmp,maxtmp;
@@ -1772,8 +1760,7 @@ int gmx_wham(int argc,char *argv[])
               "Accounts better for long autocorrelations."},
             { "-histbs-block", FALSE, etINT, {&opt.histBootStrapBlockLength},
               "when mixin histograms only mix within blocks of -histBS_block."},
-            { "-vbs", FALSE, etBOOL, {&opt.bs_verbose},
-                "verbose bootstrapping. Print the cummulants and a histogram file for each bootstrap."},
+            { "-vbs", FALSE, etBOOL, {&opt.bs_verbose},                                                                                                                                                                              "verbose bootstrapping. Print the cummulants and a histogram file for each bootstrap."},
     };
 
     t_filenm fnm[] = {
@@ -1794,11 +1781,9 @@ int gmx_wham(int argc,char *argv[])
     t_UmbrellaWindow * window=NULL;
     double *profile,maxchange=1e20;
     bool bMinSet,bMaxSet,bAutoSet,bExact=FALSE;
-    char **fninTpr,**fninPull,**fninPdo;
-    const char *fnPull;
+    char **fninTpr,**fninPull,**fninPdo,*fnPull;
     FILE *histout,*profout;
     char ylabel[256],title[256];
-    output_env_t oenv;
 
     opt.bins=200;
     opt.verbose=FALSE;
@@ -1837,7 +1822,7 @@ int gmx_wham(int argc,char *argv[])
 
     CopyRight(stderr,argv[0]);
     parse_common_args(&argc,argv,PCA_BE_NICE,
-            NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL,&oenv);
+            NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL);
 
     opt.unit=nenum(en_unit);
     opt.cycl=nenum(en_cycl);
@@ -1909,7 +1894,7 @@ int gmx_wham(int argc,char *argv[])
 
     /* write histograms */
     histout=xvgropen(opt2fn("-hist",NFILE,fnm),"Umbrella histograms",
-            "z","count",oenv);
+            "z","count");
     for(l=0;l<opt.bins;++l)
     {
         fprintf(histout,"%e\t",(double)(l+0.5)/opt.bins*(opt.max-opt.min)+opt.min);
@@ -1968,12 +1953,11 @@ int gmx_wham(int argc,char *argv[])
     /* Force cyclic profile by wheighted correction? */
     if (opt.cycl==enCycl_weighted)
         cyclicProfByWeightedCorr(profile,window,nwins,&opt,TRUE,
-                                 opt2fn("-wcorr",NFILE,fnm),oenv);
+                opt2fn("-wcorr",NFILE,fnm));
 
-    profout=xvgropen(opt2fn("-o",NFILE,fnm),title,"z",ylabel,oenv);
+    profout=xvgropen(opt2fn("-o",NFILE,fnm),title,"z",ylabel);
     for(i=0;i<opt.bins;++i)
-        fprintf(profout,"%e\t%e\n",
-                (double)(i+0.5)/opt.bins*(opt.max-opt.min)+opt.min,profile[i]);
+        fprintf(profout,"%e\t%e\n",(double)(i+0.5)/opt.bins*(opt.max-opt.min)+opt.min,profile[i]);
     ffclose(profout);
     printf("Wrote %s\n",opt2fn("-o",NFILE,fnm));
 
@@ -1981,7 +1965,7 @@ int gmx_wham(int argc,char *argv[])
     if (opt.nBootStrap)
         do_bootstrapping(opt2fn("-bsres",NFILE,fnm),opt2fn("-bsprof",NFILE,fnm),
                 opt2fn("-hist",NFILE,fnm),
-                ylabel, profile, window, nwins, &opt,oenv);
+                ylabel, profile, window, nwins, &opt);
 
     thanx(stderr);
     return 0;

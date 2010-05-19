@@ -132,8 +132,6 @@ int gmx_helixorient(int argc,char *argv[])
     FILE *fpbending;
     int ePBC;
 
-    output_env_t oenv;
-
     static  bool bSC=FALSE;
     static bool bIncremental = FALSE;
     
@@ -164,7 +162,7 @@ int gmx_helixorient(int argc,char *argv[])
   CopyRight(stderr,argv[0]);
 
   parse_common_args(&argc,argv,PCA_CAN_TIME | PCA_BE_NICE,
-		    NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL,&oenv);
+		    NFILE,fnm,NPA,pa,asize(desc),desc,0,NULL);
   
   top=read_top(ftp2fn(efTPX,NFILE,fnm),&ePBC);
   
@@ -211,7 +209,7 @@ int gmx_helixorient(int argc,char *argv[])
         
     }
     
-    natoms=read_first_x(oenv,&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box);
+    natoms=read_first_x(&status,ftp2fn(efTRX,NFILE,fnm),&t,&x,box);
 
     fpaxis=fopen(opt2fn("-oaxis",NFILE,fnm),"w");
     fpcenter=fopen(opt2fn("-ocenter",NFILE,fnm),"w");
@@ -226,20 +224,13 @@ int gmx_helixorient(int argc,char *argv[])
 
     if(bIncremental)
     {
-        fptilt=xvgropen(opt2fn("-otilt",NFILE,fnm),
-                "Incremental local helix tilt","Time(ps)","Tilt (degrees)",
-                oenv);
-        fprotation=xvgropen(opt2fn("-orot",NFILE,fnm),
-                "Incremental local helix rotation","Time(ps)",
-                "Rotation (degrees)",oenv);
+        fptilt=xvgropen(opt2fn("-otilt",NFILE,fnm),"Incremental local helix tilt","Time(ps)","Tilt (degrees)");
+        fprotation=xvgropen(opt2fn("-orot",NFILE,fnm),"Incremental local helix rotation","Time(ps)","Rotation (degrees)");
     }
     else
     {
-        fptilt=xvgropen(opt2fn("-otilt",NFILE,fnm),
-                "Cumulative local helix tilt","Time(ps)","Tilt (degrees)",oenv);
-        fprotation=xvgropen(opt2fn("-orot",NFILE,fnm),
-                "Cumulative local helix rotation","Time(ps)",
-                "Rotation (degrees)",oenv);
+        fptilt=xvgropen(opt2fn("-otilt",NFILE,fnm),"Cumulative local helix tilt","Time(ps)","Tilt (degrees)");
+        fprotation=xvgropen(opt2fn("-orot",NFILE,fnm),"Cumulative local helix rotation","Time(ps)","Rotation (degrees)");
     }    
 
     clear_rvecs(3,unitaxes);
@@ -496,7 +487,7 @@ int gmx_helixorient(int argc,char *argv[])
       }
       
       teller++;
-  } while (read_next_x(oenv,status,&t,natoms,x,box));
+  } while (read_next_x(status,&t,natoms,x,box));
     
     fclose(fpaxis);
     fclose(fpcenter);

@@ -249,7 +249,7 @@ static void ana_cluster(FILE *out, t_xrama *xr,real **dih,real time[],
 }
 
 static void ana_trans(FILE *out, t_xrama *xr,real **dih,real time[],
-		      t_topology *top,int nframes, const output_env_t oenv)
+		      t_topology *top,int nframes)
 {
   FILE *outd;
   real prev_phi,prev_psi;
@@ -266,7 +266,7 @@ static void ana_trans(FILE *out, t_xrama *xr,real **dih,real time[],
   }
   for(i=0; (i<xr->npp); i++) {
     sprintf(buf,"%s",xr->pp[i].label);
-    outd=xvgropen(buf,"Dihedral Angles","Time (ps)","Degrees",oenv);
+    outd=xvgropen(buf,"Dihedral Angles","Time (ps)","Degrees");
 
     phi=xr->pp[i].iphi;
     psi=xr->pp[i].ipsi;
@@ -316,7 +316,6 @@ int gmx_dih(int argc,char *argv[])
   real       **dih,*time;
   real       dd;
   int        i,nframes,maxframes=1000;
-  output_env_t oenv;
   t_filenm   fnm[] = {
     { efTRX, "-f", NULL, ffREAD },
     { efTPX, NULL, NULL, ffREAD },
@@ -326,13 +325,13 @@ int gmx_dih(int argc,char *argv[])
 
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,PCA_CAN_VIEW | PCA_CAN_TIME | PCA_BE_NICE,
-		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL,&oenv);
+		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL);
   
   if (mult != -1)
     fprintf(stderr,"Using %d for dihedral multiplicity rather than topology values\n",mult);
     
   snew(xr,1);
-  init_rama(oenv,ftp2fn(efTRX,NFILE,fnm),
+  init_rama(ftp2fn(efTRX,NFILE,fnm),
 	    ftp2fn(efTPX,NFILE,fnm),xr,3);
   top=read_top(ftp2fn(efTPX,NFILE,fnm),NULL);
 	       
@@ -373,7 +372,7 @@ int gmx_dih(int argc,char *argv[])
   }
   else {
     /* Analyse transitions... */
-    ana_trans(out,xr,dih,time,top,nframes,oenv);
+    ana_trans(out,xr,dih,time,top,nframes);
   }
   fclose(out);
     

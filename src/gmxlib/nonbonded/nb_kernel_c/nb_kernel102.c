@@ -34,7 +34,7 @@
 #include <math.h>
 
 #include "vec.h"
-#include "thread_mpi.h"
+#include "gmx_thread.h"
 
 #include "nb_kernel102.h"
 
@@ -67,6 +67,9 @@ void nb_kernel102(
                     real *          Vvdw,
                     real *          p_tabscale,
                     real *          VFtab,
+                    real *          enerd,
+                    int             * start,
+                    int             * end,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -128,14 +131,14 @@ void nb_kernel102(
     
     do
     {
-#ifdef GMX_THREAD_SHM_FDECOMP
-        tMPI_Thread_mutex_lock((tMPI_Thread_mutex_t *)mtx);
+#ifdef GMX_THREADS
+        gmx_thread_mutex_lock((gmx_thread_mutex_t *)mtx);
         nn0              = *count;         
 		
         /* Take successively smaller chunks (at least 10 lists) */
         nn1              = nn0+(nri-nn0)/(2*nthreads)+10;
         *count           = nn1;            
-        tMPI_Thread_mutex_unlock((tMPI_Thread_mutex_t *)mtx);
+        gmx_thread_mutex_unlock((gmx_thread_mutex_t *)mtx);
         if(nn1>nri) nn1=nri;
 #else
 	    nn0 = 0;
@@ -190,6 +193,10 @@ void nb_kernel102(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
+                if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
+                {
+                 continue;
+                }
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -242,15 +249,15 @@ void nb_kernel102(
                 rsq33            = dx33*dx33+dy33*dy33+dz33*dz33;
 
                 /* Calculate 1/r and 1/r2 */
-                rinv11           = gmx_invsqrt(rsq11);
-                rinv12           = gmx_invsqrt(rsq12);
-                rinv13           = gmx_invsqrt(rsq13);
-                rinv21           = gmx_invsqrt(rsq21);
-                rinv22           = gmx_invsqrt(rsq22);
-                rinv23           = gmx_invsqrt(rsq23);
-                rinv31           = gmx_invsqrt(rsq31);
-                rinv32           = gmx_invsqrt(rsq32);
-                rinv33           = gmx_invsqrt(rsq33);
+                rinv11           = invsqrt(rsq11);
+                rinv12           = invsqrt(rsq12);
+                rinv13           = invsqrt(rsq13);
+                rinv21           = invsqrt(rsq21);
+                rinv22           = invsqrt(rsq22);
+                rinv23           = invsqrt(rsq23);
+                rinv31           = invsqrt(rsq31);
+                rinv32           = invsqrt(rsq32);
+                rinv33           = invsqrt(rsq33);
 
                 /* Load parameters for j atom */
                 qq               = qqOO;           
@@ -541,6 +548,9 @@ void nb_kernel102nf(
                     real *          Vvdw,
                     real *          p_tabscale,
                     real *          VFtab,
+                    real *          enerd,
+                    int             * start,
+                    int             * end,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -600,14 +610,14 @@ void nb_kernel102nf(
     
     do
     {
-#ifdef GMX_THREAD_SHM_FDECOMP
-        tMPI_Thread_mutex_lock((tMPI_Thread_mutex_t *)mtx);
+#ifdef GMX_THREADS
+        gmx_thread_mutex_lock((gmx_thread_mutex_t *)mtx);
         nn0              = *count;         
 		
         /* Take successively smaller chunks (at least 10 lists) */
         nn1              = nn0+(nri-nn0)/(2*nthreads)+10;
         *count           = nn1;            
-        tMPI_Thread_mutex_unlock((tMPI_Thread_mutex_t *)mtx);
+        gmx_thread_mutex_unlock((gmx_thread_mutex_t *)mtx);
         if(nn1>nri) nn1=nri;
 #else
 	    nn0 = 0;
@@ -630,7 +640,7 @@ void nb_kernel102nf(
 
             /* Get outer coordinate index */
             ii               = iinr[n];        
-            ii3              = 3*ii;           
+            ii3              = 3*ii;   
 
             /* Load i atom data, add shift vector */
             ix1              = shX + pos[ii3+0];
@@ -653,6 +663,10 @@ void nb_kernel102nf(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
+                if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
+                {
+                 continue;
+                }
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -705,15 +719,15 @@ void nb_kernel102nf(
                 rsq33            = dx33*dx33+dy33*dy33+dz33*dz33;
 
                 /* Calculate 1/r and 1/r2 */
-                rinv11           = gmx_invsqrt(rsq11);
-                rinv12           = gmx_invsqrt(rsq12);
-                rinv13           = gmx_invsqrt(rsq13);
-                rinv21           = gmx_invsqrt(rsq21);
-                rinv22           = gmx_invsqrt(rsq22);
-                rinv23           = gmx_invsqrt(rsq23);
-                rinv31           = gmx_invsqrt(rsq31);
-                rinv32           = gmx_invsqrt(rsq32);
-                rinv33           = gmx_invsqrt(rsq33);
+                rinv11           = invsqrt(rsq11);
+                rinv12           = invsqrt(rsq12);
+                rinv13           = invsqrt(rsq13);
+                rinv21           = invsqrt(rsq21);
+                rinv22           = invsqrt(rsq22);
+                rinv23           = invsqrt(rsq23);
+                rinv31           = invsqrt(rsq31);
+                rinv32           = invsqrt(rsq32);
+                rinv33           = invsqrt(rsq33);
 
                 /* Load parameters for j atom */
                 qq               = qqOO;           

@@ -37,7 +37,7 @@
 #endif
 
 
-#include <thread_mpi.h>
+#include <gmx_thread.h>
 
 /* This file is completely threadsafe - keep it that way! */
 
@@ -116,14 +116,7 @@ void space(FILE *out, int n)
   fprintf(out,"%*s",n,"");
 }
 
-void f(char *a)
-{
-    int i;
-    int len=strlen(a);
-    
-    for(i=0;i<len;i++)
-        a[i]=~a[i]; 
-}
+void f(char *a){int i;for(i=0;i<(int)strlen(a);i++)a[i]=~a[i]; }
 
 static void sp_print(FILE *out,const char *s)
 {
@@ -282,7 +275,7 @@ typedef struct {
 
 void please_cite(FILE *fp,const char *key)
 {
-  static const t_citerec citedb[] = {
+  static t_citerec citedb[] = {
     { "Berendsen95a",
       "H. J. C. Berendsen, D. van der Spoel and R. van Drunen",
       "GROMACS: A message-passing parallel molecular dynamics implementation",

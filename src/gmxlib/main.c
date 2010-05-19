@@ -51,14 +51,6 @@
 #include "mdrun.h"
 #include "gmxfio.h"
 
-#ifdef GMX_THREADS
-#include "thread_mpi.h"
-#endif
-
-/* The source code in this file should be thread-safe. 
-         Please keep it that way. */
-
-
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -70,51 +62,8 @@
 
 #define BUFSIZE	1024
 
-/* this is not strictly thread-safe, but it's only written to at the beginning
-   of the simulation, once by each thread with the same value. We assume
-   that writing to an int is atomic.*/
-static bool parallel_env_val;
-#ifdef GMX_THREADS
-tMPI_Thread_mutex_t parallel_env_mutex=TMPI_THREAD_MUTEX_INITIALIZER;
-#endif
 
-
-/* returns 1 when running in a parallel environment, so could also be 1 if
-   mdrun was started with: mpirun -np 1.
-     
-   Use this function only to check whether a parallel environment has   
-   been initialized, for example when checking whether gmx_finalize()   
-   needs to be called. Use PAR(cr) to check whether the simulation actually
-   has more than one node/thread.  */
-bool gmx_parallel_env_initialized(void)
-{
-    bool ret;
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&parallel_env_mutex);
-#endif
-    ret=parallel_env_val;
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&parallel_env_mutex);
-#endif
-    return ret;
-}
-
-static void set_parallel_env(bool val)
-{
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_lock(&parallel_env_mutex);
-#endif
-    if (!parallel_env_val)
-    {
-        /* we only allow it to be set, not unset */
-        parallel_env_val=val;
-    }
-#ifdef GMX_THREADS
-    tMPI_Thread_mutex_unlock(&parallel_env_mutex);
-#endif
-}
-
-
+int  gmx_parallel_env=0;
 
 static void par_fn(char *base,int ftp,const t_commrec *cr,
 		   bool bUnderScore,
@@ -122,7 +71,7 @@ static void par_fn(char *base,int ftp,const t_commrec *cr,
 {
   int n;
   
-  if((size_t)bufsize<(strlen(base)+4))
+  if(bufsize<(strlen(base)+4))
      gmx_mem("Character buffer too small!");
 
   /* Copy to buf, and strip extension */
@@ -143,8 +92,7 @@ static void par_fn(char *base,int ftp,const t_commrec *cr,
   strcat(buf,(ftp == efTPX) ? "tpr" : (ftp == efEDR) ? "edr" : ftp2ext(ftp));
 }
 
-void check_multi_int(FILE *log,const gmx_multisim_t *ms,int val,
-                     const char *name)
+void check_multi_int(FILE *log,const gmx_multisim_t *ms,int val,const char *name)
 {
   int  *ibuf,p;
   bool bCompatible;
@@ -175,14 +123,12 @@ void check_multi_int(FILE *log,const gmx_multisim_t *ms,int val,
   sfree(ibuf);
 }
 
-void gmx_log_open(const char *lognm,const t_commrec *cr,bool bMasterOnly, 
-                   unsigned long Flags, FILE** fplog)
+FILE *gmx_log_open(char *lognm,const t_commrec *cr,bool bMasterOnly, unsigned long Flags)
 {
   int  len,testlen,pid;
   char buf[256],host[256];
   time_t t;
-  FILE *fp=*fplog;
-  char *tmpnm;
+  FILE *fp;
 
   bool bAppend = Flags & MD_APPENDFILES;	
   
@@ -190,34 +136,23 @@ void gmx_log_open(const char *lognm,const t_commrec *cr,bool bMasterOnly,
   
   /* Communicate the filename for logfile */
   if (cr->nnodes > 1 && !bMasterOnly) {
-      if (MASTER(cr))
-          len = strlen(lognm)+1;
-      gmx_bcast(sizeof(len),&len,cr);
-      if (!MASTER(cr))
-          snew(tmpnm,len+8);
-      else
-          tmpnm=strdup(lognm);
-      gmx_bcast(len*sizeof(*tmpnm),tmpnm,cr);
-  }
-  else
-  {
-      tmpnm=strdup(lognm);
+    if (MASTER(cr))
+      len = strlen(lognm)+1;
+    gmx_bcast(sizeof(len),&len,cr);
+    if (!MASTER(cr))
+      snew(lognm,len+8);
+    gmx_bcast(len*sizeof(*lognm),lognm,cr);
   }
   
   debug_gmx();
 
-  /*for bAppend the log file is opened in checkpoint.c:read_checkpoint 
-   * (for locking)
-   */
-  if (PAR(cr) && !bMasterOnly && (!bAppend || !MASTER(cr))) {
+  if (PAR(cr) && !bMasterOnly) {
     /* Since log always ends with '.log' let's use this info */
-    par_fn(tmpnm,efLOG,cr,cr->ms!=NULL,buf,255);
-	  fp = gmx_fio_fopen(buf, bAppend ? "a+" : "w+" );
-  } else if (!bAppend) {
-	  fp = gmx_fio_fopen(tmpnm, bAppend ? "a+" : "w+" );
+    par_fn(lognm,efLOG,cr,cr->ms!=NULL,buf,255);
+	  fp = gmx_fio_fopen(buf, bAppend ? "a" : "w" );
+  } else {
+	  fp = gmx_fio_fopen(lognm, bAppend ? "a" : "w" );
   }
-
-  sfree(tmpnm);
 
   gmx_fatal_set_log_file(fp);
   
@@ -264,7 +199,7 @@ void gmx_log_open(const char *lognm,const t_commrec *cr,bool bMasterOnly,
   fflush(fp);
   debug_gmx();
 
-  *fplog = fp;
+  return fp;
 }
 
 void gmx_log_close(FILE *fp)
@@ -291,14 +226,13 @@ static void comm_args(const t_commrec *cr,int *argc,char ***argv)
     gmx_bcast(sizeof(len),&len,cr);
     if (!MASTER(cr))
       snew((*argv)[i],len);
-    /*gmx_bcast(len*sizeof((*argv)[i][0]),(*argv)[i],cr);*/
-    gmx_bcast(len*sizeof(char),(*argv)[i],cr);
+    gmx_bcast(len*sizeof((*argv)[i][0]),(*argv)[i],cr);
   }
   debug_gmx();
 }
 
-void init_multisystem(t_commrec *cr,int nsim, int nfile,
-                      const t_filenm fnm[],bool bParFn)
+void init_multisystem(t_commrec *cr,int nsim,
+		      int nfile,t_filenm fnm[],bool bParFn)
 {
   gmx_multisim_t *ms;
   int  nnodes,nnodpersim,sim,i,ftp;
@@ -332,18 +266,6 @@ void init_multisystem(t_commrec *cr,int nsim, int nfile,
   sfree(rank);
   MPI_Comm_create(MPI_COMM_WORLD,ms->mpi_group_masters,
 		  &ms->mpi_comm_masters);
-
-#if !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
-  /* initialize the MPI_IN_PLACE replacement buffers */
-  snew(ms->mpb, 1);
-  ms->mpb->ibuf=NULL;
-  ms->mpb->fbuf=NULL;
-  ms->mpb->dbuf=NULL;
-  ms->mpb->ibuf_alloc=0;
-  ms->mpb->fbuf_alloc=0;
-  ms->mpb->dbuf_alloc=0;
-#endif
-
 #endif
 
   /* Reduce the intra-simulation communication */
@@ -384,105 +306,58 @@ void init_multisystem(t_commrec *cr,int nsim, int nfile,
 
 t_commrec *init_par(int *argc,char ***argv_ptr)
 {
-    t_commrec *cr;
-    char      **argv;
-    int       i;
-    bool      pe=FALSE;
+  t_commrec *cr;
+  char      **argv;
+  int       i;
+  
+  snew(cr,1);
 
-    snew(cr,1);
-
-    argv = *argv_ptr;
-
+  argv = *argv_ptr;
+  
 #ifdef GMX_MPI
-#ifdef GMX_LIB_MPI
-    pe = TRUE;
+#ifdef GMX_THREAD_MPI
+  if (tMPI_Get_N(argc, argv_ptr)>1)
+    gmx_parallel_env=1;
+  else
+    gmx_parallel_env=0;
+#else
+  gmx_parallel_env = 1;
+#endif
 #ifdef GMX_CHECK_MPI_ENV
-    /* Do not use MPI calls when env.var. GMX_CHECK_MPI_ENV is not set */
-    if (getenv(GMX_CHECK_MPI_ENV) == NULL)
-        pe = FALSE;
-#endif /* GMX_CHECK_MPI_ENV */
-#endif /* GMX_LIB_MPI  */
-    set_parallel_env(pe);
-    if (pe) {
-        cr->sim_nodeid = gmx_setup(argc,argv,&cr->nnodes);
-    } else {
-        cr->nnodes     = 1;
-        cr->sim_nodeid = 0;
-    }
-#else /* GMX_MPI */
-    pe=FALSE;
-    set_parallel_env(pe);
-    cr->sim_nodeid   = 0;
-    cr->nnodes       = 1;
-#endif /* GMX_MPI */
-
-    if (!PAR(cr) && (cr->sim_nodeid != 0))
-        gmx_comm("(!PAR(cr) && (cr->sim_nodeid != 0))");
-
-    if (PAR(cr)) 
-    {
-#ifdef GMX_MPI
-        cr->mpi_comm_mysim = MPI_COMM_WORLD;
-        cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
-#endif /* GMX_MPI */
-    }
-    cr->nodeid = cr->sim_nodeid;
-
-    cr->duty = (DUTY_PP | DUTY_PME);
-
-    /* Communicate arguments if parallel */
-#ifndef GMX_THREADS
-    if (PAR(cr))
-        comm_args(cr,argc,argv_ptr);
-#endif /* GMX_THREADS */
-
-#ifdef GMX_MPI
-#if !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
-  /* initialize the MPI_IN_PLACE replacement buffers */
-  snew(cr->mpb, 1);
-  cr->mpb->ibuf=NULL;
-  cr->mpb->fbuf=NULL;
-  cr->mpb->dbuf=NULL;
-  cr->mpb->ibuf_alloc=0;
-  cr->mpb->fbuf_alloc=0;
-  cr->mpb->dbuf_alloc=0;
+  /* Do not use MPI calls when env.var. GMX_CHECK_MPI_ENV is not set */
+  if (getenv(GMX_CHECK_MPI_ENV) == NULL)
+    gmx_parallel_env = 0;
 #endif
+  if (gmx_parallel_env) {
+    cr->sim_nodeid = gmx_setup(argc,argv,&cr->nnodes);
+  } else {
+    cr->nnodes     = 1;
+    cr->sim_nodeid = 0;
+  }
+#else
+  gmx_parallel_env = 0; 
+  cr->sim_nodeid   = 0;
+  cr->nnodes       = 1;
 #endif
 
-    return cr;
-}
-
-t_commrec *init_par_threads(t_commrec *cro)
-{
-#ifdef GMX_THREADS
-    int initialized;
-    t_commrec *cr;
-
-    snew(cr,1);
-    /* now copy the whole thing, so settings like the number of PME nodes
-       get propagated. */
-    *cr=*cro;
-    /* and we start setting our own thread-specific values for things */
-    MPI_Initialized(&initialized);
-    if (!initialized)
-        gmx_comm("Initializing threads without comm");
-    set_parallel_env(TRUE);
-    /* once threads will be used together with MPI, we'll
-       fill the cr structure with distinct data here. This might even work: */
-    cr->sim_nodeid = gmx_setup(0,NULL, &cr->nnodes);
-    /* note that we're explicitly using tMPI */
-    tMPI_Comm_size(TMPI_COMM_WORLD, &cr->nthreads);
-    tMPI_Comm_rank(TMPI_COMM_WORLD, &cr->threadid);
-
+  if (!PAR(cr) && (cr->sim_nodeid != 0))
+    gmx_comm("(!PAR(cr) && (cr->sim_nodeid != 0))");
+  
+  if (gmx_parallel_env) {
+#ifdef GMX_MPI
     cr->mpi_comm_mysim = MPI_COMM_WORLD;
     cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
-    cr->nodeid = cr->sim_nodeid;
-    cr->duty = (DUTY_PP | DUTY_PME);
-
-    return cr;
-#else
-    return NULL;
 #endif
+  }
+  cr->nodeid = cr->sim_nodeid;
+
+  cr->duty = (DUTY_PP | DUTY_PME);
+
+  /* Communicate arguments if parallel */
+  if (PAR(cr))
+    comm_args(cr,argc,argv_ptr);
+
+  return cr;
 }
 
 t_commrec *init_cr_nopar(void)

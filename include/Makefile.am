@@ -3,10 +3,10 @@
 # Don't edit - this file is generated automatically from Makefile.am
 #
 
-SUBDIRS = . types thread_mpi
-
+SUBDIRS = . types
 
 pkginclude_HEADERS = \
+gmx_thread.h \
 3dview.h \
 assert.h \
 atomprop.h \
@@ -23,9 +23,9 @@ coulomb.h \
 dihre.h \
 displacement.h \
 disre.h \
-do_fit.h \
 domdec.h \
 domdec_network.h \
+do_fit.h \
 ebin.h \
 edsam.h \
 enxio.h \
@@ -37,22 +37,23 @@ futil.h \
 gbutil.h \
 gen_ad.h \
 genborn.h \
+gmxcpp.h \
+gmx_fatal.h \
 gmx_ana.h \
 gmx_arpack.h \
 gmx_blas.h \
+gmxcomplex.h \
 gmx_cyclecounter.h \
-gmx_fatal.h \
+gmxfio.h \
 gmx_fft.h \
 gmx_ga2la.h \
 gmx_lapack.h \
-gmx_parallel_3dfft.h \
 gmx_random.h \
+gmx_parallel_3dfft.h \
 gmx_statistics.h \
 gmx_system_xdr.h \
+gmx_thread.h \
 gmx_wallcycle.h \
-gmxcomplex.h \
-gmxcpp.h \
-gmxfio.h \
 gpp_atomtype.h \
 gpp_nextnb.h \
 grompp.h \
@@ -82,8 +83,8 @@ nonbonded.h \
 nrama.h \
 nrjac.h \
 nrnb.h \
-ns.h \
 nsgrid.h \
+ns.h \
 orires.h \
 partdec.h \
 pbc.h \
@@ -145,8 +146,4 @@ wman.h \
 writeps.h \
 xdrf.h \
 xtcio.h \
-xvgr.h \
-thread_mpi.h \
-tmpi.h \
-mainpage.h
-
+xvgr.h

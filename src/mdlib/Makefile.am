@@ -17,8 +17,7 @@ libmd@LIBSUFFIX@_la_SOURCES = \
 	domdec_network.c domdec_setup.c	domdec_top.c	\
 	ebin.c		\
 	edsam.c		ewald.c         fftgrid.c	\
-	force.c  	forcerec.c	\
-	ghat.c		init.c		\
+	force.c  	ghat.c		init.c		\
 	mdatom.c	mdebin.c	minimize.c	\
 	mvxvf.c		ns.c		nsgrid.c	\
 	perf_est.c	genborn.c			\
@@ -26,10 +25,6 @@ libmd@LIBSUFFIX@_la_SOURCES = \
 	genborn_sse2_single.h				\
 	genborn_sse2_double.c				\
 	genborn_sse2_double.h				\
-	genborn_allvsall.c                              \
-	genborn_allvsall.h                              \
-	genborn_allvsall_sse2_single.c			\
-	genborn_allvsall_sse2_single.h			\
 	gmx_qhop_parm.c	gmx_qhop_parm.h			\
 	gmx_qhop_xml.c	gmx_qhop_xml.h			\
 	gmx_qhop_db.c	gmx_qhop_db.h			\

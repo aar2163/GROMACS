@@ -51,6 +51,7 @@ extern "C" {
 #include "pbc.h"
 #include "genborn.h"
 
+
 extern int glatnr(int *global_atom_index,int i);
 /* Returns the global topology atom number belonging to local atom index i.
  * This function is intended for writing ascii output
@@ -60,14 +61,14 @@ extern int glatnr(int *global_atom_index,int i);
 
 extern void calc_bonds(FILE *fplog,const gmx_multisim_t *ms,
 		       const t_idef *idef,
-                       rvec x[],history_t *hist,
+                       rvec x[],history_t *hist,gmx_mc_move *mc_move,
 		       rvec f[],t_forcerec *fr,
 		       const t_pbc *pbc,const t_graph *g,
                        gmx_enerdata_t *enerd,t_nrnb *nrnb,real lambda,
 		       const t_mdatoms *md,
 		       t_fcdata *fcd,int *ddgatindex,
 		       t_atomtypes *atype, gmx_genborn_t *born,gmx_cmap_t *cmap,
-		       bool bPrintSepPot,gmx_large_int_t step);
+		       bool bPrintSepPot,gmx_step_t step);
 /* 
  * The function calc_bonds() calculates all bonded force interactions.
  * The "bonds" are specified as follows:

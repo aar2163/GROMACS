@@ -51,10 +51,7 @@
 #define xH3 xh[2]
 #define xH4 xh[3]
 
-/* The source code in this file should be thread-safe. 
-      Please keep it that way. */
-
-static void gen_waterhydrogen(int nh,rvec xa[], rvec xh[],int *l)
+static void gen_waterhydrogen(int nh,rvec xa[], rvec xh[])
 {
 #define AA 0.081649
 #define BB 0.0
@@ -78,24 +75,24 @@ static void gen_waterhydrogen(int nh,rvec xa[], rvec xh[],int *l)
 #undef AA
 #undef BB
 #undef CC
-  /*static int l=0; removed due to thread-safety issues*/
+  static int l=0;
   int        m;
   rvec       kkk;
   
   /* This was copied from Gromos */
   for(m=0; (m<DIM); m++) {
-    xH1[m]=xAI[m]+matrix1[*l][m];
-    xH2[m]=xAI[m]+matrix2[*l][m];
+    xH1[m]=xAI[m]+matrix1[l][m];
+    xH2[m]=xAI[m]+matrix2[l][m];
   }
   if (nh > 2) 
     copy_rvec(xAI,xH3);
   if (nh > 3)
     copy_rvec(xAI,xH4);
       
-  *l=(*l+1) % 6;
+  l=(l+1) % 6;
 }
 
-void calc_h_pos(int nht, rvec xa[], rvec xh[], int *l)
+void calc_h_pos(int nht, rvec xa[], rvec xh[])
 {
 #define alfaH   (acos(-1/3.0)) /* 109.47 degrees */
 #define alfaHpl (2*M_PI/3)     /* 120 degrees */
@@ -229,13 +226,13 @@ void calc_h_pos(int nht, rvec xa[], rvec xh[], int *l)
     break;
   }
   case 7:  /* two water hydrogens */
-    gen_waterhydrogen(2, xa, xh, l);
+    gen_waterhydrogen(2, xa, xh);
     break;
   case 10: /* three water hydrogens */
-    gen_waterhydrogen(3, xa, xh, l);
+    gen_waterhydrogen(3, xa, xh);
     break;
   case 11: /* four water hydrogens */
-    gen_waterhydrogen(4, xa, xh, l);
+    gen_waterhydrogen(4, xa, xh);
     break;
   case 8: /* two carboxyl oxygens, -COO- */
     for(d=0; (d<DIM); d++) {
@@ -257,7 +254,7 @@ void calc_h_pos(int nht, rvec xa[], rvec xh[], int *l)
     copy_rvec(xAI, xa2[1]); /* new j = i  */
     copy_rvec(xAJ, xa2[2]); /* new k = j  */
     copy_rvec(xAK, xa2[3]); /* new l = k, not used */
-    calc_h_pos(2, xa2, (xh+2), l);
+    calc_h_pos(2, xa2, (xh+2));
     
     break;
   }

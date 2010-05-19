@@ -121,10 +121,6 @@ typedef struct {
   int *cginfo;
 } cginfo_mb_t;
 
-
-/* ewald table type */
-typedef struct ewald_tab *ewald_tab_t; 
-
 typedef struct {
   /* Domain Decomposition */
   bool bDomDec;
@@ -135,12 +131,6 @@ typedef struct {
   int  rc_scaling;
   rvec posres_com;
   rvec posres_comB;
-
-  /* Use special N*N kernels? */
-  bool bAllvsAll;
-  /* Private work data */
-  void *AllvsAll_work;
-  void *AllvsAll_workgb;
 
   /* Cut-Off stuff.
    * Infinite cut-off's will be GMX_CUTOFF_INF (unlike in t_inputrec: 0).
@@ -221,6 +211,7 @@ typedef struct {
   int  nnblists;
   int  *gid2nblists;
   t_nblists *nblists;
+  t_nblists **nblists_mc;
 
   /* The wall tables (if used) */
   int  nwall;
@@ -265,7 +256,6 @@ typedef struct {
   /* PME/Ewald stuff */
   bool bEwald;
   real ewaldcoeff;
-  ewald_tab_t ewald_table;
 
   /* Virial Stuff */
   rvec *fshift;
@@ -320,7 +310,6 @@ typedef struct {
   real *dvda;
   /* Derivatives of the Born radii with respect to coordinates */
   real *dadx;
-  real *dadx_rawptr;
   int   nalloc_dadx; /* Allocated size of dadx */
 	
   /* If > 0 signals Test Particle Insertion,
@@ -333,6 +322,8 @@ typedef struct {
   /* If TRUE  means that we should only evaluate energy contributions from 
    * specific icgs */
   bool n_mc;
+
+  void *mc_move;
 
   /* Neighbor searching stuff */
   gmx_ns_t ns;
@@ -347,11 +338,6 @@ typedef struct {
 
   /* Limit for printing large forces, negative is don't print */
   real print_force;
-
-  /* coarse load balancing time measurement */
-  double t_fnbf;
-  double t_wait;
-  int timesteps;
 
   /* User determined parameters, copied from the inputrec */
   int  userint1;

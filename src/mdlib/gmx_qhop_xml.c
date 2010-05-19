@@ -240,14 +240,10 @@ gmx_qhops_read(char *fn,int *nqhop)
   int           i,npd;
   t_xmlrec      *xml;
   const char *db="qhops.dat";
-  bool fna=FALSE;
   
   xmlDoValidityCheckingDefaultValue = 0;
   if (NULL == fn) 
-  {
     fn = (char *)libfn(db);
-    fna=TRUE;
-  }
   if ((doc = xmlParseFile(fn)) == NULL) {
 		fprintf(stderr,"Reading XML file %s. Run a syntax checker such as nsgmls.",
 				fn);
@@ -258,8 +254,6 @@ gmx_qhops_read(char *fn,int *nqhop)
   qhop_process_tree(NULL,doc->children,0,0,xml);
   
   xmlFreeDoc(doc);
-  if (fna)
-      sfree(fn);
   
   *nqhop = xml->nqh;
   

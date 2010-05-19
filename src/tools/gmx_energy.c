@@ -115,7 +115,7 @@ static int *select_it(int nre,char *nm[],int *nset)
   return set;
 }
 
-static int strcount(const char *s1,const char *s2)
+static int strcount(char *s1,char *s2)
 {
   int n=0;
   while (s1 && s2 && (toupper(s1[n]) == toupper(s2[n])))
@@ -272,7 +272,7 @@ static int *select_by_name(int nre,gmx_enxnm_t *nm,int *nset)
   return set;
 }
 
-static void get_orires_parms(const char *topnm,
+static void get_orires_parms(char *topnm,
 			     int *nor,int *nex,int **label,real **obs)
 {
   gmx_mtop_t mtop;
@@ -309,7 +309,7 @@ static void get_orires_parms(const char *topnm,
 	  *nor,*nex);
 }
 
-static int get_bounds(const char *topnm,
+static int get_bounds(char *topnm,
 		      real **bounds,int **index,int **dr_pair,int *npairs,
 		      gmx_mtop_t *mtop,gmx_localtop_t **ltop,t_inputrec *ir)
 {
@@ -411,118 +411,114 @@ static void calc_violations(real rt[],real rav3[],int nb,int index[],
   *sa = sumaver;
 }
 
-static void analyse_disre(const char *voutfn,    int nframes,
+static void analyse_disre(char *voutfn,    int nframes,
 			  real violaver[], real bounds[], int index[],
-			  int pair[],      int nbounds,
-                          const output_env_t oenv)
+			  int pair[],      int nbounds)
 {
-    FILE   *vout;
-    double sum,sumt,sumaver;
-    int    i,j;
-
-    /* Subtract bounds from distances, to calculate violations */
-    calc_violations(violaver,violaver,
-            nbounds,pair,bounds,NULL,&sumt,&sumaver);
-
+  FILE   *vout;
+  double sum,sumt,sumaver;
+  int    i,j;
+  
+  /* Subtract bounds from distances, to calculate violations */
+  calc_violations(violaver,violaver,
+		  nbounds,pair,bounds,NULL,&sumt,&sumaver);
+  
 #ifdef DEBUG
-    fprintf(stdout,"\nSum of violations averaged over simulation: %g nm\n",
-            sumaver);
-    fprintf(stdout,"Largest violation averaged over simulation: %g nm\n\n",
-            sumt);
+  fprintf(stdout,"\nSum of violations averaged over simulation: %g nm\n",
+	  sumaver);
+  fprintf(stdout,"Largest violation averaged over simulation: %g nm\n\n",
+	  sumt);
 #endif		    
-    vout=xvgropen(voutfn,"r\\S-3\\N average violations","DR Index","nm",
-            oenv);
-    sum  = 0.0;
-    sumt = 0.0;
-    for(i=0; (i<nbounds); i++) {
-        /* Do ensemble averaging */
-        sumaver = 0;
-        for(j=pair[i]; (j<pair[i+1]); j++) 
-            sumaver += sqr(violaver[j]/nframes); 
-        sumaver = max(0.0,mypow(sumaver,minsixth)-bounds[i]);
-
-        sumt   += sumaver;
-        sum     = max(sum,sumaver);
-        fprintf(vout,"%10d  %10.5e\n",index[i],sumaver);
-    }
+  vout=xvgropen(voutfn,"r\\S-3\\N average violations","DR Index","nm");
+  sum  = 0.0;
+  sumt = 0.0;
+  for(i=0; (i<nbounds); i++) {
+    /* Do ensemble averaging */
+    sumaver = 0;
+    for(j=pair[i]; (j<pair[i+1]); j++) 
+      sumaver += sqr(violaver[j]/nframes); 
+    sumaver = max(0.0,mypow(sumaver,minsixth)-bounds[i]);
+    
+    sumt   += sumaver;
+    sum     = max(sum,sumaver);
+    fprintf(vout,"%10d  %10.5e\n",index[i],sumaver);
+  }
 #ifdef DEBUG
-    for(j=0; (j<dr.ndr); j++)
-        fprintf(vout,"%10d  %10.5e\n",j,mypow(violaver[j]/nframes,minthird));
+  for(j=0; (j<dr.ndr); j++)
+    fprintf(vout,"%10d  %10.5e\n",j,mypow(violaver[j]/nframes,minthird));
 #endif
-    ffclose(vout);
-
-    fprintf(stdout,"\nSum of violations averaged over simulation: %g nm\n",
-            sumt);
-    fprintf(stdout,"Largest violation averaged over simulation: %g nm\n\n",sum);
-
-    do_view(oenv,voutfn,"-graphtype bar");
+  ffclose(vout);
+  
+  fprintf(stdout,"\nSum of violations averaged over simulation: %g nm\n",sumt);
+  fprintf(stdout,"Largest violation averaged over simulation: %g nm\n\n",sum);
+  
+  do_view(voutfn,"-graphtype bar");
 }
 
 static void einstein_visco(const char *fn,const char *fni,int nsets,
                            int nframes,real **sum,
-                           real V,real T,int nsteps,double time[],
-                           const output_env_t oenv)
+			   real V,real T,int nsteps,double time[])
 {
-    FILE *fp0,*fp1;
-    double av[4],avold[4];
-    double fac,dt,di;
-    int  i,j,m,nf4;
-
-    if (nframes < 1)
-        return;
-
-    dt  = (time[1]-time[0]);
-    nf4 = nframes/4+1;
-
-    for(i=0; i<=nsets; i++)
-        avold[i] = 0;
-    fp0=xvgropen(fni,"Shear viscosity integral",
-            "Time (ps)","(kg m\\S-1\\N s\\S-1\\N ps)",oenv);
-    fp1=xvgropen(fn,"Shear viscosity using Einstein relation",
-            "Time (ps)","(kg m\\S-1\\N s\\S-1\\N)",oenv);
-    for(i=1; i<nf4; i++) {
-        fac = dt*nframes/nsteps;
-        for(m=0; m<=nsets; m++)
-            av[m] = 0;
-        for(j=0; j<nframes-i; j++) {
-            for(m=0; m<nsets; m++) {
-                di   = sqr(fac*(sum[m][j+i]-sum[m][j]));
-
-                av[m]     += di;
-                av[nsets] += di/nsets;
-            }
-        }
-        /* Convert to SI for the viscosity */
-        fac = (V*NANO*NANO*NANO*PICO*1e10)/(2*BOLTZMANN*T)/(nframes-i);
-        fprintf(fp0,"%10g",time[i]-time[0]);
-        for(m=0; (m<=nsets); m++) {
-            av[m] = fac*av[m];
-            fprintf(fp0,"  %10g",av[m]);
-        }
-        fprintf(fp0,"\n");
-        fprintf(fp1,"%10g",0.5*(time[i]+time[i-1])-time[0]);
-        for(m=0; (m<=nsets); m++) {
-            fprintf(fp1,"  %10g",(av[m]-avold[m])/dt);
-            avold[m] = av[m];
-        }
-        fprintf(fp1,"\n");
+  FILE *fp0,*fp1;
+  double av[4],avold[4];
+  double fac,dt,di;
+  int  i,j,m,nf4;
+  
+  if (nframes < 1)
+    return;
+    
+  dt  = (time[1]-time[0]);
+  nf4 = nframes/4+1;
+  
+  for(i=0; i<=nsets; i++)
+    avold[i] = 0;
+  fp0=xvgropen(fni,"Shear viscosity integral",
+	       "Time (ps)","(kg m\\S-1\\N s\\S-1\\N ps)");
+  fp1=xvgropen(fn,"Shear viscosity using Einstein relation",
+	       "Time (ps)","(kg m\\S-1\\N s\\S-1\\N)");
+  for(i=1; i<nf4; i++) {
+    fac = dt*nframes/nsteps;
+    for(m=0; m<=nsets; m++)
+	av[m] = 0;
+    for(j=0; j<nframes-i; j++) {
+      for(m=0; m<nsets; m++) {
+	di   = sqr(fac*(sum[m][j+i]-sum[m][j]));
+	
+	av[m]     += di;
+	av[nsets] += di/nsets;
+      }
     }
-    fclose(fp0);
-    fclose(fp1);
+      /* Convert to SI for the viscosity */
+    fac = (V*NANO*NANO*NANO*PICO*1e10)/(2*BOLTZMANN*T)/(nframes-i);
+    fprintf(fp0,"%10g",time[i]-time[0]);
+    for(m=0; (m<=nsets); m++) {
+      av[m] = fac*av[m];
+      fprintf(fp0,"  %10g",av[m]);
+    }
+    fprintf(fp0,"\n");
+    fprintf(fp1,"%10g",0.5*(time[i]+time[i-1])-time[0]);
+    for(m=0; (m<=nsets); m++) {
+      fprintf(fp1,"  %10g",(av[m]-avold[m])/dt);
+      avold[m] = av[m];
+    }
+    fprintf(fp1,"\n");
+  }
+  fclose(fp0);
+  fclose(fp1);
 }
 
-static void analyse_ener(bool bCorr,const char *corrfn,
+static void analyse_ener(bool bCorr,char *corrfn,
 			 bool bFee,bool bSum,bool bFluct,
-			 bool bVisco,const char *visfn,int  nmol,int ndf,
-			 gmx_large_int_t start_step,double start_t,
-			 gmx_large_int_t step,double t,
+			 bool bVisco,char *visfn,int  nmol,int ndf,
+			 gmx_step_t start_step,double start_t,
+			 gmx_step_t step,double t,
 			 double time[], real reftemp,
-			 gmx_large_int_t ee_nsum,
+			 gmx_step_t ee_nsum,
 			 t_energy ee_sum[],enersum_t *enersum,
 			 int nset,int set[],int nenergy,real **eneset,
 			 real **enesum,
-			 char **leg,gmx_enxnm_t *enm,
-			 real Vaver,real ezero, const output_env_t oenv)
+			 char *leg[],gmx_enxnm_t *enm,
+			 real Vaver,real ezero)
 {
   FILE *fp;
   /* Check out the printed manual for equations! */
@@ -531,7 +527,7 @@ static void analyse_ener(bool bCorr,const char *corrfn,
   real xxx,integral,intBulk;
   real sfrac,oldfrac,diffsum,diffav,fstep,pr_aver,pr_stddev,fluct2;
   double beta=0,expE,expEtot,*fee=NULL;
-  gmx_large_int_t nsteps;
+  gmx_step_t nsteps;
   int  nexact,nnotexact,iset;
   double x1m,x1mk;
   real Temp=-1,Pres=-1,VarV=-1,VarT=-1;
@@ -718,22 +714,22 @@ static void analyse_ener(bool bCorr,const char *corrfn,
       }
       
       einstein_visco("evisco.xvg","eviscoi.xvg",
-		     3,nenergy,enesum,Vaver,Temp,nsteps,time,oenv);
+		     3,nenergy,enesum,Vaver,Temp,nsteps,time);
       
       /*do_autocorr(corrfn,buf,nenergy,3,eneset,Dt,eacNormal,TRUE);*/
       /* Do it for shear viscosity */
       strcpy(buf,"Shear Viscosity");
-      low_do_autocorr(corrfn,oenv,buf,nenergy,3,(nenergy+1)/2,eneset,Dt,
+      low_do_autocorr(corrfn,buf,nenergy,3,(nenergy+1)/2,eneset,Dt,
 		      eacNormal,1,TRUE,FALSE,FALSE,0.0,0.0,0,1);
 	
       /* Now for bulk viscosity */
       strcpy(buf,"Bulk Viscosity");
-      low_do_autocorr(corrfn,oenv,buf,nenergy,1,(nenergy+1)/2,&(eneset[11]),Dt,
+      low_do_autocorr(corrfn,buf,nenergy,1,(nenergy+1)/2,&(eneset[11]),Dt,
 		      eacNormal,1,TRUE,FALSE,FALSE,0.0,0.0,0,1);
       
       factor = (Vaver*1e-26/(BOLTZMANN*Temp))*Dt;
-      fp=xvgropen(visfn,buf,"Time (ps)","\\8h\\4 (cp)",oenv);
-      xvgr_legend(fp,asize(leg),leg,oenv);
+      fp=xvgropen(visfn,buf,"Time (ps)","\\8h\\4 (cp)");
+      xvgr_legend(fp,asize(leg),leg);
       
       /* Use trapezium rule for integration */
       integral = 0;
@@ -750,7 +746,7 @@ static void analyse_ener(bool bCorr,const char *corrfn,
 	strcpy(buf,"Autocorrelation of Energy Fluctuations");
       else
 	strcpy(buf,"Energy Autocorrelation");
-      do_autocorr(corrfn,oenv,buf,nenergy,
+      do_autocorr(corrfn,buf,nenergy,
 		  bSum ? 1                 : nset,
 		  bSum ? &(eneset[nset-1]) : eneset,
 		  (delta_t/nenergy),eacNormal,FALSE);
@@ -772,15 +768,14 @@ static void print1(FILE *fp,bool bDp,real e)
 
 }
 
-static void fec(const char *ene2fn, const char *runavgfn, 
+static void fec(char *ene2fn, char *runavgfn, 
 		real reftemp, int nset, int set[], char *leg[], 
-		int nenergy, real **eneset, double time[],
-                const output_env_t oenv)
+		int nenergy, real **eneset, double time[])
 {
   char *ravgleg[] = { "\\8D\\4E = E\\sB\\N-E\\sA\\N", 
-	   	      "<e\\S-\\8D\\4E/kT\\N>\\s0..t\\N" };
+	   	            "<e\\S-\\8D\\4E/kT\\N>\\s0..t\\N" };
   FILE *fp;
-  ener_file_t enx;
+  int  enx;
   int  nre,timecheck,step,nenergy2,maxenergy;
   int  i,j;
   bool bCont;
@@ -840,8 +835,8 @@ static void fec(const char *ene2fn, const char *runavgfn,
   fp=NULL;
   if (runavgfn) {
     fp=xvgropen(runavgfn,"Running average free energy difference",
-		"Time (" unit_time ")","\\8D\\4E (" unit_energy ")",oenv);
-    xvgr_legend(fp,asize(ravgleg),ravgleg,oenv);
+		"Time (" unit_time ")","\\8D\\4E (" unit_energy ")");
+    xvgr_legend(fp,asize(ravgleg),ravgleg);
   }
   fprintf(stdout,"\n%-24s %10s\n",
 	  "Energy","dF = -kT ln < exp(-(EB-EA)/kT) >A");
@@ -968,7 +963,7 @@ int gmx_energy(int argc,char *argv[])
   
   FILE       *out,*fp_pairs=NULL,*fort=NULL,*fodt=NULL,*foten=NULL;
   FILE       **drout;
-  ener_file_t fp;
+  int        fp;
   int        timecheck=0;
   gmx_mtop_t mtop;
   gmx_localtop_t *top=NULL;
@@ -980,7 +975,7 @@ int gmx_energy(int argc,char *argv[])
   int        cur=0;
 #define NEXT (1-cur)
   int        nre,teller,teller_disre;
-  gmx_large_int_t start_step,ee_nsteps,ee_nsum;
+  gmx_step_t start_step,ee_nsteps,ee_nsum;
   int        nor=0,nex=0,norfr=0,enx_i=0;
   real       start_t;
   real       *bounds=NULL,*violaver=NULL,*oobs=NULL,*orient=NULL,*odrms=NULL;
@@ -999,7 +994,6 @@ int gmx_energy(int argc,char *argv[])
   int        resnr_j,resnr_k;
   const char *orinst_sub = "@ subtitle \"instantaneous\"\n";
   char       buf[256];
-  output_env_t oenv;
   t_filenm   fnm[] = {
     { efEDR, "-f",    NULL,      ffREAD  },
     { efEDR, "-f2",   NULL,      ffOPTRD },
@@ -1024,9 +1018,8 @@ int gmx_energy(int argc,char *argv[])
   CopyRight(stderr,argv[0]);
   npargs = asize(pa);
   ppa    = add_acf_pargs(&npargs,pa);
-  parse_common_args(&argc,argv,
-                    PCA_CAN_VIEW | PCA_CAN_BEGIN | PCA_CAN_END | PCA_BE_NICE,
-		    NFILE,fnm,npargs,ppa,asize(desc),desc,0,NULL,&oenv);
+  parse_common_args(&argc,argv,PCA_CAN_VIEW | PCA_CAN_BEGIN | PCA_CAN_END | PCA_BE_NICE,
+		    NFILE,fnm,npargs,ppa,asize(desc),desc,0,NULL);
   
   bDRAll = opt2bSet("-pairs",NFILE,fnm);
   bDisRe = opt2bSet("-viol",NFILE,fnm) || bDRAll;
@@ -1097,18 +1090,17 @@ int gmx_energy(int argc,char *argv[])
 	strcat(buf,")");
       }
     }
-    out=xvgropen(opt2fn("-o",NFILE,fnm),"Gromacs Energies","Time (ps)",buf,
-                 oenv);
+    out=xvgropen(opt2fn("-o",NFILE,fnm),"Gromacs Energies","Time (ps)",buf);
     
     snew(leg,nset+1);
     for(i=0; (i<nset); i++)
       leg[i] = enm[set[i]].name;
     if (bSum) {
       leg[nset]=strdup("Sum");
-      xvgr_legend(out,nset+1,leg,oenv);
+      xvgr_legend(out,nset+1,leg);
     }
     else
-      xvgr_legend(out,nset,leg,oenv);
+      xvgr_legend(out,nset,leg);
     
     snew(eneset,nset+1);
     if (bVisco)
@@ -1168,25 +1160,26 @@ int gmx_energy(int argc,char *argv[])
 	  sprintf(odtleg[i],"%d",or_label[orsel[i]]);
 	}
 	if (bORT) {
-	  fort=xvgropen(opt2fn("-ort",NFILE,fnm), "Calculated orientations",
-			"Time (ps)","",oenv);
+	  fort=xvgropen(opt2fn("-ort",NFILE,fnm),
+			"Calculated orientations",
+			"Time (ps)","");
 	  if (bOrinst)
 	    fprintf(fort,"%s",orinst_sub);
-	  xvgr_legend(fort,norsel,odtleg,oenv);
+	  xvgr_legend(fort,norsel,odtleg);
 	}
 	if (bODT) {
 	  fodt=xvgropen(opt2fn("-odt",NFILE,fnm),
 			"Orientation restraint deviation",
-			"Time (ps)","",oenv);
+			"Time (ps)","");
 	  if (bOrinst)
 	    fprintf(fodt,"%s",orinst_sub);
-	  xvgr_legend(fodt,norsel,odtleg,oenv);
+	  xvgr_legend(fodt,norsel,odtleg);
 	}
       }
     }
     if (bOTEN) {
       foten=xvgropen(opt2fn("-oten",NFILE,fnm),
-		     "Order tensor","Time (ps)","",oenv);
+		     "Order tensor","Time (ps)","");
       snew(otenleg,bOvec ? nex*12 : nex*3);
       for(i=0; i<nex; i++) {
 	for(j=0; j<3; j++) {
@@ -1200,7 +1193,7 @@ int gmx_energy(int argc,char *argv[])
 	  }
 	}
       }
-      xvgr_legend(foten,bOvec ? nex*12 : nex*3,otenleg,oenv);
+      xvgr_legend(foten,bOvec ? nex*12 : nex*3,otenleg);
     }
   }
   else {
@@ -1208,12 +1201,12 @@ int gmx_energy(int argc,char *argv[])
 		       &mtop,&top,&ir);
     snew(violaver,npairs);
     out=xvgropen(opt2fn("-o",NFILE,fnm),"Sum of Violations",
-		 "Time (ps)","nm",oenv);
-    xvgr_legend(out,2,drleg,oenv);  
+		 "Time (ps)","nm");
+    xvgr_legend(out,2,drleg);  
     if (bDRAll) { 
       fp_pairs=xvgropen(opt2fn("-pairs",NFILE,fnm),"Pair Distances",
-			"Time (ps)","Distance (nm)",oenv);
-      if (get_print_xvgr_codes(oenv))
+			"Time (ps)","Distance (nm)");
+      if (bPrintXvgrCodes())
 	fprintf(fp_pairs,"@ subtitle \"averaged (tau=%g) and instantaneous\"\n",
 		ir.dr_tau);
     }
@@ -1328,7 +1321,7 @@ int gmx_energy(int argc,char *argv[])
 	  snew(leg[2*i+1],32);
 	  sprintf(leg[2*i+1],"i %s",pairleg[set[i]]);
 	}
-	xvgr_legend(fp_pairs,2*nset,leg,oenv);    
+	xvgr_legend(fp_pairs,2*nset,leg);    
       }
       
       /* 
@@ -1466,7 +1459,7 @@ int gmx_energy(int argc,char *argv[])
   if (bORA) {
     out = xvgropen(opt2fn("-ora",NFILE,fnm),
 		   "Average calculated orientations",
-		   "Restraint label","",oenv);
+		   "Restraint label","");
     if (bOrinst)
       fprintf(out,"%s",orinst_sub);
     for(i=0; i<nor; i++)
@@ -1476,7 +1469,7 @@ int gmx_energy(int argc,char *argv[])
   if (bODA) {
     out = xvgropen(opt2fn("-oda",NFILE,fnm),
 		   "Average restraint deviation",
-		   "Restraint label","",oenv);
+		   "Restraint label","");
     if (bOrinst)
       fprintf(out,"%s",orinst_sub);
     for(i=0; i<nor; i++)
@@ -1486,7 +1479,7 @@ int gmx_energy(int argc,char *argv[])
   if (bODR) {
     out = xvgropen(opt2fn("-odr",NFILE,fnm),
 		   "RMS orientation restraint deviations",
-		   "Restraint label","",oenv);
+		   "Restraint label","");
     if (bOrinst)
       fprintf(out,"%s",orinst_sub);
     for(i=0; i<nor; i++)
@@ -1498,30 +1491,30 @@ int gmx_energy(int argc,char *argv[])
 
   if (bDisRe) {
     analyse_disre(opt2fn("-viol",NFILE,fnm),
-		  teller_disre,violaver,bounds,index,pair,nbounds,oenv);
+		  teller_disre,violaver,bounds,index,pair,nbounds);
   } else {
     analyse_ener(opt2bSet("-corr",NFILE,fnm),opt2fn("-corr",NFILE,fnm),
 		 bFee,bSum,bFluct,bVisco,opt2fn("-vis",NFILE,fnm),
 		 nmol,ndf,start_step,start_t,frame[cur].step,frame[cur].t,
 		 time,reftemp,ee_nsum,ee_sum,&enersum,
-		 nset,set,nenergy,eneset,enesum,leg,enm,Vaver,ezero,oenv);
+		 nset,set,nenergy,eneset,enesum,leg,enm,Vaver,ezero);
   }
   if (opt2bSet("-f2",NFILE,fnm)) {
     fec(opt2fn("-f2",NFILE,fnm), opt2fn("-ravg",NFILE,fnm), 
-	reftemp, nset, set, leg, nenergy, eneset, time ,oenv);
+	reftemp, nset, set, leg, nenergy, eneset, time );
   }
   
   {
     const char *nxy = "-nxy";
     
-    do_view(oenv,opt2fn("-o",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-ravg",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-ora",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-ort",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-oda",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-odr",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-odt",NFILE,fnm),nxy);
-    do_view(oenv,opt2fn_null("-oten",NFILE,fnm),nxy);
+    do_view(opt2fn("-o",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-ravg",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-ora",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-ort",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-oda",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-odr",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-odt",NFILE,fnm),nxy);
+    do_view(opt2fn_null("-oten",NFILE,fnm),nxy);
   }
   thanx(stderr);
   

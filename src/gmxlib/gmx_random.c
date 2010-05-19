@@ -303,6 +303,7 @@ gmx_rng_uniform_real(gmx_rng_t rng)
     */
 }
 
+
 int uniform_int(gmx_rng_t rng,int max)
 {
  int ii;

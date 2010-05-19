@@ -61,6 +61,8 @@ extern void init_neighbor_list(FILE *log,t_forcerec *fr,int homenr);
  * homenr is the number of atoms on this processor
  */
  
+extern void init_neighbor_list_mc(FILE *log,t_forcerec *fr,int homenr,int cgsnr);
+
 extern int calc_naaj(int icg,int cgtot);
 /* Calculate the number of charge groups to interact with for icg */
 

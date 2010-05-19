@@ -41,7 +41,7 @@
 #endif
 
 
-/** @file
+/** @file lapack.h
  *
  *  @brief Header definitions for the standard LAPACK library.
  *

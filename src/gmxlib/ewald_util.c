@@ -84,7 +84,7 @@ real ewald_LRcorrection(FILE *fplog,
 			matrix box,rvec mu_tot[],
 			int ewald_geometry,real epsilon_surface,
 			real lambda,real *dvdlambda,
-			real *vdip,real *vcharge,bool bDoForces)
+			real *vdip,real *vcharge,bool bDoForces,gmx_mc_move *mc_move)
 {
   int     i,i1,i2,j,k,m,iv,jv,q;
   atom_id *AA;
@@ -109,6 +109,7 @@ real ewald_LRcorrection(FILE *fplog,
   int     niat;
   bool    bFreeEnergy = (chargeB != NULL);
   bool    bMolPBC = fr->bMolPBC;
+  bool    n_mc = (mc_move && mc_move->n_mc);
 
   one_4pi_eps = ONE_4PI_EPS0/fr->epsilon_r;
   vr0 = ewc*2/sqrt(M_PI);
@@ -170,6 +171,11 @@ real ewald_LRcorrection(FILE *fplog,
   if (!bFreeEnergy) {
     for(i=start; (i<niat); i++) {
       /* Initiate local variables (for this i-particle) to 0 */
+
+      if(n_mc && (i < mc_move->start || i>= mc_move->end))
+      {
+       continue;
+      }
       qiA = chargeA[i]*one_4pi_eps;
       i1  = excl->index[i];
       i2  = excl->index[i+1];
@@ -204,7 +210,7 @@ real ewald_LRcorrection(FILE *fplog,
 	     * case of shells
 	     */
 	    if (dr2 != 0) {
-	      rinv              = gmx_invsqrt(dr2);
+	      rinv              = invsqrt(dr2);
 	      rinv2             = rinv*rinv;
 	      dr                = 1.0/rinv;      
 #ifdef TABLES
@@ -306,7 +312,7 @@ real ewald_LRcorrection(FILE *fplog,
 	    }
 	    dr2 = norm2(dx);
 	    if (dr2 != 0) {
-	      rinv   = gmx_invsqrt(dr2);
+	      rinv   = invsqrt(dr2);
 	      rinv2  = rinv*rinv;
 	      dr     = 1.0/rinv;      
 	      v      = gmx_erf(ewc*dr)*rinv;

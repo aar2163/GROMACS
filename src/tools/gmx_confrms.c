@@ -396,7 +396,7 @@ int gmx_confrms(int argc,char *argv[])
 #define NFILE asize(fnm)
   
   /* the two structure files */
-  const char *conf1file, *conf2file, *matchndxfile, *outfile;
+  char    *conf1file, *conf2file, *matchndxfile, *outfile;
   FILE    *fp;
   char    title1[STRLEN],title2[STRLEN],*name1,*name2;
   t_topology *top1,*top2;
@@ -407,8 +407,6 @@ int gmx_confrms(int argc,char *argv[])
   real    *w_rls,mass,totmass;
   rvec    *x1,*v1,*x2,*v2,*fit_x;
   matrix  box1,box2;
-
-  output_env_t oenv;
   
   /* counters */
   int     i,j,m;
@@ -423,11 +421,10 @@ int gmx_confrms(int argc,char *argv[])
   atom_id *index1,*index2;
   real    rms,msd,minmsd,maxmsd;
   real    *msds;
-
   
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,PCA_BE_NICE | PCA_CAN_VIEW,
-		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL,&oenv);
+		    NFILE,fnm,asize(pa),pa,asize(desc),desc,0,NULL);
   matchndxfile = opt2fn_null("-no",NFILE,fnm);
   conf1file = ftp2fn(efTPS,NFILE,fnm);
   conf2file = ftp2fn(efSTX,NFILE,fnm);
@@ -615,7 +612,7 @@ int gmx_confrms(int argc,char *argv[])
     break;
   }
   
-  view_all(oenv,NFILE, fnm);
+  view_all(NFILE, fnm);
   
   thanx(stderr);
   

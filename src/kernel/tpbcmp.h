@@ -36,18 +36,13 @@
 #ifndef _tpbcmp_h
 #define _tpbcmp_h
 
-void
-comp_tpx(const char *fn1,const char *fn2,bool bRMSD,real ftol,real abstol);
+extern void comp_tpx(const char *fn1,const char *fn2,real ftol);
 /* Compare two binary topology files */
 
-void
-comp_trx(const output_env_t oenv,const char *fn1,const char *fn2,
-	 bool bRMSD,real ftol,real abstol);
+extern void comp_trx(const char *fn1,const char *fn2,real ftol);
 /* Compare two binary trajectory files */
 
-void 
-comp_enx(const char *fn1,const char *fn2,real ftol,real abstol,
-                     const char *lastener);
+extern void comp_enx(const char *fn1,const char *fn2,real ftol,const char *lastener);
 /* Compare two binary energy files */
 
 #endif

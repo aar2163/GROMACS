@@ -50,9 +50,8 @@
 #include "gstat.h"
 #include "confio.h"
 
-void print_one(const output_env_t oenv,const char *base,const char *name,
-               const char *title, const char *ylabel,int nf,real time[],
-               real data[])
+void print_one(const char *base,const char *name,const char *title,
+	       const char *ylabel,int nf,real time[],real data[])
 {
   FILE *fp;
   char buf[256],t2[256];
@@ -61,7 +60,7 @@ void print_one(const output_env_t oenv,const char *base,const char *name,
   sprintf(buf,"%s%s.xvg",base,name);
   fprintf(stderr,"\rPrinting %s  ",buf);
   sprintf(t2,"%s %s",title,name);
-  fp=xvgropen(buf,t2,"Time (ps)",ylabel,oenv); 
+  fp=xvgropen(buf,t2,"Time (ps)",ylabel); 
   for(k=0; (k<nf); k++)
     fprintf(fp,"%10g  %10g\n",time[k],data[k]);
   ffclose(fp);
@@ -111,11 +110,10 @@ static int calc_Nbin(real phi, int multiplicity, real core_frac)
  return 0;
 }
 
-void ana_dih_trans(const char *fn_trans,const char *fn_histo,
+void ana_dih_trans(char *fn_trans,char *fn_histo,
 		   real **dih,int nframes,int nangles,
-		   const char *grpname,real t0,real dt,bool bRb,
-                   const output_env_t oenv)
-{
+		   char *grpname,real t0,real dt,bool bRb){
+
   /* just a wrapper; declare extra args, then chuck away at end. */ 
   int maxchi = 0 ; 
   t_dlist *dlist ; 
@@ -131,18 +129,17 @@ void ana_dih_trans(const char *fn_trans,const char *fn_histo,
 
   low_ana_dih_trans(TRUE, fn_trans,TRUE, fn_histo, maxchi, 
                     dih, nlist, dlist, nframes,
-		    nangles, grpname, xity, t0, dt, bRb, 0.5,oenv); 
+		    nangles, grpname, xity, t0, dt, bRb, 0.5); 
   sfree(dlist); 
   sfree(xity); 
   
 }
 
-void low_ana_dih_trans(bool bTrans, const char *fn_trans,
-		       bool bHisto, const char *fn_histo, int maxchi, 
+void low_ana_dih_trans(bool bTrans, char *fn_trans,
+		       bool bHisto, char *fn_histo, int maxchi, 
 		       real **dih, int nlist, t_dlist dlist[], int nframes,
-		       int nangles, const char *grpname, int xity[], 
-		       real t0, real dt, bool bRb, real core_frac,
-                       const output_env_t oenv)
+		       int nangles, char *grpname, int xity[], 
+		       real t0, real dt, bool bRb, real core_frac)
 {
   FILE *fp;
   int  *tr_f,*tr_h;
@@ -246,7 +243,7 @@ void low_ana_dih_trans(bool bTrans, const char *fn_trans,
     
   if (bTrans) {
     sprintf(title,"Number of transitions: %s",grpname);
-    fp=xvgropen(fn_trans,title,"Time (ps)","# transitions/timeframe",oenv);
+    fp=xvgropen(fn_trans,title,"Time (ps)","# transitions/timeframe");
     for(j=0; (j<nframes); j++) {
       tt = t0+j*dt;
       fprintf(fp,"%10.3f  %10d\n",tt,tr_f[j]);
@@ -266,7 +263,7 @@ void low_ana_dih_trans(bool bTrans, const char *fn_trans,
   ttime = dt*nframes;
   if (bHisto) {
     sprintf(title,"Transition time: %s",grpname);
-    fp=xvgropen(fn_histo,title,"Time (ps)","#",oenv);
+    fp=xvgropen(fn_histo,title,"Time (ps)","#");
     for(i=j-1; (i>0); i--) {
       if (tr_f[i] != 0)
 	fprintf(fp,"%10.3f  %10d\n",ttime/i,tr_f[i]);
@@ -370,8 +367,7 @@ void mk_chi_lookup (int **lookup, int maxchi, real **dih,
 void get_chi_product_traj (real **dih,int nframes,int nangles, int nlist,
 			   int maxchi, t_dlist dlist[], real time[], 
 			   int **lookup, int *xity,bool bRb, bool bNormalize,
-			   real core_frac, bool bAll, const char *fnall,
-                           const output_env_t oenv) 
+			   real core_frac, bool bAll, char *fnall) 
 {
 
   bool bRotZero, bHaveChi=FALSE; 
@@ -396,9 +392,9 @@ void get_chi_product_traj (real **dih,int nframes,int nangles, int nlist,
 
   /* file for info on all residues */ 
   if (bNormalize)
-    fpall=xvgropen(fnall,"Cumulative Rotamers","Residue","Probability",oenv);
+    fpall=xvgropen(fnall,"Cumulative Rotamers","Residue","Probability");
   else 
-    fpall=xvgropen(fnall,"Cumulative Rotamers","Residue","# Counts",oenv);
+    fpall=xvgropen(fnall,"Cumulative Rotamers","Residue","# Counts");
 
   for(i=0; (i<nlist); i++) {
 
@@ -451,7 +447,7 @@ void get_chi_product_traj (real **dih,int nframes,int nangles, int nlist,
 
       if (bAll) {
 	/* print cuml rotamer vs time */ 
-	print_one(oenv,"chiproduct", dlist[i].name, "chi product for",
+	print_one("chiproduct", dlist[i].name, "chi product for",
 		  "cumulative rotamer", nframes,time,chi_prtrj); 
       }
 
@@ -462,7 +458,7 @@ void get_chi_product_traj (real **dih,int nframes,int nangles, int nlist,
 	sprintf(hisfile,"histo-chiprod%s.xvg",dlist[i].name);
 	sprintf(histitle,"cumulative rotamer distribution for %s",dlist[i].name);
 	fprintf(stderr,"  and %s  ",hisfile);
-	fp=xvgropen(hisfile,histitle,"number","",oenv);
+	fp=xvgropen(hisfile,histitle,"number","");
 	fprintf(fp,"@ xaxis tick on\n");
 	fprintf(fp,"@ xaxis tick major 1\n");
 	fprintf(fp,"@ type xy\n");
@@ -651,15 +647,14 @@ void normalize_histo(int npoints,int histo[],real dx,real normhisto[])
     normhisto[i]=fac*histo[i];
 }
 
-void read_ang_dih(const char *trj_fn,
+void read_ang_dih(char *trj_fn,
 		  bool bAngles,bool bSaveAll,bool bRb,bool bPBC,
 		  int maxangstat,int angstat[],
 		  int *nframes,real **time,
 		  int isize,atom_id index[],
 		  real **trans_frac,
 		  real **aver_angle,
-		  real *dih[],
-                  const output_env_t oenv)
+		  real *dih[])
 {
   t_pbc      *pbc;
   int        i,angind,status,natoms,total,teller;
@@ -672,7 +667,7 @@ void read_ang_dih(const char *trj_fn,
 #define prev (1-cur)
   
   snew(pbc,1);
-  natoms = read_first_x(oenv,&status,trj_fn,&t,&x,box);
+  natoms = read_first_x(&status,trj_fn,&t,&x,box);
   
   if (bAngles) {
     nangles=isize/3;
@@ -800,7 +795,7 @@ void read_ang_dih(const char *trj_fn,
     
     /* Increment loop counter */
     teller++;
-  } while (read_next_x(oenv,status,&t,natoms,x,box));  
+  } while (read_next_x(status,&t,natoms,x,box));  
   close_trj(status); 
   
   sfree(x);

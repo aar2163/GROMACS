@@ -144,8 +144,7 @@ static int scan_ene_files(char **fnms, int nfiles,
 			  real *readtime, real *timestep, int *nremax)
 {
   /* Check number of energy terms and start time of all files */
-  int        f,i,nre,nremin=0,nresav=0;
-  ener_file_t in;
+  int        f,i,in,nre,nremin=0,nresav=0;
   real       t1,t2;
   char       inputstring[STRLEN];
   gmx_enxnm_t *enm;
@@ -314,11 +313,11 @@ static void copy_ee(t_energy *src, t_energy *dst, int nre)
 }
 
 
-static void remove_last_eeframe(t_energy *lastee, gmx_large_int_t laststep,
+static void remove_last_eeframe(t_energy *lastee, gmx_step_t laststep,
 				t_energy *ee, int nre)
 {
     int i;
-    gmx_large_int_t p=laststep+1;
+    gmx_step_t p=laststep+1;
     double sigmacorr;
     
     for(i=0;i<nre;i++) {
@@ -330,8 +329,8 @@ static void remove_last_eeframe(t_energy *lastee, gmx_large_int_t laststep,
 
 
 
-static void update_ee(t_energy *lastee,gmx_large_int_t laststep,
-		      t_energy *startee,gmx_large_int_t startstep,
+static void update_ee(t_energy *lastee,gmx_step_t laststep,
+		      t_energy *startee,gmx_step_t startstep,
 		      t_energy *ee, int step,
 		      t_energy *outee, int nre)
 {
@@ -362,8 +361,8 @@ static void update_ee(t_energy *lastee,gmx_large_int_t laststep,
        * and step+1 frames in this one.
        */
     if(startstep>0) {
-      gmx_large_int_t q=laststep+step; 
-      gmx_large_int_t p=startstep+1;
+      gmx_step_t q=laststep+step; 
+      gmx_step_t p=startstep+1;
       prestart_esum=startee[i].esum-startee[i].e;
       sigmacorr=prestart_esum-(p-1)*startee[i].e;
       prestart_sigma=startee[i].eav-
@@ -382,8 +381,8 @@ static void update_ee(t_energy *lastee,gmx_large_int_t laststep,
 }
 
 
-static void update_last_ee(t_energy *lastee, gmx_large_int_t laststep,
-			   t_energy *ee,gmx_large_int_t step,int nre)
+static void update_last_ee(t_energy *lastee, gmx_step_t laststep,
+			   t_energy *ee,gmx_step_t step,int nre)
 {
     t_energy *tmp;
     snew(tmp,nre);
@@ -393,13 +392,13 @@ static void update_last_ee(t_energy *lastee, gmx_large_int_t laststep,
 }
 
 static void update_ee_sum(int nre,
-			  gmx_large_int_t *ee_sum_step,
-			  gmx_large_int_t *ee_sum_nsteps,
-			  gmx_large_int_t *ee_sum_nsum,
+			  gmx_step_t *ee_sum_step,
+			  gmx_step_t *ee_sum_nsteps,
+			  gmx_step_t *ee_sum_nsum,
 			  t_energy *ee_sum,
 			  t_enxframe *fr,int out_step)
 {
-  gmx_large_int_t nsteps,nsum,fr_nsum;
+  gmx_step_t nsteps,nsum,fr_nsum;
   int i;
  
   nsteps = *ee_sum_nsteps;
@@ -479,16 +478,12 @@ int gmx_eneconv(int argc,char *argv[])
   const char *bugs[] = {
     "When combining trajectories the sigma and E^2 (necessary for statistics) are not updated correctly. Only the actual energy is correct. One thus has to compute statistics in another way."
   };
-  ener_file_t in=NULL, out=NULL;
-  gmx_enxnm_t *enm=NULL;
-#if 0
-  ener_file_t in,out=NULL;
-  gmx_enxnm_t *enm=NULL;
-#endif
+  int        in,out=0;
+  gmx_enxnm_t *enm;
   t_enxframe *fr,*fro;
-  gmx_large_int_t ee_sum_step=0,ee_sum_nsteps,ee_sum_nsum;
+  gmx_step_t ee_sum_step=0,ee_sum_nsteps,ee_sum_nsum;
   t_energy   *ee_sum;
-  gmx_large_int_t laststep,startstep,startstep_file=0;
+  gmx_step_t laststep,startstep,startstep_file=0;
   int        noutfr;
   int        nre,nremax,this_nre,nfile,f,i,j,kkk,nset,*set=NULL;
   real       t; 
@@ -498,7 +493,6 @@ int gmx_eneconv(int argc,char *argv[])
   bool       ok;
   int        *cont_type;
   bool       bNewFile,bFirst,bNewOutput;
-  output_env_t oenv;
   
   t_filenm fnm[] = {
     { efEDR, "-f", NULL,    ffRDMULT },
@@ -533,8 +527,8 @@ int gmx_eneconv(int argc,char *argv[])
   };
   
   CopyRight(stderr,argv[0]);
-  parse_common_args(&argc,argv,PCA_BE_NICE,NFILE,fnm,asize(pa),
-                    pa,asize(desc),desc,asize(bugs),bugs,&oenv);
+  parse_common_args(&argc,argv,PCA_BE_NICE ,
+		    NFILE,fnm,asize(pa),pa,asize(desc),desc,asize(bugs),bugs);
   tadjust  = 0;
   nremax   = 0;
   nset     = 0;

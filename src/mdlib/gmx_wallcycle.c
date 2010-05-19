@@ -46,8 +46,8 @@
 #ifdef GMX_LIB_MPI
 #include <mpi.h>
 #endif
-#ifdef GMX_THREADS
-#include "tmpi.h"
+#ifdef GMX_THREAD_MPI
+#include "thread_mpi.h"
 #endif
 
 typedef struct
@@ -67,7 +67,7 @@ typedef struct gmx_wallcycle
     int          wc_depth;
     int          ewc_prev;
     gmx_cycles_t cycle_prev;
-    gmx_large_int_t   reset_counters;
+    gmx_step_t   reset_counters;
 #ifdef GMX_MPI
     MPI_Comm     mpi_comm_mygroup;
 #endif
@@ -82,9 +82,10 @@ bool wallcycle_have_counter(void)
   return gmx_cycles_have_counter();
 }
 
-gmx_wallcycle_t wallcycle_init(FILE *fplog,int resetstep,t_commrec *cr)
+gmx_wallcycle_t wallcycle_init(FILE *fplog,t_commrec *cr)
 {
     gmx_wallcycle_t wc;
+    char *env_ptr;
     
     
     if (!wallcycle_have_counter())
@@ -98,7 +99,6 @@ gmx_wallcycle_t wallcycle_init(FILE *fplog,int resetstep,t_commrec *cr)
     wc->wcc_all    = NULL;
     wc->wc_depth   = 0;
     wc->ewc_prev   = -1;
-    wc->reset_counters = resetstep;
 
 #ifdef GMX_MPI
     if (PAR(cr) && getenv("GMX_CYCLE_BARRIER") != NULL)
@@ -115,15 +115,18 @@ gmx_wallcycle_t wallcycle_init(FILE *fplog,int resetstep,t_commrec *cr)
     snew(wc->wcc,ewcNR);
     if (getenv("GMX_CYCLE_ALL") != NULL)
     {
-/*#ifndef GMX_THREADS*/
         if (fplog) 
         {
             fprintf(fplog,"\nWill time all the code during the run\n\n");
         }
         snew(wc->wcc_all,ewcNR*ewcNR);
-/*#else*/
-        gmx_fatal(FARGS, "GMX_CYCLE_ALL is incompatible with threaded code");
-/*#endif*/
+    }
+    
+    /* Read variable GMX_RESET_COUNTER from environment */ 
+    wc->reset_counters = -1;
+    if ((env_ptr=getenv("GMX_RESET_COUNTERS")) != NULL)
+    {
+        sscanf(env_ptr,gmx_step_pfmt,&wc->reset_counters);
     }
     
     return wc;
@@ -423,7 +426,7 @@ void wallcycle_print(FILE *fplog, int nnodes, int npme, double realtime,
     }
 }
 
-extern gmx_large_int_t wcycle_get_reset_counters(gmx_wallcycle_t wc)
+extern gmx_step_t wcycle_get_reset_counters(gmx_wallcycle_t wc)
 {
     if (wc == NULL)
     {
@@ -433,7 +436,7 @@ extern gmx_large_int_t wcycle_get_reset_counters(gmx_wallcycle_t wc)
     return wc->reset_counters;
 }
 
-extern void wcycle_set_reset_counters(gmx_wallcycle_t wc, gmx_large_int_t reset_counters)
+extern void wcycle_set_reset_counters(gmx_wallcycle_t wc, gmx_step_t reset_counters)
 {
     if (wc == NULL)
         return;

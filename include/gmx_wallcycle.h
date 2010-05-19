@@ -44,7 +44,7 @@ enum { ewcRUN, ewcSTEP, ewcPPDURINGPME, ewcDOMDEC, ewcDDCOMMLOAD, ewcDDCOMMBOUND
 extern bool wallcycle_have_counter(void);
 /* Returns if cycle counting is supported */
 
-extern gmx_wallcycle_t wallcycle_init(FILE *fplog,int resetstep,t_commrec *cr);
+extern gmx_wallcycle_t wallcycle_init(FILE *fplog,t_commrec *cr);
 /* Returns the wall cycle structure.
  * Returns NULL when cycle counting is not supported.
  */
@@ -65,10 +65,10 @@ extern void wallcycle_print(FILE *fplog, int nnodes, int npme, double realtime,
 			    gmx_wallcycle_t wc, double cycles[]);
 /* Print the cycle and time accounting */
 
-extern gmx_large_int_t wcycle_get_reset_counters(gmx_wallcycle_t wc);
+extern gmx_step_t wcycle_get_reset_counters(gmx_wallcycle_t wc);
 /* Return reset_counters from wc struct */
 
-extern void wcycle_set_reset_counters(gmx_wallcycle_t wc, gmx_large_int_t reset_counters);
+extern void wcycle_set_reset_counters(gmx_wallcycle_t wc, gmx_step_t reset_counters);
 /* Set reset_counters */
 
 #endif /* _gmx_wallcycle_h */

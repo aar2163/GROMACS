@@ -384,7 +384,6 @@ void renum_atype(t_params plist[],gmx_mtop_t *mtop,
   real     *new_gb_radius;
   real     *new_S_hct;
   int      *new_atomnumber;
-  char     ***new_atomname;
   
   ntype = get_atomtype_ntypes(ga);
   snew(typelist,ntype);
@@ -439,7 +438,6 @@ void renum_atype(t_params plist[],gmx_mtop_t *mtop,
   snew(new_atomnumber,nat);  
   snew(new_gb_radius,nat);
   snew(new_S_hct,nat);
-  snew(new_atomname,nat);
 
   /* We now have a list of unique atomtypes in typelist */
 
@@ -469,7 +467,6 @@ void renum_atype(t_params plist[],gmx_mtop_t *mtop,
     new_atomnumber[i] = get_atomtype_atomnumber(mi,ga);
     new_gb_radius[i]  = get_atomtype_gb_radius(mi,ga);
     new_S_hct[i]      = get_atomtype_S_hct(mi,ga);
-    new_atomname[i]   = ga->atomname[mi];
   }
   
   for(i=0; (i<nat*nat); i++) {
@@ -485,8 +482,6 @@ void renum_atype(t_params plist[],gmx_mtop_t *mtop,
   sfree(ga->atomnumber);
   sfree(ga->gb_radius);
   sfree(ga->S_hct);
-  /* Dangling atomname pointers ? */
-  sfree(ga->atomname);
   
   ga->radius     = new_radius;
   ga->vol        = new_vol;
@@ -494,7 +489,6 @@ void renum_atype(t_params plist[],gmx_mtop_t *mtop,
   ga->atomnumber = new_atomnumber;
   ga->gb_radius  = new_gb_radius;
   ga->S_hct      = new_S_hct;
-  ga->atomname   = new_atomname;
 
   ga->nr=nat;
 

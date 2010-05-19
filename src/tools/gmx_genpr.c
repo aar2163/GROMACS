@@ -98,15 +98,13 @@ int gmx_genpr(int argc,char *argv[])
   };
 #define npargs asize(pa)
 
-  output_env_t oenv;
   t_atoms      *atoms=NULL;
   int          i,j,k;
   FILE         *out;
   int          igrp;
   real         d,dd,lo,hi;
   atom_id      *ind_grp;
-  const char   *xfn,*nfn;
-  char         *gn_grp;
+  char         *gn_grp,*xfn,*nfn;
   char         title[STRLEN];
   matrix       box;
   bool         bFreeze;
@@ -122,7 +120,7 @@ int gmx_genpr(int argc,char *argv[])
   
   CopyRight(stderr,argv[0]);
   parse_common_args(&argc,argv,0,NFILE,fnm,npargs,pa,
-		    asize(desc),desc,0,NULL,&oenv);
+		    asize(desc),desc,0,NULL);
   
   bFreeze = opt2bSet("-of",NFILE,fnm) || opt2parg_bSet("-freeze",asize(pa),pa);
   bDisre  = bDisre || opt2parg_bSet("-disre_dist",npargs,pa);

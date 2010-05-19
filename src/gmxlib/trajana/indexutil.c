@@ -28,7 +28,7 @@
  *
  * For more info, check our website at http://www.gromacs.org
  */
-/*! \internal \file
+/*! \file
  * \brief Implementation of functions in indexutil.h.
  */
 #ifdef HAVE_CONFIG_H
@@ -46,14 +46,14 @@
  * gmx_ana_indexgrps_t functions
  ********************************************************************/
 
-/*! \internal \brief
+/*! \brief
  * Stores a set of index groups.
  */
 struct gmx_ana_indexgrps_t
 {
-    /** Number of index groups. */
+    //! Number of index groups.
     int                 nr;
-    /** Array of index groups. */
+    //! Array of index groups.
     gmx_ana_index_t    *g;
 };
 
@@ -111,8 +111,7 @@ gmx_ana_indexgrps_set(gmx_ana_indexgrps_t **g, int ngrps, int *isize,
  * If both are null, the index group structure is initialized empty.
  */
 void
-gmx_ana_indexgrps_init(gmx_ana_indexgrps_t **g, t_topology *top, 
-                       const char *fnm)
+gmx_ana_indexgrps_init(gmx_ana_indexgrps_t **g, t_topology *top, char *fnm)
 {
     t_blocka *block = NULL;
     char    **names = NULL;
@@ -169,8 +168,7 @@ gmx_ana_indexgrps_init(gmx_ana_indexgrps_t **g, t_topology *top,
  * topology (uses Gromacs routine get_index()).
  */
 void
-gmx_ana_indexgrps_get(gmx_ana_indexgrps_t **g, t_topology *top, 
-                      const char *fnm, int ngrps)
+gmx_ana_indexgrps_get(gmx_ana_indexgrps_t **g, t_topology *top, char *fnm, int ngrps)
 {
     int      *isize;
     atom_id **index;
@@ -200,7 +198,7 @@ gmx_ana_indexgrps_get(gmx_ana_indexgrps_t **g, t_topology *top,
  * rd_index().
  */
 void
-gmx_ana_indexgrps_rd(gmx_ana_indexgrps_t **g, const char *fnm, int ngrps)
+gmx_ana_indexgrps_rd(gmx_ana_indexgrps_t **g, char *fnm, int ngrps)
 {
     gmx_ana_indexgrps_get(g, NULL, fnm, ngrps);
 }
@@ -327,16 +325,15 @@ gmx_ana_indexgrps_find(gmx_ana_index_t *dest, gmx_ana_indexgrps_t *src, char *na
 
 /*!
  * \param[in]  g      Index groups to print.
- * \param[in]  maxn   Maximum number of indices to print (-1 = print all).
  */
 void
-gmx_ana_indexgrps_dump(gmx_ana_indexgrps_t *g, int maxn)
+gmx_ana_indexgrps_dump(gmx_ana_indexgrps_t *g)
 {
     int  i;
 
     for (i = 0; i < g->nr; ++i)
     {
-        gmx_ana_index_dump(&g->g[i], i, maxn);
+        gmx_ana_index_dump(&g->g[i], i);
     }
 }
 
@@ -475,12 +472,11 @@ gmx_ana_index_copy(gmx_ana_index_t *dest, gmx_ana_index_t *src, bool bAlloc)
 /*!
  * \param[in]  g      Index group to print.
  * \param[in]  i      Group number to use if the name is NULL.
- * \param[in]  maxn   Maximum number of indices to print (-1 = print all).
  */
 void
-gmx_ana_index_dump(gmx_ana_index_t *g, int i, int maxn)
+gmx_ana_index_dump(gmx_ana_index_t *g, int i)
 {
-    int  j, n;
+    int  j;
 
     if (g->name)
     {
@@ -491,18 +487,9 @@ gmx_ana_index_dump(gmx_ana_index_t *g, int i, int maxn)
         fprintf(stderr, "Group %d", i+1);
     }
     fprintf(stderr, " (%d atoms):", g->isize);
-    n = g->isize;
-    if (maxn >= 0 && n > maxn)
-    {
-        n = maxn;
-    }
-    for (j = 0; j < n; ++j)
+    for (j = 0; j < g->isize; ++j)
     {
         fprintf(stderr, " %d", g->index[j]+1);
-    }
-    if (n < g->isize)
-    {
-        fprintf(stderr, " ...");
     }
     fprintf(stderr, "\n");
 }
@@ -560,7 +547,7 @@ gmx_ana_index_check_sorted(gmx_ana_index_t *g)
  * Set operations
  ********************************************************************/
 
-/** Helper function for gmx_ana_index_sort(). */
+//! Helper function for gmx_ana_index_sort().
 static int
 cmp_atomid(const void *a, const void *b)
 {

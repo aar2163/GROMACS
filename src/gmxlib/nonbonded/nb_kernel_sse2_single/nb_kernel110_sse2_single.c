@@ -291,6 +291,5 @@ void nb_kernel110_sse2_single(
     *inneriter       = nj1;            
 }
 
-#else
-int nb_kernel110_sse2_single_dummy;
+
 #endif

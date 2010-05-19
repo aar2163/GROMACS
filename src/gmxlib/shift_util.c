@@ -307,7 +307,7 @@ real shift_LRcorrection(FILE *fp,int start,int natoms,
 	    
 	    dr2  += dx[m]*dx[m];
 	  }
-	  dr_1    = gmx_invsqrt(dr2);
+	  dr_1    = invsqrt(dr2);
 	  dr      = 1.0/dr_1;
 	  dr_3    = dr_1*dr_1*dr_1;
 	  /* Compute exclusion energy and scalar force */
@@ -376,7 +376,7 @@ static real rgbset(real col)
 
 
 
-real analyse_diff(FILE *log,char *label,const output_env_t oenv,
+real analyse_diff(FILE *log,char *label,
 		  int natom,rvec ffour[],rvec fpppm[],
 		  real phi_f[],real phi_p[],real phi_sr[],
 		  char *fcorr,char *pcorr,char *ftotcorr,char *ptotcorr)
@@ -413,20 +413,19 @@ real analyse_diff(FILE *log,char *label,const output_env_t oenv,
   fprintf(log,"%-10s  %10.3f  %10.3f\n","Potential",pmax,sqrt(p2sum/(natom)));
 
   if (fcorr) {  
-    fp = xvgropen(fcorr,"LR Force Correlation","Four-Force","PPPM-Force",oenv);
+    fp = xvgropen(fcorr,"LR Force Correlation","Four-Force","PPPM-Force");
     for(i=0; (i<natom); i++) {
       for(m=0; (m<DIM); m++) {
 	fprintf(fp,"%10.3f  %10.3f\n",ffour[i][m],fpppm[i][m]);
       }
     }
     gmx_fio_fclose(fp);
-    do_view(oenv,fcorr,NULL);
+    do_view(fcorr,NULL);
   }
   if (pcorr)  
-    fp = xvgropen(pcorr,"LR Potential Correlation","Four-Pot","PPPM-Pot",oenv);
+    fp = xvgropen(pcorr,"LR Potential Correlation","Four-Pot","PPPM-Pot");
   if (ptotcorr)
-    gp = xvgropen(ptotcorr,"Total Potential Correlation","Four-Pot","PPPM-Pot",
-                  oenv);
+    gp = xvgropen(ptotcorr,"Total Potential Correlation","Four-Pot","PPPM-Pot");
   for(i=0; (i<natom); i++) {
     if (pcorr)
       fprintf(fp,"%10.3f  %10.3f\n",phi_f[i],phi_p[i]);
@@ -435,11 +434,11 @@ real analyse_diff(FILE *log,char *label,const output_env_t oenv,
   }
   if (pcorr) {
     gmx_fio_fclose(fp);
-    do_view(oenv,pcorr,NULL);
+    do_view(pcorr,NULL);
   }
   if (ptotcorr) {
     gmx_fio_fclose(gp);
-    do_view(oenv,ptotcorr,NULL);
+    do_view(ptotcorr,NULL);
   }
 
   return rmsf;

@@ -97,7 +97,6 @@ int main(int argc,char *argv[])
   t_filenm fnm[] = {
     { efXVG, "-o", "potje", ffWRITE }
   };
-  output_env_t oenv;
 #define NFILE asize(fnm)
   char *legend[] = { "Lennard-Jones", "Buckingham" };
   FILE      *fp;
@@ -110,7 +109,7 @@ int main(int argc,char *argv[])
   /* CopyRight(stdout,argv[0]);*/
   parse_common_args(&argc,argv,PCA_CAN_VIEW,
 		    NFILE,fnm,asize(pa),pa,asize(desc),
-		    desc,0,NULL,&oenv);
+		    desc,0,NULL);
 
   bBham = (opt2parg_bSet("-A",asize(pa),pa) || 
 	   opt2parg_bSet("-B",asize(pa),pa) ||
@@ -151,10 +150,8 @@ int main(int argc,char *argv[])
   }
   qq = qi*qj;
       
-  fp = xvgropen(ftp2fn(efXVG,NFILE,fnm),"Potential","r (nm)","E (kJ/mol)",
-                oenv);
-  xvgr_legend(fp,asize(legend),legend,
-                oenv);
+  fp = xvgropen(ftp2fn(efXVG,NFILE,fnm),"Potential","r (nm)","E (kJ/mol)");
+  xvgr_legend(fp,asize(legend),legend);
   if (sig == 0)
     sig=0.25;
   minimum = -1;
@@ -179,7 +176,7 @@ int main(int argc,char *argv[])
   }
   fclose(fp);
   
-  do_view(oenv,ftp2fn(efXVG,NFILE,fnm),NULL);
+  do_view(ftp2fn(efXVG,NFILE,fnm),NULL);
 
   thanx(stderr);  
 	       

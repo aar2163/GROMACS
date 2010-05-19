@@ -86,13 +86,13 @@ typedef struct
 
 typedef struct
 {
-  gmx_large_int_t nsteps;       /* The number of steps in the history            */
-  gmx_large_int_t nsum;         /* The nr. of steps in the ener_ave and ener_sum */
+  gmx_step_t nsteps;       /* The number of steps in the history            */
+  gmx_step_t nsum;         /* The nr. of steps in the ener_ave and ener_sum */
   double *   ener_ave;     /* Energy term history sum to get fluctuations   */
   double *   ener_sum;     /* Energy term history sum to get fluctuations   */
   int        nener;        /* Number of energy terms in two previous arrays */
-  gmx_large_int_t nsteps_sim;   /* The number of steps in ener_sum_sim           */
-  gmx_large_int_t nsum_sim;     /* The number of frames in ener_sum_sim          */
+  gmx_step_t nsteps_sim;   /* The number of steps in ener_sum_sim           */
+  gmx_step_t nsum_sim;     /* The number of frames in ener_sum_sim          */
   double *   ener_sum_sim; /* Energy term history sum of the whole sim      */
 }
 energyhistory_t;
@@ -104,7 +104,7 @@ typedef struct
  int ak;
  int *list; /* list[nr] of atoms to be rotated */
  t_ilist *ilist;
- int nr;
+ bool bmove;
  real value;
 } gmx_mc_movegroup;
 
@@ -113,16 +113,20 @@ typedef struct
  int start;
  int end;
  int nr;
+ int cgsnr;
  rvec delta_x;
  rvec delta_phi;
  real delta_v;
  real bolt;
  bool update_box;
+ bool n_mc;
  gmx_mc_movegroup *group;
  int ngroups;
+ int mvgroup;
  int mol;
+ bool *bNS;
+ real epot_prev;
 } gmx_mc_move;
-
 typedef struct
 {
   int           natoms;
@@ -157,9 +161,9 @@ typedef struct
   int           ncg_gl; /* The number of local charge groups            */
   int           *cg_gl; /* The global cg number of the local cgs        */
   int           cg_gl_nalloc; /* Allocation size of cg_gl;              */
-  gmx_mc_move   mc_move;
-  int           step_ac;
-  int           step_tot;
+  gmx_mc_move   *mc_move;
+  int           step_ac[MC_NR];
+  int           step_tot[MC_NR];
   int           vol_ac;
   int           vol_tot;
 } t_state;

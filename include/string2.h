@@ -32,9 +32,7 @@
  * And Hey:
  * Gromacs Runs On Most of All Computer Systems
  */
-/*! \file
- * \brief Generic string handling functions.
- */
+
 #ifndef _string2_h
 #define _string2_h
 
@@ -105,19 +103,6 @@ extern char *gmx_strndup(const char *src, int n);
 
 #define strndup gmx_strndup
 
-/** Pattern matcing with wildcards. */
-extern int
-gmx_wcmatch(const char *pattern, const char *src);
-
-/** Return value for gmx_wcmatch() when there is no match. */
-#define GMX_NO_WCMATCH 1
-
-
-/* this is our implementation of strsep, the thread-safe replacement for
-   strtok */
-extern char *gmx_strsep(char **stringp, const char *delim);
-
-
 extern char *wrap_lines(const char *buf,int line_width, int indent,
 			bool bIndentFirst);
 /* wraps lines at 'linewidth', indenting all following
@@ -137,8 +122,8 @@ extern char *wrap_lines(const char *buf,int line_width, int indent,
 #include <ctype.h>
 #include "errno.h"
 
-gmx_large_int_t
-str_to_large_int_t(const char *str, char **endptr);
+gmx_step_t
+str_to_gmx_step_t(const char *str, char **endptr);
 
 #ifdef __cplusplus
 }

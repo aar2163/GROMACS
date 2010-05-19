@@ -52,8 +52,8 @@
 #ifdef GMX_LIB_MPI
 #include <mpi.h>
 #endif
-#ifdef GMX_THREADS
-#include "tmpi.h"
+#ifdef GMX_THREAD_MPI
+#include "thread_mpi.h"
 #endif
 
 #include "mpelogging.h"
@@ -94,7 +94,7 @@ typedef struct gmx_pme_comm_n_box {
   int    maxshift1;
   real   lambda;
   int    flags;
-  gmx_large_int_t step;
+  gmx_step_t step;
 } gmx_pme_comm_n_box_t;
 
 typedef struct {
@@ -151,7 +151,7 @@ static void gmx_pme_send_q_x(t_commrec *cr, int flags,
 			     matrix box, rvec *x,
 			     real lambda,
 			     int maxshift0, int maxshift1,
-			     gmx_large_int_t step)
+			     gmx_step_t step)
 {
   gmx_domdec_t *dd;
   gmx_pme_comm_n_box_t *cnb;
@@ -240,7 +240,7 @@ void gmx_pme_send_q(t_commrec *cr,
 }
 
 void gmx_pme_send_x(t_commrec *cr, matrix box, rvec *x,
-		    bool bFreeEnergy, real lambda,gmx_large_int_t step)
+		    bool bFreeEnergy, real lambda,gmx_step_t step)
 {
   int flags;
 
@@ -265,7 +265,7 @@ int gmx_pme_recv_q_x(struct gmx_pme_pp *pme_pp,
 		     matrix box, rvec **x,rvec **f,
 		     int *maxshift0, int *maxshift1,
 		     bool *bFreeEnergy,real *lambda,
-		     gmx_large_int_t *step)
+		     gmx_step_t *step)
 {
   gmx_pme_comm_n_box_t cnb;
   int  nat=0,q,messages,sender;
@@ -373,8 +373,6 @@ int gmx_pme_recv_q_x(struct gmx_pme_pp *pme_pp,
     MPI_Waitall(messages, pme_pp->req, pme_pp->stat);
     messages = 0;
   } while (!(cnb.flags & (PP_PME_COORD | PP_PME_FINISH)));
-
-  *step = cnb.step;
 #endif
 
   *chargeA = pme_pp->chargeA;
@@ -382,6 +380,7 @@ int gmx_pme_recv_q_x(struct gmx_pme_pp *pme_pp,
   *x       = pme_pp->x;
   *f       = pme_pp->f;
   
+  *step = cnb.step;
 
   return ((cnb.flags & PP_PME_FINISH) ? -1 : nat);
 }
@@ -422,6 +421,8 @@ void gmx_pme_receive_f(t_commrec *cr,
 		       real *energy, real *dvdlambda,
 		       float *pme_cycles)
 {
+  static rvec *f_rec=NULL;
+  static int  nalloc=0;
   int natoms,i;
 
 #ifdef GMX_PME_DELAYED_WAIT
@@ -431,22 +432,19 @@ void gmx_pme_receive_f(t_commrec *cr,
 
   natoms = cr->dd->nat_home;
 
-  if (natoms > cr->dd->pme_recv_f_alloc)
-  {
-      cr->dd->pme_recv_f_alloc = over_alloc_dd(natoms);
-      srenew(cr->dd->pme_recv_f_buf, cr->dd->pme_recv_f_alloc);
+  if (natoms > nalloc) {
+    nalloc = over_alloc_dd(natoms);
+    srenew(f_rec,nalloc);
   }
 
 #ifdef GMX_MPI  
-  MPI_Recv(cr->dd->pme_recv_f_buf[0], 
-           natoms*sizeof(rvec),MPI_BYTE,
+  MPI_Recv(f_rec[0],natoms*sizeof(rvec),MPI_BYTE,
 	   cr->dd->pme_nodeid,0,cr->mpi_comm_mysim,
 	   MPI_STATUS_IGNORE);
 #endif
 
   for(i=0; i<natoms; i++)
-      rvec_inc(f[i],cr->dd->pme_recv_f_buf[i]);
-
+    rvec_inc(f[i],f_rec[i]);
   
   receive_virial_energy(cr,vir,energy,dvdlambda,pme_cycles);
 }

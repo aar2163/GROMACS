@@ -157,7 +157,7 @@ gmx_nb_free_energy_kernel(int                  icoul,
             dy               = iy - x[j3+1];      
             dz               = iz - x[j3+2];      
             rsq              = dx*dx+dy*dy+dz*dz;
-            rinv             = gmx_invsqrt(rsq);
+            rinv             = invsqrt(rsq);
             r                = rsq*rinv;
             tjA              = ntiA+2*typeA[jnr];
             tjB              = ntiB+2*typeB[jnr];
