@@ -1729,8 +1729,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
                      (mc_move->bNS[mc_move->cgsnr] ? GMX_FORCE_NS : 0)  | force_flags);
 
-               //if(fr->n_mc)
-                //mc_move->bNS[mc_move->cgsnr] = FALSE;
+               if(fr->n_mc)
+                mc_move->bNS[mc_move->cgsnr] = FALSE;
 
                epot_delta = -enerd->term[F_EPOT];
                delta_bla = -enerd->term[F_EPOT];
