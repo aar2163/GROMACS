@@ -2084,7 +2084,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                     }
                     wallcycle_start(wcycle,ewcPMEMESH);
                     status = gmx_pme_do(fr->pmedata,
-                                        n_mc ? mc_move->start : md->start,n_mc ? 3 : md->homenr - fr->n_tpi,
+                                        md->start,md->homenr - fr->n_tpi,
                                         x,fr->f_novirsum,
                                         md->chargeA,md->chargeB,
                                         bSB ? boxs : box,cr,
