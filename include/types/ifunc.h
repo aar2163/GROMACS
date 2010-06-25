@@ -35,6 +35,7 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#include <types/state.h>
 
 #ifndef _ifunc_h
 #define _ifunc_h
@@ -46,7 +47,7 @@ typedef real t_ifunc(int nbonds,const t_iatom iatoms[],
 		     const t_pbc *pbc,const t_graph *g,
 		     real lambda,real *dvdlambda,
 		     const t_mdatoms *md,t_fcdata *fcd,
-		     int *ddgatindex);
+		     int *ddgatindex,int ftype,gmx_mc_move *mc_move);
 
 /*
  * The function type t_ifunc() calculates one interaction, using iatoms[] 

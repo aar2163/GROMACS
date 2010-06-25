@@ -954,11 +954,17 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   real        deltax;
   real delta_bla;  /* this was for testing , delete it later */ 
   gmx_rng_t   rng;
+  real        bolt;
+  int         gone[216];
 #ifdef GMX_FAHCORE
   /* Temporary addition for FAHCORE checkpointing */
   int chkpt_ret;
 #endif
 
+        for(ii=0;ii<216;ii++)
+        {
+         gone[ii]=0;
+        }
   
     /* Check for special mdrun options */
     bRerunMD = (Flags & MD_RERUN);
@@ -1074,7 +1080,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
       snew(f_global,state_global->natoms);
     }
   } else {
-    if (PAR(cr)) {
+    if (PAR(cr) && !bMC) {
       /* Initialize the particle decomposition and split the topology */
       top = split_system(fplog,top_global,ir,cr);
 
@@ -1217,7 +1223,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
       calc_ke_part(state,&(ir->opts),mdatoms,ekind,nrnb);
       debug_gmx();
 
-      if (PAR(cr))
+      if (PAR(cr) && !bMC)
       {
 	  GMX_MPE_LOG(ev_global_stat_start);
 	  
@@ -1255,15 +1261,20 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   if(bMC) {
    snew(state->mc_move,1);
    mc_move = state->mc_move;
+   init_enerd_mc(mc_move,top,mdatoms->homenr);
    snew(mc_move->group,MC_NR);
    snew(mc_move->bNS,top->cgs.nr+1);
    mc_move->n_mc = FALSE;
+   mc_move->cgsnr = top->cgs.nr;
+   mc_move->homenr = mdatoms->homenr;
    for(ii=0;ii<top->cgs.nr;ii++)
     mc_move->bNS[ii]=TRUE;
 
    mc_move->group[MC_BONDS].ilist = &top_global->moltype[0].mc_bonds;
    mc_move->group[MC_ANGLES].ilist = &top_global->moltype[0].mc_angles;
    mc_move->group[MC_DIHEDRALS].ilist = &top_global->moltype[0].mc_dihedrals;
+  
+   mc_move->xprev = xcopy;
   }
     if (MASTER(cr))
     {
@@ -1313,7 +1324,10 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   wallcycle_start(wcycle,ewcRUN);
   if (fplog)
     fprintf(fplog,"\n");
-
+             for(ii=0;ii<0;ii++){
+              mc_move->start=(int)(gmx_rng_uniform_real(rng)*top_global->mols.nr);
+              printf("%d %d\n",mc_move->start*3,ii);
+             }
   /* safest point to do file checkpointing is here.  More general point would be immediately before integrator call */
   #ifdef GMX_FAHCORE
 	chkpt_ret=fcCheckPointParallel( (MASTER(cr)==0),
@@ -1379,8 +1393,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     {
         init_nlistheuristics(&nlh,bGStatEveryStep,step);
     }
-
     bLastStep = (bRerunMD || step_rel > ir->nsteps);
+
     while (!bLastStep || (bRerunMD && bNotLastFrame)) {
         
         wallcycle_start(wcycle,ewcSTEP);
@@ -1590,7 +1604,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              * the full step kinetic energy and possibly for T-coupling.
              */
             calc_ke_part(state,&(ir->opts),mdatoms,ekind,nrnb);
-            if (PAR(cr))
+            if (PAR(cr) && !bMC)
             {
                 global_stat(fplog,gstat,cr,enerd,force_vir,shake_vir,mu_tot,
                             ir,ekind,FALSE,constr,vcm,NULL,NULL,&terminate,
@@ -1708,83 +1722,48 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             {
               if(step_rel && !update_box && !do_ene && !do_vir) {
                set_bexclude_mc(top,mc_move,fr,TRUE);
+               gone[mc_move->cgs]++;
               }
               else
               {
-               mc_move->cgsnr = top->cgs.nr;
+               mc_move->cgs = top->cgs.nr;
+               mc_move->start = mdatoms->start;
+               mc_move->end = mdatoms->homenr;
               }
-
               if(!fr->n_mc || bNS)
               {
                for(ii=0;ii<top->cgs.nr+1;ii++)
                 mc_move->bNS[ii]=TRUE;
               }
               
-
-              if(step_rel) {
-               do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
-                     boxcopy,xcopy,&state->hist,mc_move,
-                     f,force_vir,mdatoms,enerd,fcd,
-                     state->lambda,graph,
-                     fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     (mc_move->bNS[mc_move->cgsnr] ? GMX_FORCE_NS : 0)  | force_flags);
-
-               //if(fr->n_mc)
-                //mc_move->bNS[mc_move->cgsnr] = FALSE;
-
-               epot_delta = -enerd->term[F_EPOT];
-               delta_bla = -enerd->term[F_EPOT];
-               if (update_box)
-                copy_enerdata(enerd,enerdcopy); /* So if the volume move is rejected we dont need to calculate it again */
-               else 
-                sub_enerdata(enerdcopy,enerd,enerd2);
-              }
             }
             do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,bMC ? mc_move : NULL,
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     ((bNS) || !step_rel ? GMX_FORCE_NS : 0) | force_flags);
+                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
             if(bMC) {
              if(step_rel) {
 
-              epot_delta += enerd->term[F_EPOT];
-               delta_bla += enerd->term[F_EPOT];
-                
-            //printf("to aki %d %f\n",(int)step_rel,epot_delta);
-              if(!update_box)
-               sum_enerdata(enerd2,enerd,enerd);
+              epot_delta = delta_enerd_mc(enerd,enerdcopy,mc_move,&top->idef,fr,mdatoms->homenr);
 
-            //printf("enerd1 %f\n",enerd->term[F_EPOT]);
-              if(!update_box && !do_ene && !do_vir) {
-               set_bexclude_mc(top,mc_move,fr,FALSE);
-              }
-            /*do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
-                     boxcopy,xcopy,&state->hist,
-                     f,force_vir,mdatoms,enerd,fcd,
-                     state->lambda,graph,
-                     fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
-              epot_delta = -enerd->term[F_EPOT];
-            do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
-                     state->box,state->x,&state->hist,
-                     f,force_vir,mdatoms,enerd,fcd,
-                     state->lambda,graph,
-                     fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
-              epot_delta += enerd->term[F_EPOT];
-              if(fabs(epot_delta-delta_bla) > 0.0001) 
-                 printf("epot_delta %f deltadelta %12.15f step %d\n",epot_delta,epot_delta-delta_bla,(int)step_rel);
+              //sub_enerdata(enerd,enerdcopy,enerd2);
+              //epot_delta = enerd2->term[F_EPOT];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
-               printf("enerd %f %d\n",enerd->term[ii],ii);
-              }*/
+               printf("enerdp %f  %f %d %d %d\n",enerd->term[ii],enerdcopy->term[ii],ii,(int)step_rel,mc_move->mvgroup);
+              }
+            //printf("to aki %d %f\n",(int)step_rel,epot_delta);
+              //if(!update_box)
+               //sum_enerdata(enerd2,enerd,enerd);
+
+            //printf("enerd1 %f\n",enerd->term[F_EPOT]);
              }
              else 
              {
               copy_enerdata(enerd,enerdcopy);
-              //mc_move->bNS[mc_move->cgsnr] = FALSE;
+              //mc_move->bNS[mc_move->cgs] = FALSE;
              }
 
              deltaH = epot_delta;
@@ -1794,8 +1773,36 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               deltaH += ir->ref_p[XX][XX]*volume_delta/PRESFAC;
               deltaH -= top_global->mols.nr*BOLTZ*ir->opts.ref_t[0]*log(det(state->box)/det(boxcopy));
              }
+
+             bolt = gmx_rng_uniform_real(rng);
+             //printf("bolt %f %d\n",bolt,(int)step_rel);             
+             if(fr->bEwald) 
+             {
+              if (step_rel && !update_box && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.5*bolt)))
+              {
+               bolt = 2;  /* Preliminary energy check (without recip PME) */
+              }
+              else
+              {
+               do_recip_mc(fplog,step,fr,ir,&(top->idef),
+                      cr,nrnb,wcycle,mdatoms,&(ir->opts),
+                      state->x,&state->hist,f,enerd,fcd,fr->born,
+                      &(top->atomtypes),bBornRadii,state->box,
+                      state->lambda,graph,&(top->excls),fr->mu_tot,
+                      force_flags,NULL,mc_move);
+               deltaH += enerd->term[F_COUL_RECIP] - mc_move->enerd_prev[F_COUL_RECIP][0];
+               enerd->term[F_EPOT] += enerd->term[F_COUL_RECIP];
+              for(ii=0;ii<F_NRE;ii++) {
+               if(enerd->term[ii] && 1 == 2)
+               printf("enerd %f %d %d %d %d\n",enerd->term[ii],ii,mc_move->mvgroup,mc_move->start,(int)step_rel);
+              }
+              }
+             }
+
+
              if(bBOXok) {
-              if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > gmx_rng_uniform_real(rng)) || !step_rel) {
+              if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > bolt) || !step_rel) {
+               mc_move->bNS[mc_move->cgs] = TRUE;
                if(update_box) {
                 state->vol_ac++;
                }
@@ -1817,6 +1824,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      (bNS ? GMX_FORCE_NS : 0) | force_flags);
                }*/
                copy_enerdata(enerd,enerdcopy);
+               clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,TRUE);
                if(do_vir)
                {
                 copy_mat(force_vir,force_vircopy);
@@ -1827,6 +1835,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                }
               }
               else {
+               clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
                if (DOMAINDECOMP(cr)) {
                }
                else {
@@ -1839,6 +1848,15 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                }
               }
              }
+             else
+             {
+              clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
+             }
+             if(PAR(cr))
+             {
+              gmx_bcast(sizeof(boxcopy),boxcopy,cr);
+              gmx_bcast(sizeof(xcopy),xcopy,cr);
+             }
             
              if(update_box) {
               state->vol_tot++;
@@ -1850,6 +1868,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             }
         }
         
+              if(bMC && !update_box && !do_ene && !do_vir) {
+               set_bexclude_mc(top,mc_move,fr,FALSE);
+              }
         GMX_BARRIER(cr->mpi_comm_mygroup);
         
         if (bTCR)
@@ -2240,7 +2261,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         }
         else
         {
-            if (PAR(cr))
+            if (PAR(cr) && !bMC)
             {
                 wallcycle_start(wcycle,ewcMoveE);
                 /* Globally (over all NODEs) sum energy, virial etc. 
@@ -2299,7 +2320,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             {
              /* Add force and shake contribution to the virial */
              m_add(force_vir,shake_vir,total_vir);
-             copy_mat(force_vir,total_vir);
+             //copy_mat(force_vir,total_vir);
             }
             
             /* Calculate the amplitude of the cosine velocity profile */
@@ -2431,7 +2452,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
         {
             runtime_upd_proc(runtime);
         }
-        
         /* Output stuff */
         if (MASTER(cr))
         {
@@ -2538,7 +2558,19 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
 
     /* Stop the time */
     runtime_end(runtime);
-    
+    real soma=0;
+        for(ii=0;ii<216;ii++)
+        {
+         soma+=gone[ii];
+        }
+        soma=soma/216;
+    real sigma=0;
+        for(ii=0;ii<216;ii++)
+        {
+         sigma+=sqr(gone[ii]-soma);
+        }
+    sigma=sqrt(sigma/216);
+    printf("av %f sigma %f\n",soma,sigma);
     if (bRerunMD)
     {
         close_trj(status);

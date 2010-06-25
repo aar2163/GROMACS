@@ -66,7 +66,7 @@ void nb_kernel312(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -112,6 +112,7 @@ void nb_kernel312(
     real          dx33,dy33,dz33,rsq33,rinv33;
     real          qO,qH,qqOO,qqOH,qqHH;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -197,13 +198,21 @@ void nb_kernel312(
             fiz2             = 0;              
             fix3             = 0;              
             fiy3             = 0;              
-            fiz3             = 0;              
+            fiz3             = 0; 
+             
+            ggid             = gid[n];         
             
             for(k=nj0; (k<nj1); k++)
             {
 
                 /* Get j neighbor index, and coordinate index */
-                jnr              = jjnr[k];        
+                jnr              = jjnr[k];   
+     
+                /*if(start && (ii < *start || ii >= *end) && (jnr < *start || jnr >= *end))
+                {
+                 continue;
+                } */ 
+
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -267,7 +276,7 @@ void nb_kernel312(
                 rinv33           = invsqrt(rsq33);
 
                 /* Load parameters for j atom */
-                qq               = qqOO;           
+                qq               = qqOO;         
                 rinvsq           = rinv11*rinv11;  
 
                 /* Calculate table index */
@@ -279,6 +288,19 @@ void nb_kernel312(
                 eps              = rt-n0;          
                 eps2             = eps*eps;        
                 nnn              = 4*n0;           
+
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
 
                 /* Tabulated coulomb interaction */
                 Y                = VFtab[nnn];     
@@ -298,6 +320,19 @@ void nb_kernel312(
                 Vvdw12           = c12*rinvsix*rinvsix;
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
                 fscal            = (12.0*Vvdw12-6.0*Vvdw6)*rinvsq-((fijC)*tabscale)*rinv11;
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
 
                 /* Calculate temporary vectorial force */
                 tx               = fscal*dx11;     
@@ -642,6 +677,18 @@ void nb_kernel312(
                 faction[j3+7]    = fjy3 - ty;      
                 faction[j3+8]    = fjz3 - tz;      
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
                 /* Inner loop uses 382 flops/iteration */
             }
             
@@ -661,7 +708,6 @@ void nb_kernel312(
             fshift[is3+2]    = fshift[is3+2]+fiz1+fiz2+fiz3;
 
             /* Add potential energies to the group for this list */
-            ggid             = gid[n];         
             Vc[ggid]         = Vc[ggid] + vctot;
             Vvdw[ggid]       = Vvdw[ggid] + Vvdwtot;
 
@@ -715,7 +761,7 @@ void nb_kernel312nf(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -758,6 +804,8 @@ void nb_kernel312nf(
     real          dx33,dy33,dz33,rsq33,rinv33;
     real          qO,qH,qqOO,qqOH,qqHH;
     real          c6,c12;
+    int           index;
+    real          teste=0,teste2=0;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -832,13 +880,18 @@ void nb_kernel312nf(
             vctot            = 0;              
             Vvdwtot          = 0;              
 
+            ggid             = gid[n];         
             /* Clear i atom forces */
-            
             for(k=nj0; (k<nj1); k++)
             {
 
                 /* Get j neighbor index, and coordinate index */
-                jnr              = jjnr[k];        
+                jnr              = jjnr[k];    
+                
+             /*   if(start && (ii < *start || ii >= *end) && (jnr < *start || jnr >= *end))
+                {
+                 continue;
+                }*/   
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -915,6 +968,31 @@ void nb_kernel312nf(
                 eps2             = eps*eps;        
                 nnn              = 4*n0;           
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+
+                 /*if(enerd1[index] == enerd3[index])
+                 {
+                  //vctot         = vctot - enerd3[index];
+                  enerd1[index] = 0;
+                 }
+                 if(enerd2[index] == enerd4[index])
+                 {
+                  //Vvdwtot       = Vvdwtot - enerd4[index];
+                  enerd2[index] = 0;
+                 }*/
+
+                 enerd1[index] = enerd1[index] - vctot;
+                }
+
                 /* Tabulated coulomb interaction */
                 Y                = VFtab[nnn];     
                 F                = VFtab[nnn+1];   
@@ -923,13 +1001,26 @@ void nb_kernel312nf(
                 Fp               = F+Geps+Heps2;   
                 VV               = Y+eps*Fp;       
                 vcoul            = qq*VV;          
-                vctot            = vctot + vcoul;  
+                vctot            = vctot + vcoul;
 
                 /* Lennard-Jones interaction */
                 rinvsix          = rinvsq*rinvsq*rinvsq;
                 Vvdw6            = c6*rinvsix;     
                 Vvdw12           = c12*rinvsix*rinvsix;
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
 
                 /* Load parameters for j atom */
                 qq               = qqOH;           
@@ -1114,6 +1205,21 @@ void nb_kernel312nf(
                 vcoul            = qq*VV;          
                 vctot            = vctot + vcoul;  
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                 teste += enerd1[index];
+                 teste2 += enerd3[index];
+                }
+
                 /* Inner loop uses 233 flops/iteration */
             }
             
@@ -1122,7 +1228,6 @@ void nb_kernel312nf(
 
             /* Add potential energies to the group for this list */
             ggid             = gid[n];         
-                //printf("vctot %f\n",vctot);
             Vc[ggid]         = Vc[ggid] + vctot;
             Vvdw[ggid]       = Vvdw[ggid] + Vvdwtot;
 
@@ -1131,8 +1236,7 @@ void nb_kernel312nf(
 
             /* Outer loop uses 11 flops/iteration */
         }
-        
-
+        //printf("teste %f %f\n",teste,teste2);
         /* Increment number of outer iterations */
         nouter           = nouter + nn1 - nn0;
     }

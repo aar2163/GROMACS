@@ -66,7 +66,7 @@ void nb_kernel311(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -237,6 +237,12 @@ void nb_kernel311(
                 eps2             = eps*eps;        
                 nnn              = 4*n0;           
 
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] - vctot;
+                 enerd1[ii]       = enerd1[ii] - vctot;
+                }
+
                 /* Tabulated coulomb interaction */
                 Y                = VFtab[nnn];     
                 F                = VFtab[nnn+1];   
@@ -352,6 +358,16 @@ void nb_kernel311(
                 faction[j3+1]    = fjy1 - ty;      
                 faction[j3+2]    = fjz1 - tz;      
 
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] + vctot;
+                 enerd1[ii]       = enerd1[ii] + vctot;
+                }
+                if(enerd2)
+                {
+                 enerd2[jnr]      = enerd2[jnr] + Vvdw12-Vvdw6;
+                 enerd2[ii]       = enerd2[ii] + Vvdw12-Vvdw6;
+                }
                 /* Inner loop uses 138 flops/iteration */
             }
             
@@ -425,7 +441,7 @@ void nb_kernel311nf(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -534,7 +550,6 @@ void nb_kernel311nf(
             Vvdwtot          = 0;              
 
             /* Clear i atom forces */
-            
             for(k=nj0; (k<nj1); k++)
             {
 
@@ -583,6 +598,12 @@ void nb_kernel311nf(
                 eps              = rt-n0;          
                 eps2             = eps*eps;        
                 nnn              = 4*n0;           
+
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] - vctot;
+                 enerd1[ii]       = enerd1[ii] - vctot;
+                }
 
                 /* Tabulated coulomb interaction */
                 Y                = VFtab[nnn];     
@@ -645,6 +666,16 @@ void nb_kernel311nf(
                 vcoul            = qq*VV;          
                 vctot            = vctot + vcoul;  
 
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] + vctot;
+                 enerd1[ii]       = enerd1[ii] + vctot;
+                }
+                if(enerd2)
+                {
+                 enerd2[jnr]      = enerd2[jnr] + Vvdw12-Vvdw6;
+                 enerd2[ii]       = enerd2[ii] + Vvdw12-Vvdw6;
+                }
                 /* Inner loop uses 85 flops/iteration */
             }
             

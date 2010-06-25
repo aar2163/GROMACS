@@ -66,7 +66,7 @@ void nb_kernel010(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -94,6 +94,7 @@ void nb_kernel010(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -210,6 +211,12 @@ void nb_kernel010(
                 faction[j3+1]    = faction[j3+1] - ty;
                 faction[j3+2]    = faction[j3+2] - tz;
 
+                if(enerd2)
+                {
+                 enerd2[jnr]      = enerd2[jnr] + Vvdw12-Vvdw6;
+                 enerd2[ii]       = enerd2[ii] + Vvdw12-Vvdw6;
+                }
+
                 /* Inner loop uses 33 flops/iteration */
             }
             
@@ -276,7 +283,7 @@ void nb_kernel010nf(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -303,6 +310,7 @@ void nb_kernel010nf(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -400,6 +408,19 @@ void nb_kernel010nf(
                 Vvdw6            = c6*rinvsix;     
                 Vvdw12           = c12*rinvsix*rinvsix;
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
 
                 /* Inner loop uses 19 flops/iteration */
             }

@@ -121,6 +121,10 @@ forcerec_set_ranges(t_forcerec *fr,
 		    int natoms_force,int natoms_f_novirsum);
 /* Set the number of cg's and atoms for the force calculation */
 
+extern void init_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,int homenr);
+extern real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_mc_move *mc_move,t_idef *idef,t_forcerec *fr,int homenr);
+extern void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int homenr,bool copy);
+
 extern void init_forcerec(FILE       *fplog,     
 			  t_forcerec *fr,   
 			  t_fcdata   *fcd,
@@ -237,6 +241,32 @@ void sum_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *
 
 void sub_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *enerd3);
 
+extern void do_recip_mc(FILE         *fplog,  
+			      gmx_step_t   step,
+			      t_forcerec   *fr,
+			      t_inputrec   *ir,
+			      t_idef       *idef,
+			      t_commrec    *cr,
+			      t_nrnb       *nrnb,
+			      gmx_wallcycle_t wcycle,
+			      t_mdatoms    *md,
+			      t_grpopts    *opts,
+			      rvec         x[],
+			      history_t    *hist,
+			      rvec         f[],    
+			      gmx_enerdata_t *enerd,
+			      t_fcdata     *fcd,
+			      gmx_genborn_t *born,
+			      t_atomtypes  *atype,
+			      bool         bBornRadii,
+			      matrix       box,
+			      real         lambda,
+			      t_graph      *graph,
+			      t_blocka     *excl,
+			      rvec         mu_tot[2],
+			      int          flags,
+			      float        *cycles_pme,
+                              gmx_mc_move  *mc_move);
 
 extern void do_force_lowlevel(FILE         *fplog,  
 			      gmx_step_t   step,

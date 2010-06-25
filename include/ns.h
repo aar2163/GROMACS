@@ -47,6 +47,8 @@
 #include "tgroup.h"
 #include "network.h"
 
+#define WITHIN_MOVE(i) (i >= mc_move->start && i< mc_move->end)
+
 /****************************************************
  *
  *    U T I L I T I E S May be found in ns.c

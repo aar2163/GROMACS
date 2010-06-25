@@ -110,6 +110,7 @@ real ewald_LRcorrection(FILE *fplog,
   bool    bFreeEnergy = (chargeB != NULL);
   bool    bMolPBC = fr->bMolPBC;
   bool    n_mc = (mc_move && mc_move->n_mc);
+  n_mc = FALSE;
 
   one_4pi_eps = ONE_4PI_EPS0/fr->epsilon_r;
   vr0 = ewc*2/sqrt(M_PI);

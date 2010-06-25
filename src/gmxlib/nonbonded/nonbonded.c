@@ -319,7 +319,7 @@ void do_mclist(gmx_mc_move *mc_move,t_nblist *nlist,t_nblists **nblists_mc,int i
   nj1 = nlist->jindex[nlist->nri+1];    
   srenew(jjnr,nj1);
   nlist2->jjnr = jjnr;*/
-  nlists = &nblists_mc[mc_move->cgsnr][ind1];
+  nlists = &nblists_mc[mc_move->cgs][ind1];
   if(bLR)
   {
    nlist2 = &nlists->nlist_lr[ind2];
@@ -329,7 +329,7 @@ void do_mclist(gmx_mc_move *mc_move,t_nblist *nlist,t_nblists **nblists_mc,int i
    nlist2 = &nlists->nlist_sr[ind2];
   }
 
-  if(mc_move->bNS[mc_move->cgsnr])
+  if(mc_move->bNS[mc_move->cgs])
   {
    
    nlist2->enlist = nlist->enlist;
@@ -349,7 +349,7 @@ void do_mclist(gmx_mc_move *mc_move,t_nblist *nlist,t_nblists **nblists_mc,int i
    srenew(nlist2->jjnr,nlist->maxnrj);
  
         for(n=0; (n<nlist->nri); n++)
-        {   
+        {
             nlist2->iinr[n] = nlist->iinr[n];        
             nlist2->jindex[n] = nlist->jindex[n];
             nlist2->jindex[n+1] = nlist->jindex[n+1];
@@ -370,7 +370,7 @@ void do_mclist(gmx_mc_move *mc_move,t_nblist *nlist,t_nblists **nblists_mc,int i
         {   
             for(k=nlist->jindex[n]; (k<nlist->jindex[n+1]); k++)
             {
-            //if(mc_move->cgsnr == 20)
+            //if(mc_move->cgs == 20)
              //printf("false %d %d %d %d\n",n,k,ind1,ind2);
             }
         }
@@ -473,7 +473,6 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                     }
 
 					tabletype = nb_kernel_table[nrnb_ind];
-					
 					/* normal kernels, not free energy */
 					if (!bDoForces)
 					{
@@ -588,15 +587,15 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                     else
                     {
                         /* Call nonbonded kernel from function pointer */
-                      if(mc_move) 
+                      /*if(mc_move) 
                       {
-                       if(mc_move->bNS[mc_move->cgsnr])
+                       if(mc_move->bNS[mc_move->cgs])
                        {
                         do_mclist(mc_move,nlist,fr->nblists_mc,n,i,bLR);
                        }
-                       else
+                       else if (1 == 2)
                        {
-                        nlists = &fr->nblists_mc[mc_move->cgsnr][n];
+                        nlists = &fr->nblists_mc[mc_move->cgs][n];
                         if(bLR)
                         {
                          nlist2 = &nlists->nlist_lr[i];
@@ -606,7 +605,8 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                          nlist2 = &nlists->nlist_sr[i];
                         }
                        }
-                      }
+                      }*/
+                         //mc_move=NULL;
                         (*kernelptr)( mc_move && nlist2 ? &(nlist2->nri) : &(nlist->nri),
                                       mc_move && nlist2 ? nlist2->iinr : nlist->iinr,
                                       mc_move && nlist2 ? nlist2->jindex : nlist->jindex,
@@ -628,9 +628,14 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                                       egnb,
                                       &(nblists->tab.scale),
                                       tabledata,
-                                      enerd,
-                                      &mc_move->cgsnr,
-                                      NULL,
+                                      mc_move ? mc_move->enerd[F_COUL_SR] : NULL,
+                                      mc_move ? mc_move->enerd[F_LJ] : NULL,
+                                      (mc_move) ? mc_move->enerd_prev[F_COUL_SR] : NULL,
+                                      (mc_move) ? mc_move->enerd_prev[F_LJ] : NULL,
+                                      (mc_move) ? &mc_move->start : NULL,
+                                      (mc_move) ? &mc_move->end : NULL,
+                                      (mc_move) ? &mc_move->homenr : NULL,
+                                      (mc_move) ? mc_move->sum_index : NULL,
                                       fr->invsqrta,
                                       fr->dvda,
                                       &(fr->gbtabscale),
@@ -925,6 +930,11 @@ do_listed_vdw_q(int ftype,int nbonds,
                   egnb,
                   &tabscale,
                   tab,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
+                  NULL,
                   NULL,
                   NULL,
                   NULL,

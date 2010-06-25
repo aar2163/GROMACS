@@ -66,7 +66,7 @@ void nb_kernel112(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -108,6 +108,7 @@ void nb_kernel112(
     real          qO,qH,qqOO,qqOH,qqHH;
     real          c6,c12;
     bool          b1;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -266,6 +267,19 @@ void nb_kernel112(
                 rinv32           = invsqrt(rsq32);
                 rinv33           = invsqrt(rsq33);
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
+
                 /* Load parameters for j atom */
                 qq               = qqOO;           
                 rinvsq           = rinv11*rinv11;  
@@ -280,6 +294,19 @@ void nb_kernel112(
                 Vvdw12           = c12*rinvsix*rinvsix;
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
                 fscal            = (vcoul+12.0*Vvdw12-6.0*Vvdw6)*rinvsq;
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
 
                 /* Calculate temporary vectorial force */
                 tx               = fscal*dx11;     
@@ -488,6 +515,19 @@ void nb_kernel112(
                 faction[j3+7]    = fjy3 - ty;      
                 faction[j3+8]    = fjz3 - tz;      
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
+
                 /* Inner loop uses 245 flops/iteration */
             }
             
@@ -561,7 +601,7 @@ void nb_kernel112nf(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -601,6 +641,7 @@ void nb_kernel112nf(
     real          dx33,dy33,dz33,rsq33,rinv33;
     real          qO,qH,qqOO,qqOH,qqHH;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -748,6 +789,18 @@ void nb_kernel112nf(
                 rinv32           = invsqrt(rsq32);
                 rinv33           = invsqrt(rsq33);
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
                 /* Load parameters for j atom */
                 qq               = qqOO;           
                 rinvsq           = rinv11*rinv11;  
@@ -761,6 +814,19 @@ void nb_kernel112nf(
                 Vvdw6            = c6*rinvsix;     
                 Vvdw12           = c12*rinvsix*rinvsix;
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
 
                 /* Load parameters for j atom */
                 qq               = qqOH;           
@@ -818,6 +884,18 @@ void nb_kernel112nf(
                 vcoul            = qq*rinv33;      
                 vctot            = vctot+vcoul;    
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
                 /* Inner loop uses 143 flops/iteration */
             }
 

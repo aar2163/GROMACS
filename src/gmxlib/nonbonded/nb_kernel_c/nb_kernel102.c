@@ -67,9 +67,9 @@ void nb_kernel102(
                     real *          Vvdw,
                     real *          p_tabscale,
                     real *          VFtab,
-                    real *          enerd,
+                    real *          enerd1,real * enerd2,real * enerd3,real * enerd4,
                     int             * start,
-                    int             * end,
+                    int             * end,int *homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -105,6 +105,7 @@ void nb_kernel102(
     real          dx32,dy32,dz32,rsq32,rinv32;
     real          dx33,dy33,dz33,rsq33,rinv33;
     real          qO,qH,qqOO,qqOH,qqHH;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -258,6 +259,19 @@ void nb_kernel102(
                 rinv31           = invsqrt(rsq31);
                 rinv32           = invsqrt(rsq32);
                 rinv33           = invsqrt(rsq33);
+
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
 
                 /* Load parameters for j atom */
                 qq               = qqOO;           
@@ -475,6 +489,18 @@ void nb_kernel102(
                 faction[j3+7]    = fjy3 - ty;      
                 faction[j3+8]    = fjz3 - tz;      
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
                 /* Inner loop uses 234 flops/iteration */
             }
             
@@ -548,9 +574,9 @@ void nb_kernel102nf(
                     real *          Vvdw,
                     real *          p_tabscale,
                     real *          VFtab,
-                    real *          enerd,
+                    real *          enerd1,real * enerd2,real * enerd3,real * enerd4,
                     int             * start,
-                    int             * end,
+                    int             * end,int * homenr,int *nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -584,6 +610,7 @@ void nb_kernel102nf(
     real          dx32,dy32,dz32,rsq32,rinv32;
     real          dx33,dy33,dz33,rsq33,rinv33;
     real          qO,qH,qqOO,qqOH,qqHH;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -729,6 +756,19 @@ void nb_kernel102nf(
                 rinv32           = invsqrt(rsq32);
                 rinv33           = invsqrt(rsq33);
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
+
                 /* Load parameters for j atom */
                 qq               = qqOO;           
 
@@ -792,6 +832,18 @@ void nb_kernel102nf(
                 vcoul            = qq*rinv33;      
                 vctot            = vctot+vcoul;    
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
                 /* Inner loop uses 135 flops/iteration */
             }
             

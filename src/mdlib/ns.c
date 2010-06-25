@@ -2550,6 +2550,7 @@ void set_bexclude_mc(gmx_localtop_t *top,
  int ii;
 	 
  fr->n_mc=bExclude;
+ //fr->n_mc=FALSE;
  mc_move->n_mc=bExclude;
 
  if(bExclude)
@@ -2563,9 +2564,9 @@ void set_bexclude_mc(gmx_localtop_t *top,
 
  for(ii=0;ii<top->cgs.nr;ii++) 
  {
-   if(top->cgs.index[ii] >= mc_move->start && top->cgs.index[ii] < mc_move->end) {
+   if(WITHIN_MOVE(top->cgs.index[ii])) {
     fr->ns.bExcludeMC[ii] = FALSE;
-    mc_move->cgsnr = ii;
+    mc_move->cgs = ii;
    }
    else {
     fr->ns.bExcludeMC[ii] = bExclude;

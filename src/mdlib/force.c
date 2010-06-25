@@ -1166,7 +1166,353 @@ static real cutoff_inf(real cutoff)
 
     return cutoff;
 }
+void init_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,int homenr)
+{
+  int nbonds,ftype,nra,i,s;
+  t_idef *idef = &top->idef;
 
+  snew(mc_move->enerd,F_NRE);
+  snew(mc_move->enerd_prev,F_NRE);
+  for(ftype=0; (ftype<F_NRE); ftype++) {
+	  if(ftype<F_GB12 || ftype>F_GB14) {
+    if (interaction_function[ftype].flags & IF_BOND &&
+	!(ftype == F_CONNBONDS || ftype == F_POSRES)) {
+      nra = NRAL(ftype);
+      nbonds=idef->il[ftype].nr/(nra+1);
+      if (nbonds > 0) {
+	if (ftype < F_LJ14 || ftype > F_LJC_PAIRS_NB) {
+         snew(mc_move->enerd[ftype],nbonds);
+         snew(mc_move->enerd_prev[ftype],nbonds);
+        }
+       }
+    }
+  }
+ }
+ snew(mc_move->enerd[F_COUL_SR],homenr*homenr);
+ snew(mc_move->enerd_prev[F_COUL_SR],homenr*homenr);
+ snew(mc_move->enerd[F_LJ],homenr*homenr);
+ snew(mc_move->enerd_prev[F_LJ],homenr*homenr);
+ snew(mc_move->enerd[F_COUL_RECIP],1);
+ snew(mc_move->enerd_prev[F_COUL_RECIP],1);
+ snew(mc_move->sum_index,homenr);
+ s=0;
+ for(i=0;i<homenr;i++)
+ {
+  s+=i;
+  //s=0;
+  mc_move->sum_index[i] = s;
+ }
+}
+void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int homenr,bool copy)
+{
+  int nbonds,ftype,i,j,nra,k,l,ii,jj,s,index;
+  int ai,aj,ak,al;
+  real sum;
+  t_iatom *forceatoms;
+  t_nblists *nblists;
+  t_nblist *nlist;
+  t_idef *idef = &top->idef;
+  bool *done;
+
+  snew(done,homenr);
+
+  for(ftype=0; (ftype<F_NRE); ftype++) {
+	  if(ftype<F_GB12 || ftype>F_GB14) {
+    if (interaction_function[ftype].flags & IF_BOND &&
+	!(ftype == F_CONNBONDS || ftype == F_POSRES)) {
+      nbonds=idef->il[ftype].nr;
+      nra = NRAL(ftype);
+      forceatoms = idef->il[ftype].iatoms;
+      if (nbonds > 0) {
+	if (ftype < F_LJ14 || ftype > F_LJC_PAIRS_NB) {
+         for(i=0,k=0; (i<nbonds); k++) 
+         {
+          i++;
+          if(copy && (!mc_move->n_mc || mc_move->mvgroup >= MC_BONDS))
+          {
+           switch(nra)
+           {
+            case 2:
+            ai   = forceatoms[i++];
+            aj   = forceatoms[i++];
+           
+            if(WITHIN_MOVE(ai) || WITHIN_MOVE(aj))
+            {
+             mc_move->enerd_prev[ftype][k] = mc_move->enerd[ftype][k];
+            } 
+            break;
+            case 3:
+            ai   = forceatoms[i++];
+            aj   = forceatoms[i++];
+            ak   = forceatoms[i++];
+           
+            if(WITHIN_MOVE(ai) || WITHIN_MOVE(aj) || WITHIN_MOVE(ak))
+            {
+             mc_move->enerd_prev[ftype][k] = mc_move->enerd[ftype][k];
+            } 
+            break;
+            case 4:
+            ai   = forceatoms[i++];
+            aj   = forceatoms[i++];
+            ak   = forceatoms[i++];
+            al   = forceatoms[i++];
+            
+            if(WITHIN_MOVE(ai) || WITHIN_MOVE(aj) || WITHIN_MOVE(ak) || WITHIN_MOVE(al))
+            {
+             mc_move->enerd_prev[ftype][k] = mc_move->enerd[ftype][k];
+            } 
+            break;
+           }
+          }
+          else
+          {
+           i = i + nra;
+          }
+          mc_move->enerd[ftype][k] = 0;
+        }
+       }
+     }
+    }
+  }
+ }
+ sum=0;
+ for(i=0;i<fr->nnblists;i++)
+ {
+  nblists = &fr->nblists[i];
+  for(j=0; (j<eNL_NR); j++)
+  {
+   nlist = &(nblists->nlist_sr[j]);
+   for(k=0;k<nlist->nri;k++)
+   {
+    ii = nlist->iinr[k];
+    if(done[ii])
+    {
+     continue;
+    }
+    /*for(l=nlist->jindex[k];l<nlist->jindex[k+1];l++)
+    {
+     jj = nlist->jjnr[l];*/
+     for(jj=0;jj<homenr;jj++)
+     {
+      if(done[jj] || jj == ii)
+      {
+       continue;
+      }
+
+     index = ((ii < jj) ? ii*homenr-mc_move->sum_index[ii]+jj : jj*homenr - mc_move->sum_index[jj] + ii);
+
+      sum+=mc_move->enerd[F_COUL_SR][index];
+     if(copy)
+     {
+      //printf("%d %d\n",ii,jj);
+      mc_move->enerd_prev[F_COUL_SR][index] = mc_move->enerd[F_COUL_SR][index];
+      mc_move->enerd_prev[F_LJ][index] = mc_move->enerd[F_LJ][index];
+     }
+      mc_move->enerd[F_COUL_SR][index] = 0;
+      mc_move->enerd[F_LJ][index] = 0;
+    }
+    done[ii]=TRUE;
+   }
+  }
+ }
+  sfree(done);
+
+ if(copy)
+ {
+  mc_move->enerd_prev[F_COUL_RECIP][0] = mc_move->enerd[F_COUL_RECIP][0];
+ }
+  /*for(i=0;i<homenr;i++)
+  {
+
+   for(j=i+1;j<homenr;j++)
+   {
+     k=i*homenr-mc_move->sum_index[i]+j;
+
+     if(WITHIN_MOVE(i) || WITHIN_MOVE(j))
+     {
+      sum+=mc_move->enerd[F_COUL_SR][k];
+     }
+     if(copy && (WITHIN_MOVE(i) || WITHIN_MOVE(j)))
+     {
+            mc_move->enerd_prev[F_COUL_SR][k] = mc_move->enerd[F_COUL_SR][k];
+            mc_move->enerd_prev[F_LJ][k] = mc_move->enerd[F_LJ][k];
+     }
+
+     mc_move->enerd[F_COUL_SR][k] = 0;
+     mc_move->enerd[F_LJ][k] = 0;
+    //mc_move->enerd[F_COUL_SR][k] = 0;
+    //mc_move->enerd[F_LJ][k] = 0;
+   }
+  }*/
+ /*for(i=0;i<homenr;i++)
+ {
+  for(j=i+1;j<homenr;j++)
+  {
+   k=i*homenr-mc_move->sum_index[i]+j;
+   mc_move->enerd[F_COUL_SR][k] = 0;
+   mc_move->enerd[F_LJ][k] = 0;
+  }
+ }*/
+ //printf("sum %f\n",sum);
+}
+real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_mc_move *mc_move,t_idef *idef,t_forcerec *fr,int homenr)
+{
+  int nbonds,ftype,i,j,nra,k,l,ii,jj,s;
+  int ai,aj,ak,al,index;
+  real vtot = 0,sum=0,delta=0;
+  t_iatom *forceatoms;
+  t_nblists *nblists;
+  t_nblist *nlist;
+  bool *done;
+
+  if(mc_move->n_mc)
+  {
+   //if(mc_move->mvgroup >= MC_BONDS) 
+   //{
+    for(ftype=0; (ftype<F_NRE); ftype++) 
+    {
+     if(ftype<F_GB12 || ftype>F_GB14) 
+     {
+      if (interaction_function[ftype].flags & IF_BOND &&
+	!(ftype == F_CONNBONDS || ftype == F_POSRES)) 
+      {
+        nbonds=idef->il[ftype].nr;
+        nra = NRAL(ftype);
+        forceatoms = idef->il[ftype].iatoms;
+        if (nbonds > 0)
+        {
+         enerd->term[ftype] = enerd_prev->term[ftype]; 
+         if (ftype < F_LJ14 || ftype > F_LJC_PAIRS_NB) 
+         {
+          if(mc_move->mvgroup >= MC_BONDS) 
+          {
+           for(i=0,k=0; (i<nbonds); k++) 
+           {
+            i++;
+            switch(nra)
+            {
+             case 2:
+             ai   = forceatoms[i++];
+             aj   = forceatoms[i++];
+             if(WITHIN_MOVE(ai) || WITHIN_MOVE(aj))
+             {
+              enerd->term[ftype] -= mc_move->enerd_prev[ftype][k];
+              enerd->term[ftype] += mc_move->enerd[ftype][k];
+             } 
+             break;
+             case 3:
+             ai   = forceatoms[i++];
+             aj   = forceatoms[i++];
+             ak   = forceatoms[i++];
+            
+             if(WITHIN_MOVE(ai) || WITHIN_MOVE(aj) || WITHIN_MOVE(ak))
+             {
+              enerd->term[ftype] -= mc_move->enerd_prev[ftype][k];
+              enerd->term[ftype] += mc_move->enerd[ftype][k];
+             } 
+             break;
+             case 4:
+             ai   = forceatoms[i++];
+             aj   = forceatoms[i++];
+             ak   = forceatoms[i++];
+             al   = forceatoms[i++];
+             
+             if(WITHIN_MOVE(ai) || WITHIN_MOVE(aj) || WITHIN_MOVE(ak) || WITHIN_MOVE(al))
+             {
+              enerd->term[ftype] -= mc_move->enerd_prev[ftype][k];
+              enerd->term[ftype] += mc_move->enerd[ftype][k];
+             } 
+             break;
+            } 
+           }
+          }
+         }
+        }
+      }
+     }
+    }
+   //}
+  enerd->term[F_COUL_SR] = enerd_prev->term[F_COUL_SR];
+  enerd->term[F_LJ] = enerd_prev->term[F_LJ];
+
+ snew(done,homenr);
+ for(i=0;i<fr->nnblists;i++)
+ {
+  nblists = &fr->nblists[i];
+  for(j=0; (j<eNL_NR); j++)
+  {
+   nlist = &(nblists->nlist_sr[j]);
+   for(k=0;k<nlist->nri;k++)
+   {
+    ii = nlist->iinr[k];
+    if(done[ii])
+    {
+     continue;
+    }
+    /*for(l=nlist->jindex[k];l<nlist->jindex[k+1];l++)
+    {
+     jj = nlist->jjnr[l];*/
+     for(jj=0;jj<homenr;jj++)
+     {
+      if(done[jj] || jj == ii)
+      {
+       continue;
+      }
+
+     index = ((ii < jj) ? ii*homenr-mc_move->sum_index[ii]+jj : jj*homenr - mc_move->sum_index[jj] + ii);
+
+     enerd->term[F_COUL_SR] -= mc_move->enerd_prev[F_COUL_SR][index];
+     enerd->term[F_LJ] -= mc_move->enerd_prev[F_LJ][index];
+     enerd->term[F_COUL_SR] += mc_move->enerd[F_COUL_SR][index];
+     enerd->term[F_LJ] += mc_move->enerd[F_LJ][index];
+    }
+    done[ii]=TRUE;
+   }
+  }
+ }
+ sfree(done);
+ }
+ /*for (i=0;i<homenr;i++)
+ {
+  if(!WITHIN_MOVE(i) || (i%3))
+  {
+   continue;
+  }
+  for (j=0;j<homenr;j++)
+  {
+   if(i<j)
+   {
+    k=i*homenr-mc_move->sum_index[i]+j;
+   }
+   else if(i>j)
+   {
+    k=j*homenr-mc_move->sum_index[j]+i;
+   }
+   else
+   {
+    continue;
+   }
+   //k=i*homenr-mc_move->sum_index[i]+j;
+   sum+=mc_move->enerd_prev[F_COUL_SR][k];
+   
+     enerd->term[F_COUL_SR] -= mc_move->enerd_prev[F_COUL_SR][k];
+     enerd->term[F_LJ] -= mc_move->enerd_prev[F_LJ][k];
+     enerd->term[F_COUL_SR] += mc_move->enerd[F_COUL_SR][k];
+     enerd->term[F_LJ] += mc_move->enerd[F_LJ][k];
+  }
+ }*/
+//printf("sum2 %f\n",sum);
+ for(ftype=0; (ftype<F_EPOT); ftype++) {
+  vtot += enerd->term[ftype];
+  if(ftype != F_COUL_RECIP)
+  {
+   delta += (enerd->term[ftype]-enerd_prev->term[ftype]);
+  }
+ }
+ enerd->term[F_EPOT] = vtot;
+
+ return delta;
+}
 void init_forcerec(FILE *fp,
                    t_forcerec *fr,
                    t_fcdata   *fcd,
@@ -1518,6 +1864,12 @@ void init_forcerec(FILE *fp,
             make_nbf_tables(fp,fr,rtab,cr,tabfn,NULL,NULL,&fr->nblists[0]);
             if (!bSep14tab)
                 fr->tab14 = fr->nblists[0].tab;
+            if(EI_MC(ir->eI))
+            {
+             for(i=0;i<cgs->nr;i++) {
+              make_nbf_tables(fp,fr,rtab,cr,tabfn,NULL,NULL,&fr->nblists_mc[i][0]);
+             }
+            }
             m = 1;
         } else {
             m = 0;
@@ -1538,6 +1890,15 @@ void init_forcerec(FILE *fp,
                                         *mtop->groups.grpname[nm_ind[egi]],
                                         *mtop->groups.grpname[nm_ind[egj]],
                                         &fr->nblists[m]);
+                         if(EI_MC(ir->eI))
+                         {
+                          for(i=0;i<cgs->nr;i++) {
+                           make_nbf_tables(fp,fr,rtab,cr,tabfn,
+                                        *mtop->groups.grpname[nm_ind[egi]],
+                                        *mtop->groups.grpname[nm_ind[egj]],
+                                        &fr->nblists_mc[i][m]);
+                          }
+                         }
                         m++;
                     } else if (fr->nnblists > 1) {
                         fr->gid2nblists[GID(egi,egj,ir->opts.ngener)] = 0;
@@ -1740,6 +2101,202 @@ void sub_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *
 }
 
 
+void do_recip_mc(FILE       *fplog,   gmx_step_t step,
+                       t_forcerec *fr,      t_inputrec *ir,
+                       t_idef     *idef,    t_commrec  *cr,
+                       t_nrnb     *nrnb,    gmx_wallcycle_t wcycle,
+                       t_mdatoms  *md,
+                       t_grpopts  *opts,
+                       rvec       x[],      history_t  *hist,
+                       rvec       f[],
+                       gmx_enerdata_t *enerd,
+                       t_fcdata   *fcd,
+                       gmx_genborn_t *born,
+                       t_atomtypes *atype,
+                       bool       bBornRadii,
+                       matrix     box,
+                       real       lambda,  
+                       t_graph    *graph,
+                       t_blocka   *excl,    
+                       rvec       mu_tot[],
+                       int        flags,
+                       float      *cycles_pme,
+                       gmx_mc_move *mc_move)
+{
+    int     i,status;
+    int     donb_flags;
+    bool    bDoEpot,bSepDVDL,bSB;
+    int     pme_flags;
+    matrix  boxs;
+    rvec    box_size;
+    real    dvdlambda,Vsr,Vlr,Vlr2,Vcorr=0,vdip,vcharge;
+    t_pbc   pbc;
+    real    dvdgb;
+    char    buf[22];
+    gmx_enerdata_t ed_lam;
+    double  lam_i;
+    real    dvdl_dum;
+    bool    n_mc;
+    int     ii;
+    rvec    x_mc[100];
+    real    charge_mc[100];
+
+#define PRINT_SEPDVDL(s,v,dvdl) if (bSepDVDL) fprintf(fplog,sepdvdlformat,s,v,dvdl);
+
+    if (EEL_FULL(fr->eeltype))
+    {
+        clear_mat(fr->vir_el_recip);	
+        
+        if (fr->bEwald)
+        {
+            if (fr->n_tpi == 0)// && !n_mc)
+            {
+                dvdlambda = 0;
+                Vcorr = ewald_LRcorrection(fplog,md->start,md->start+md->homenr,
+                                           cr,fr,
+                                           md->chargeA,
+                                           md->nChargePerturbed ? md->chargeB : NULL,
+                                           excl,x,bSB ? boxs : box,mu_tot,
+                                           ir->ewald_geometry,
+                                           ir->epsilon_surface,
+                                           lambda,&dvdlambda,&vdip,&vcharge,(flags & GMX_FORCE_FORCES) ? TRUE : FALSE,mc_move);
+                PRINT_SEPDVDL("Ewald excl./charge/dip. corr.",Vcorr,dvdlambda);
+                enerd->dvdl_lin += dvdlambda;
+            }
+            else
+            {
+                if (ir->ewald_geometry != eewg3D || ir->epsilon_surface != 0)
+                {
+                    gmx_fatal(FARGS,"TPI with PME currently only works in a 3D geometry with tin-foil boundary conditions");
+                }
+                /* The TPI molecule does not have exclusions with the rest
+                 * of the system and no intra-molecular PME grid contributions
+                 * will be calculated in gmx_pme_calc_energy.
+                 */
+                Vcorr = 0;
+            }
+        }
+        else
+        {
+            Vcorr = shift_LRcorrection(fplog,md->start,md->homenr,cr,fr,
+                                       md->chargeA,excl,x,TRUE,box,
+                                       fr->vir_el_recip);
+        }
+        
+        dvdlambda = 0;
+        status = 0;
+        switch (fr->eeltype)
+        {
+        case eelPPPM:
+            status = gmx_pppm_do(fplog,fr->pmedata,FALSE,x,fr->f_novirsum,
+                                 md->chargeA,
+                                 box_size,fr->phi,cr,md->start,md->homenr,
+                                 nrnb,ir->pme_order,&Vlr);
+            break;
+        case eelPME:
+        case eelPMESWITCH:
+        case eelPMEUSER:
+            if (cr->duty & DUTY_PME)
+            {
+                if (fr->n_tpi == 0 || (flags & GMX_FORCE_STATECHANGED))
+                {
+                 if(!n_mc || 1==1)
+                 {
+                    pme_flags = GMX_PME_SPREAD_Q | GMX_PME_SOLVE;
+                    if (flags & GMX_FORCE_FORCES)
+                    {
+                        pme_flags |= GMX_PME_CALC_F;
+                    }
+                    wallcycle_start(wcycle,ewcPMEMESH);
+                    status = gmx_pme_do(fr->pmedata,
+                                        md->start,md->homenr - fr->n_tpi,
+                                        x,fr->f_novirsum,
+                                        md->chargeA,md->chargeB,
+                                        bSB ? boxs : box,cr,
+                                        DOMAINDECOMP(cr) ? dd_pme_maxshift0(cr->dd) : 0,
+                                        DOMAINDECOMP(cr) ? dd_pme_maxshift1(cr->dd) : 0,
+                                        nrnb,
+                                        fr->vir_el_recip,fr->ewaldcoeff,
+                                        &Vlr,lambda,&dvdlambda,
+                                        pme_flags);
+                    //printf("Vlr %f %f\n",Vlr,Vcorr);
+                    //*cycles_pme = wallcycle_stop(wcycle,ewcPMEMESH);
+                    /* We should try to do as little computation after
+                     * this as possible, because parallel PME synchronizes
+                     * the nodes, so we want all load imbalance of the rest
+                     * of the force calculation to be before the PME call.
+                     * DD load balancing is done on the whole time of
+                     * the force call (without PME).
+                     */
+                 }
+                }
+                if (fr->n_tpi > 0)
+                {
+                    /* Determine the PME grid energy of the test molecule
+                     * with the PME grid potential of the other charges.
+                     */
+                    gmx_pme_calc_energy(fr->pmedata,fr->n_tpi,
+                                        x + md->homenr - fr->n_tpi,
+                                        md->chargeA + md->homenr - fr->n_tpi,
+                                        &Vlr);
+                }
+                if (n_mc && 1 == 2)
+                {
+                    /* Determine the PME grid energy of the test molecule
+                     * with the PME grid potential of the other charges.
+                     */
+                    gmx_pme_calc_energy(fr->pmedata,3,
+                                        mc_move->xprev + mc_move->start,
+                                        md->chargeA +  mc_move->start,
+                                        &Vlr2);
+                    gmx_pme_calc_energy(fr->pmedata,3,
+                                        x + mc_move->start,
+                                        md->chargeA + mc_move->start,
+                                        &Vlr);
+                    printf("Vlr %f %f %f\n",Vlr,Vlr2,mc_move->enerd_prev[F_COUL_RECIP][0]);
+                   Vlr -= Vlr2;
+                   Vlr = Vlr/2;
+                   Vlr += mc_move->enerd_prev[F_COUL_RECIP][0];
+                }
+                PRINT_SEPDVDL("PME mesh",Vlr,dvdlambda);
+            } 
+            else
+            {
+                /* Energies and virial are obtained later from the PME nodes */
+                /* but values have to be zeroed out here */
+                Vlr=0.0;
+            }
+            break;
+        case eelEWALD:
+            Vlr = do_ewald(fplog,FALSE,ir,n_mc ? x_mc : x,fr->f_novirsum,
+                           n_mc ? charge_mc : md->chargeA,md->chargeB,
+                           box_size,cr,n_mc ? mc_move->nr : md->homenr,
+                           fr->vir_el_recip,fr->ewaldcoeff,
+                           lambda,&dvdlambda);
+            PRINT_SEPDVDL("Ewald long-range",Vlr,dvdlambda);
+            break;
+        default:
+            Vlr = 0;
+            gmx_fatal(FARGS,"No such electrostatics method implemented %s",
+                      eel_names[fr->eeltype]);
+        }
+        if (status != 0)
+        {
+            gmx_fatal(FARGS,"Error %d in long range electrostatics routine %s",
+                      status,EELTYPE(fr->eeltype));
+		}
+        enerd->dvdl_lin += dvdlambda;
+        enerd->term[F_COUL_RECIP] = Vlr + Vcorr;
+        mc_move->enerd[F_COUL_RECIP][0] = Vlr + Vcorr;
+        if (debug)
+        {
+            fprintf(debug,"Vlr = %g, Vcorr = %g, Vlr_corr = %g\n",
+                    Vlr,Vcorr,enerd->term[F_COUL_RECIP]);
+            pr_rvecs(debug,0,"vir_el_recip after corr",fr->vir_el_recip,DIM);
+            pr_rvecs(debug,0,"fshift after LR Corrections",fr->fshift,SHIFTS);
+        }
+    }
+}
 void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                        t_forcerec *fr,      t_inputrec *ir,
                        t_idef     *idef,    t_commrec  *cr,
@@ -1770,7 +2327,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
     int     pme_flags;
     matrix  boxs;
     rvec    box_size;
-    real    dvdlambda,Vsr,Vlr,Vcorr=0,vdip,vcharge;
+    real    dvdlambda,Vsr,Vlr,Vlr2,Vcorr=0,vdip,vcharge;
     t_pbc   pbc;
     real    dvdgb;
     char    buf[22];
@@ -1791,8 +2348,8 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 #define PRINT_SEPDVDL(s,v,dvdl) if (bSepDVDL) fprintf(fplog,sepdvdlformat,s,v,dvdl);
     GMX_MPE_LOG(ev_force_start);
 
-
     n_mc = (mc_move && mc_move->n_mc);
+    //n_mc = FALSE;
     /* Reset box */
     for(i=0; (i<DIM); i++)
     {
@@ -1851,7 +2408,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 		
 		/* wallcycle_stop(wcycle, ewcGB); */
 	}
-	
     where();
     donb_flags = 0;
     if (flags & GMX_FORCE_FORCES)
@@ -1971,10 +2527,14 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
     if (flags & GMX_FORCE_BONDED)
     {
         GMX_MPE_LOG(ev_calc_bonds_start);
-        calc_bonds(fplog,cr->ms,
+
+        if(!mc_move || !mc_move->n_mc || mc_move->mvgroup >= MC_BONDS)
+        {
+         calc_bonds(fplog,cr->ms,
                    idef,x,hist,mc_move,f,fr,&pbc,graph,enerd,nrnb,lambda,md,fcd,
                    DOMAINDECOMP(cr) ? cr->dd->gatindex : NULL, atype, born, &(mtop->cmap_grid),
                    fr->bSepDVDL && do_per_step(step,ir->nstlog),step);
+        }
         
         /* Check if we have to determine energy differences
          * at foreign lambda's.
@@ -2007,6 +2567,8 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
     }
     where();
     *cycles_pme = 0;
+    if(!mc_move)
+    {
     if (EEL_FULL(fr->eeltype))
     {
         bSB = (ir->nwall == 2);
@@ -2021,7 +2583,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
         
         if (fr->bEwald)
         {
-            if (fr->n_tpi == 0)
+            if (fr->n_tpi == 0)// && !n_mc)
             {
                 dvdlambda = 0;
                 Vcorr = ewald_LRcorrection(fplog,md->start,md->start+md->homenr,
@@ -2077,6 +2639,8 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
             {
                 if (fr->n_tpi == 0 || (flags & GMX_FORCE_STATECHANGED))
                 {
+                 if(!n_mc || 1==1)
+                 {
                     pme_flags = GMX_PME_SPREAD_Q | GMX_PME_SOLVE;
                     if (flags & GMX_FORCE_FORCES)
                     {
@@ -2094,7 +2658,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                                         fr->vir_el_recip,fr->ewaldcoeff,
                                         &Vlr,lambda,&dvdlambda,
                                         pme_flags);
-                    //printf("Vlr %f\n",Vlr);
+                    //printf("Vlr %f %f\n",Vlr,Vcorr);
                     *cycles_pme = wallcycle_stop(wcycle,ewcPMEMESH);
                     /* We should try to do as little computation after
                      * this as possible, because parallel PME synchronizes
@@ -2103,6 +2667,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                      * DD load balancing is done on the whole time of
                      * the force call (without PME).
                      */
+                 }
                 }
                 if (fr->n_tpi > 0)
                 {
@@ -2113,6 +2678,24 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                                         x + md->homenr - fr->n_tpi,
                                         md->chargeA + md->homenr - fr->n_tpi,
                                         &Vlr);
+                }
+                if (n_mc && 1 == 2)
+                {
+                    /* Determine the PME grid energy of the test molecule
+                     * with the PME grid potential of the other charges.
+                     */
+                    gmx_pme_calc_energy(fr->pmedata,3,
+                                        mc_move->xprev + mc_move->start,
+                                        md->chargeA +  mc_move->start,
+                                        &Vlr2);
+                    gmx_pme_calc_energy(fr->pmedata,3,
+                                        x + mc_move->start,
+                                        md->chargeA + mc_move->start,
+                                        &Vlr);
+                    printf("Vlr %f %f %f\n",Vlr,Vlr2,mc_move->enerd_prev[F_COUL_RECIP][0]);
+                   Vlr -= Vlr2;
+                   Vlr = Vlr/2;
+                   Vlr += mc_move->enerd_prev[F_COUL_RECIP][0];
                 }
                 PRINT_SEPDVDL("PME mesh",Vlr,dvdlambda);
             } 
@@ -2151,6 +2734,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 		}
         enerd->dvdl_lin += dvdlambda;
         enerd->term[F_COUL_RECIP] = Vlr + Vcorr;
+        mc_move->enerd[F_COUL_RECIP][0] = Vlr + Vcorr;
         if (debug)
         {
             fprintf(debug,"Vlr = %g, Vcorr = %g, Vlr_corr = %g\n",
@@ -2181,6 +2765,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                           enerd->term[F_RF_EXCL],dvdlambda);
         }
     }
+   }
     where();
     debug_gmx();
 	
@@ -2364,7 +2949,10 @@ void reset_enerdata(t_grpopts *opts,
 
   /* Normal potential energy components */
   for(i=0; (i<=F_EPOT); i++) {
+   //if(!fr->n_mc || IS_CHEMBOND(i))
+   //{
     enerd->term[i] = 0.0;
+   //}
   }
   /* Initialize the dVdlambda term with the long range contribution */
   enerd->term[F_DVDL]     = 0.0;

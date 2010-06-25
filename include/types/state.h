@@ -113,19 +113,23 @@ typedef struct
  int start;
  int end;
  int nr;
+ int cgs;
  int cgsnr;
+ int homenr;
  rvec delta_x;
  rvec delta_phi;
  real delta_v;
- real bolt;
  bool update_box;
  bool n_mc;
  gmx_mc_movegroup *group;
- int ngroups;
  int mvgroup;
  int mol;
+ int nbtype;
+ int *sum_index;
  bool *bNS;
- real epot_prev;
+ rvec *xprev;
+ real **enerd;
+ real **enerd_prev;
 } gmx_mc_move;
 typedef struct
 {

@@ -66,7 +66,7 @@ void nb_kernel302(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -268,6 +268,12 @@ void nb_kernel302(
                 eps              = rt-n0;          
                 eps2             = eps*eps;        
                 nnn              = 4*n0;           
+
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] - vctot;
+                 enerd1[ii]       = enerd1[ii] - vctot;
+                }
 
                 /* Tabulated coulomb interaction */
                 Y                = VFtab[nnn];     
@@ -625,6 +631,11 @@ void nb_kernel302(
                 faction[j3+7]    = fjy3 - ty;      
                 faction[j3+8]    = fjz3 - tz;      
 
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] + vctot;
+                 enerd1[ii]       = enerd1[ii] + vctot;
+                }
                 /* Inner loop uses 369 flops/iteration */
             }
             
@@ -697,7 +708,7 @@ void nb_kernel302nf(
                     real *          vdwparam,
                     real *          Vvdw,
                     real *          p_tabscale,
-                    real * VFtab,real * enerd,int * start,int * end,
+                    real * VFtab,real * enerd1,real * enerd2,real * enerd3,real * enerd4,int * start,int * end,int * homenr,int * nbsum,
                     real *          invsqrta,
                     real *          dvda,
                     real *          p_gbtabscale,
@@ -887,6 +898,12 @@ void nb_kernel302nf(
                 eps              = rt-n0;          
                 eps2             = eps*eps;        
                 nnn              = 4*n0;           
+
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] - vctot;
+                 enerd1[ii]       = enerd1[ii] - vctot;
+                }
 
                 /* Tabulated coulomb interaction */
                 Y                = VFtab[nnn];     
@@ -1082,6 +1099,11 @@ void nb_kernel302nf(
                 vcoul            = qq*VV;          
                 vctot            = vctot + vcoul;  
 
+                if(enerd1)
+                {
+                 enerd1[jnr]      = enerd1[jnr] + vctot;
+                 enerd1[ii]       = enerd1[ii] + vctot;
+                }
                 /* Inner loop uses 225 flops/iteration */
             }
             

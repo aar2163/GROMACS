@@ -379,7 +379,7 @@ void do_force(FILE *fplog,t_commrec *cr,
               double t,FILE *field,gmx_edsam_t ed,
               bool bBornRadii,
               int flags)
-{
+{ 
     int    cg0,cg1,i,j;
     int    start,homenr;
     double mu[2*DIM]; 
@@ -425,7 +425,7 @@ void do_force(FILE *fplog,t_commrec *cr,
     bDoLongRange  = (fr->bTwinRange && bNS && (flags & GMX_FORCE_DOLR));
     bDoForces     = (flags & GMX_FORCE_FORCES);
     bSepLRF       = (bDoLongRange && bDoForces && (flags & GMX_FORCE_SEPLRF));
-    //do_ns         = bNS && (!mc_move || (mc_move && mc_move->bNS[mc_move->cgsnr]));
+    //do_ns         = bNS && (!mc_move || (mc_move && mc_move->bNS[mc_move->cgs]));
 
     if (bStateChanged)
     {
@@ -851,7 +851,10 @@ void do_force(FILE *fplog,t_commrec *cr,
     }
     
     /* Sum the potential energy terms from group contributions */
-    sum_epot(&(inputrec->opts),enerd);
+    if(!mc_move || !mc_move->n_mc)
+    {
+     sum_epot(&(inputrec->opts),enerd);
+    }
     
     if (fr->print_force >= 0 && bDoForces)
     {
