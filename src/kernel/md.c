@@ -1264,6 +1264,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
    init_enerd_mc(mc_move,top,mdatoms->homenr);
    snew(mc_move->group,MC_NR);
    snew(mc_move->bNS,top->cgs.nr+1);
+   snew(mc_move->xcm,top_global->mols.nr);
    mc_move->n_mc = FALSE;
    mc_move->cgsnr = top->cgs.nr;
    mc_move->homenr = mdatoms->homenr;
@@ -1752,7 +1753,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               //epot_delta = enerd2->term[F_EPOT];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
-               printf("enerdp %f  %f %d %d %d\n",enerd->term[ii],enerdcopy->term[ii],ii,(int)step_rel,mc_move->mvgroup);
+               printf("enerdp %f  %f %d %d %d\n",enerd2->term[ii],enerdcopy->term[ii],ii,(int)step_rel,mc_move->mvgroup);
               }
             //printf("to aki %d %f\n",(int)step_rel,epot_delta);
               //if(!update_box)
@@ -1776,7 +1777,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
 
              bolt = gmx_rng_uniform_real(rng);
              //printf("bolt %f %d\n",bolt,(int)step_rel);             
-             if(fr->bEwald) 
+             if(fr->bEwald && bMC) 
              {
               if (step_rel && !update_box && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.5*bolt)))
               {
@@ -1794,11 +1795,10 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                enerd->term[F_EPOT] += enerd->term[F_COUL_RECIP];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
-               printf("enerd %f %d %d %d %d\n",enerd->term[ii],ii,mc_move->mvgroup,mc_move->start,(int)step_rel);
+               printf("enerd %f %f %d %d %d %d %f\n",enerd->term[ii],enerdcopy->term[ii],ii,mc_move->mvgroup,mc_move->start,(int)step_rel,state->x[0][0]);
               }
               }
              }
-
 
              if(bBOXok) {
               if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > bolt) || !step_rel) {
@@ -1867,7 +1867,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
             }
         }
-        
               if(bMC && !update_box && !do_ene && !do_vir) {
                set_bexclude_mc(top,mc_move,fr,FALSE);
               }

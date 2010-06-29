@@ -101,6 +101,7 @@ void nb_kernel310(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -208,8 +209,15 @@ void nb_kernel310(
 
                 if(enerd1)
                 {
-                 enerd1[jnr]      = enerd1[jnr] - vctot;
-                 enerd1[ii]       = enerd1[ii] - vctot;
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
                 }
 
                 /* Tabulated coulomb interaction */
@@ -231,16 +239,29 @@ void nb_kernel310(
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
                 fscal            = (12.0*Vvdw12-6.0*Vvdw6)*rinvsq-((fijC)*tabscale)*rinv11;
 
-                if(enerd1)
-                {
-                 enerd1[jnr]      = enerd1[jnr] + vctot;
-                 enerd1[ii]       = enerd1[ii] + vctot;
-                }
-
                 if(enerd2)
                 {
-                 enerd2[jnr]      = enerd2[jnr] + Vvdw12-Vvdw6;
-                 enerd2[ii]       = enerd2[ii] + Vvdw12-Vvdw6;
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
                 }
 
                 /* Calculate temporary vectorial force */
@@ -357,6 +378,7 @@ void nb_kernel310nf(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -391,7 +413,6 @@ void nb_kernel310nf(
         
         for(n=nn0; (n<nn1); n++)
         {
-
             /* Load shift vector for this list */
             is3              = 3*shift[n];     
             shX              = shiftvec[is3];  
@@ -461,8 +482,15 @@ void nb_kernel310nf(
 
                 if(enerd1)
                 {
-                 enerd1[jnr]      = enerd1[jnr] - vctot;
-                 enerd1[ii]       = enerd1[ii] - vctot;
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
                 }
 
                 /* Tabulated coulomb interaction */
@@ -481,16 +509,30 @@ void nb_kernel310nf(
                 Vvdw12           = c12*rinvsix*rinvsix;
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
 
-                if(enerd1)
-                {
-                 enerd1[jnr]      = enerd1[jnr] + vctot;
-                 enerd1[ii]       = enerd1[ii] + vctot;
-                }
 
                 if(enerd2)
                 {
-                 enerd2[jnr]      = enerd2[jnr] + Vvdw12-Vvdw6;
-                 enerd2[ii]       = enerd2[ii] + Vvdw12-Vvdw6;
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
                 }
                 /* Inner loop uses 34 flops/iteration */
             }

@@ -94,6 +94,7 @@ void nb_kernel300(
     real          ix1,iy1,iz1,fix1,fiy1,fiz1;
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -161,6 +162,18 @@ void nb_kernel300(
             
             for(k=nj0; (k<nj1); k++)
             {
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
@@ -206,6 +219,18 @@ void nb_kernel300(
                 vctot            = vctot + vcoul;  
                 fscal            = -((fijC)*tabscale)*rinv11;
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
                 /* Calculate temporary vectorial force */
                 tx               = fscal*dx11;     
                 ty               = fscal*dy11;     
@@ -312,6 +337,7 @@ void nb_kernel300nf(
     real          ix1,iy1,iz1;
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -381,6 +407,19 @@ void nb_kernel300nf(
                 jnr              = jjnr[k];        
                 j3               = 3*jnr;          
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
+
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
                 jy1              = pos[j3+1];      
@@ -418,6 +457,18 @@ void nb_kernel300nf(
                 vcoul            = qq*VV;          
                 vctot            = vctot + vcoul;  
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
                 /* Inner loop uses 26 flops/iteration */
             }
             

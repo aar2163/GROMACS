@@ -2513,6 +2513,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
             inc_nrnb(nrnb,eNR_SHIFTX,graph->nnodes);
         }
     }
+    //printf("force %f %f\n",x[92][2],x[95][2]);
     /* Check whether we need to do bondeds or correct for exclusions */
     if (fr->bMolPBC &&
         ((flags & GMX_FORCE_BONDED)
@@ -2734,7 +2735,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 		}
         enerd->dvdl_lin += dvdlambda;
         enerd->term[F_COUL_RECIP] = Vlr + Vcorr;
-        mc_move->enerd[F_COUL_RECIP][0] = Vlr + Vcorr;
         if (debug)
         {
             fprintf(debug,"Vlr = %g, Vcorr = %g, Vlr_corr = %g\n",

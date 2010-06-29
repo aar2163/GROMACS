@@ -341,9 +341,17 @@ static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
    {
     clear_rvec(xcm);
     for(k=start;k<end;k++) {
+     if(k==start)
+     {
+      svmul(8,x[k],r1);
+     }
+     else
+     {
+      copy_rvec(x[k],r1);
+     }
      rvec_add(x[k],xcm,xcm);
     } 
-    svmul(1.0/(end-start),xcm,xcm);
+    svmul(1.0/10.0,xcm,xcm);
     copy_rvec(x[start],xcm);
    }
 
@@ -1236,6 +1244,12 @@ void update(FILE         *fplog,
                                     state->box,state->box_rel,state->boxv,
                                     M,pcoupl_mu,bInitStep);
         }
+        if (inputrec->epc == epcMC && mc_move->update_box)
+        {
+            mc_pcoupl(fplog,step,inputrec,dtc,
+                             state->pres_prev,state->box,
+                             pcoupl_mu,mc_move,mols,state->x);
+        }
     }
     else
     {
@@ -1448,14 +1462,8 @@ void update(FILE         *fplog,
                          start,homenr,state->x,md->cFREEZE,nrnb);
     } else if(inputrec->epc == epcMC && state->mc_move->update_box) {
 
-     vnew = det(state->box) + state->mc_move->delta_v;
-     vfrac = pow(vnew,1.0/3.0)/pow(det(state->box),1.0/3.0);
-
-     pcoupl_mu[XX][XX]=vfrac;    pcoupl_mu[XX][YY] = 0;          pcoupl_mu[XX][ZZ] = 0;
-     pcoupl_mu[YY][XX]=0;        pcoupl_mu[YY][YY] = vfrac;      pcoupl_mu[YY][ZZ] = 0;
-     pcoupl_mu[ZZ][XX]=0;        pcoupl_mu[ZZ][YY] = 0;          pcoupl_mu[ZZ][ZZ] = vfrac;
      mc_pscale(inputrec,pcoupl_mu,state->box,state->box_rel,
-		       start,homenr,state->x,md->cFREEZE,nrnb,mols);
+		       start,homenr,state->x,md->cFREEZE,nrnb,mols,mc_move->xcm,graph);
     } else if (inputrec->epc == epcPARRINELLORAHMAN) {
       /* The box velocities were updated in do_pr_pcoupl in the update
        * iteration, but we dont change the box vectors until we get here

@@ -607,6 +607,7 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                        }
                       }*/
                          //mc_move=NULL;
+                         //printf("nrnb %d\n",nrnb_ind);
                         (*kernelptr)( mc_move && nlist2 ? &(nlist2->nri) : &(nlist->nri),
                                       mc_move && nlist2 ? nlist2->iinr : nlist->iinr,
                                       mc_move && nlist2 ? nlist2->jindex : nlist->jindex,
