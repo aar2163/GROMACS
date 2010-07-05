@@ -607,6 +607,7 @@ void do_nonbonded(t_commrec *cr,t_forcerec *fr,
                        }
                       }*/
                          //mc_move=NULL;
+                         //printf("nrnb %d %d %d\n",nrnb_ind,mc_move->start,mc_move->end);
                         (*kernelptr)( mc_move && nlist2 ? &(nlist2->nri) : &(nlist->nri),
                                       mc_move && nlist2 ? nlist2->iinr : nlist->iinr,
                                       mc_move && nlist2 ? nlist2->jindex : nlist->jindex,
@@ -678,7 +679,7 @@ do_listed_vdw_q(int ftype,int nbonds,
                 real lambda,real *dvdlambda,
                 const t_mdatoms *md,
                 const t_forcerec *fr,gmx_grppairener_t *grppener,
-                int *global_atom_index)
+                int *global_atom_index,gmx_mc_move *mc_move)
 {
     static    bool bWarn=FALSE;
     real      eps,r2,*tab,rtab2=0;
@@ -930,14 +931,14 @@ do_listed_vdw_q(int ftype,int nbonds,
                   egnb,
                   &tabscale,
                   tab,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
-                  NULL,
+                  mc_move ? mc_move->enerd[F_COUL14] : NULL,
+                  mc_move ? mc_move->enerd[F_LJ14] : NULL,
+                  (mc_move) ? mc_move->enerd_prev[F_COUL14] : NULL,
+                  (mc_move) ? mc_move->enerd_prev[F_LJ14] : NULL,
+                  (mc_move) ? &mc_move->start : NULL,
+                  (mc_move) ? &mc_move->end : NULL,
+                  (mc_move) ? &mc_move->homenr : NULL,
+                  (mc_move) ? mc_move->sum_index : NULL,
                   NULL,
                   NULL,
                   NULL,

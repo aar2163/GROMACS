@@ -1192,6 +1192,10 @@ void init_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,int homenr)
  snew(mc_move->enerd_prev[F_COUL_SR],homenr*homenr);
  snew(mc_move->enerd[F_LJ],homenr*homenr);
  snew(mc_move->enerd_prev[F_LJ],homenr*homenr);
+ snew(mc_move->enerd[F_LJ14],homenr*homenr);
+ snew(mc_move->enerd_prev[F_LJ14],homenr*homenr);
+ snew(mc_move->enerd[F_COUL14],homenr*homenr);
+ snew(mc_move->enerd_prev[F_COUL14],homenr*homenr);
  snew(mc_move->enerd[F_COUL_RECIP],1);
  snew(mc_move->enerd_prev[F_COUL_RECIP],1);
  snew(mc_move->sum_index,homenr);
@@ -1307,9 +1311,13 @@ void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int 
       //printf("%d %d\n",ii,jj);
       mc_move->enerd_prev[F_COUL_SR][index] = mc_move->enerd[F_COUL_SR][index];
       mc_move->enerd_prev[F_LJ][index] = mc_move->enerd[F_LJ][index];
+      mc_move->enerd_prev[F_LJ14][index] = mc_move->enerd[F_LJ14][index];
+      mc_move->enerd_prev[F_COUL14][index] = mc_move->enerd[F_COUL14][index];
      }
       mc_move->enerd[F_COUL_SR][index] = 0;
       mc_move->enerd[F_LJ][index] = 0;
+      mc_move->enerd[F_LJ14][index] = 0;
+      mc_move->enerd[F_COUL14][index] = 0;
     }
     done[ii]=TRUE;
    }
@@ -1381,9 +1389,9 @@ real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_mc_move
         forceatoms = idef->il[ftype].iatoms;
         if (nbonds > 0)
         {
-         enerd->term[ftype] = enerd_prev->term[ftype]; 
          if (ftype < F_LJ14 || ftype > F_LJC_PAIRS_NB) 
          {
+          enerd->term[ftype] = enerd_prev->term[ftype]; 
           if(mc_move->mvgroup >= MC_BONDS) 
           {
            for(i=0,k=0; (i<nbonds); k++) 
@@ -1434,6 +1442,14 @@ real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_mc_move
    //}
   enerd->term[F_COUL_SR] = enerd_prev->term[F_COUL_SR];
   enerd->term[F_LJ] = enerd_prev->term[F_LJ];
+  if(!enerd->term[F_LJ14])
+  {
+   enerd->term[F_LJ14] = enerd_prev->term[F_LJ14];
+  }
+  if(!enerd->term[F_COUL14])
+  {
+   enerd->term[F_COUL14] = enerd_prev->term[F_COUL14];
+  }
 
  snew(done,homenr);
  for(i=0;i<fr->nnblists;i++)
@@ -1463,8 +1479,12 @@ real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_mc_move
 
      enerd->term[F_COUL_SR] -= mc_move->enerd_prev[F_COUL_SR][index];
      enerd->term[F_LJ] -= mc_move->enerd_prev[F_LJ][index];
+ //    enerd->term[F_LJ14] -= mc_move->enerd_prev[F_COUL14][index];
+  //   enerd->term[F_COUL14] -= mc_move->enerd_prev[F_COUL14][index];
      enerd->term[F_COUL_SR] += mc_move->enerd[F_COUL_SR][index];
      enerd->term[F_LJ] += mc_move->enerd[F_LJ][index];
+   //  enerd->term[F_LJ14] += mc_move->enerd[F_LJ14][index];
+   //  enerd->term[F_COUL14] += mc_move->enerd[F_COUL14][index];
     }
     done[ii]=TRUE;
    }
@@ -2100,7 +2120,6 @@ void sub_enerdata(gmx_enerdata_t *enerd1,gmx_enerdata_t *enerd2,gmx_enerdata_t *
     }
 }
 
-
 void do_recip_mc(FILE       *fplog,   gmx_step_t step,
                        t_forcerec *fr,      t_inputrec *ir,
                        t_idef     *idef,    t_commrec  *cr,
@@ -2297,6 +2316,7 @@ void do_recip_mc(FILE       *fplog,   gmx_step_t step,
         }
     }
 }
+
 void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
                        t_forcerec *fr,      t_inputrec *ir,
                        t_idef     *idef,    t_commrec  *cr,
@@ -2513,6 +2533,7 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
             inc_nrnb(nrnb,eNR_SHIFTX,graph->nnodes);
         }
     }
+    //printf("force %f %f\n",x[92][2],x[95][2]);
     /* Check whether we need to do bondeds or correct for exclusions */
     if (fr->bMolPBC &&
         ((flags & GMX_FORCE_BONDED)
@@ -2734,7 +2755,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 		}
         enerd->dvdl_lin += dvdlambda;
         enerd->term[F_COUL_RECIP] = Vlr + Vcorr;
-        mc_move->enerd[F_COUL_RECIP][0] = Vlr + Vcorr;
         if (debug)
         {
             fprintf(debug,"Vlr = %g, Vcorr = %g, Vlr_corr = %g\n",

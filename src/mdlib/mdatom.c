@@ -123,6 +123,11 @@ void atoms2md(gmx_mtop_t *mtop,t_inputrec *ir,
       srenew(md->massA,md->nalloc);
       srenew(md->massB,md->nalloc);
     }
+    else if(ir->eI == eiMC)
+    {
+     srenew(md->massA,md->nalloc);
+    }
+
     srenew(md->massT,md->nalloc);
     srenew(md->invmass,md->nalloc);
     srenew(md->chargeA,md->nalloc);
@@ -208,6 +213,10 @@ void atoms2md(gmx_mtop_t *mtop,t_inputrec *ir,
     if (md->nMassPerturbed) {
       md->massA[i]	= mA;
       md->massB[i]	= mB;
+    }
+    else if(ir->eI == eiMC)
+    {
+      md->massA[i]	= mA;
     }
     md->massT[i]	= mA;
     if (mA == 0.0) {

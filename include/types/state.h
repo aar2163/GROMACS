@@ -128,6 +128,7 @@ typedef struct
  int *sum_index;
  bool *bNS;
  rvec *xprev;
+ rvec *xcm;
  real **enerd;
  real **enerd_prev;
 } gmx_mc_move;

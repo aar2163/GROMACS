@@ -191,6 +191,8 @@ extern void set_avcsixtwelve(FILE *fplog,t_forcerec *fr,
 /* Normally one want all energy terms and forces */
 #define GMX_FORCE_ALLFORCES    (GMX_FORCE_BONDED | GMX_FORCE_NONBONDED | GMX_FORCE_FORCES)
 
+extern void virial_mc(t_forcerec *fr,t_mdatoms *mdatoms,rvec *f,tensor force_vir);
+
 extern void do_force(FILE *log,t_commrec *cr,
 		     t_inputrec *inputrec,
 		     gmx_step_t step,t_nrnb *nrnb,gmx_wallcycle_t wcycle,

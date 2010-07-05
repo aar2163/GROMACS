@@ -794,7 +794,6 @@ void nb_kernel302nf(
             shX              = shiftvec[is3];  
             shY              = shiftvec[is3+1];
             shZ              = shiftvec[is3+2];
-
             /* Load limits for loop over neighbors */
             nj0              = jindex[n];      
             nj1              = jindex[n+1];    
@@ -802,7 +801,6 @@ void nb_kernel302nf(
             /* Get outer coordinate index */
             ii               = iinr[n];        
             ii3              = 3*ii;           
-
             /* Load i atom data, add shift vector */
             ix1              = shX + pos[ii3+0];
             iy1              = shY + pos[ii3+1];

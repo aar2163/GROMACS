@@ -349,71 +349,96 @@ void berendsen_pcoupl(FILE *fplog,gmx_step_t step,
   }
 }
 
+void mc_pcoupl(FILE *fplog,gmx_step_t step,
+		      t_inputrec *ir,real dt,tensor pres,matrix box,
+		      matrix pcoupl_mu,gmx_mc_move *mc_move,t_block *mols,rvec *x,real *massA)
+{
+  int    natoms,m,n,d;
+  real   vnew,vfrac;
+  rvec  dxcm,dx;
+  real  mass;
+  char   *ptr,buf[STRLEN];
+
+     vnew = det(box) + mc_move->delta_v;
+     vfrac = pow(vnew,1.0/3.0)/pow(det(box),1.0/3.0);
+
+     pcoupl_mu[XX][XX]=vfrac;    pcoupl_mu[XX][YY] = 0;          pcoupl_mu[XX][ZZ] = 0;
+     pcoupl_mu[YY][XX]=0;        pcoupl_mu[YY][YY] = vfrac;      pcoupl_mu[YY][ZZ] = 0;
+     pcoupl_mu[ZZ][XX]=0;        pcoupl_mu[ZZ][YY] = 0;          pcoupl_mu[ZZ][ZZ] = vfrac;
+
+  for (n=0; n<mols->nr; n++) {
+   clear_rvec(mc_move->xcm[n]);
+   mass = 0;
+   for(m=mols->index[n];m<mols->index[n+1];m++) {
+    mass += massA[m];
+    for (d=0;d<DIM;d++)
+    {
+     mc_move->xcm[n][d]+=x[m][d]*massA[m];   
+    }
+   }
+   svmul(1.0/mass,mc_move->xcm[n],mc_move->xcm[n]);
+ }
+}
 void mc_pscale(t_inputrec *ir,matrix mu,
 		      matrix box,matrix box_rel,
 		      int start,int nr_atoms,
 		      rvec x[],unsigned short cFREEZE[],
-		      t_nrnb *nrnb,t_block *mols)
+		      t_nrnb *nrnb,t_block *mols,rvec *xcm,t_graph *graph)
 {
   ivec   *nFreeze=ir->opts.nFreeze;
   int    n,m,d,g=0,natoms;
   real  dv; 
-  rvec xcm,dxcm;
+  rvec dxcm,dx,*xs;
 
+  snew(xs,nr_atoms);
 
-  //only isotropic for now
-
-
-  /* Scale the positions */
-  for (n=0; n<mols->nr; n++) {
-   clear_rvec(xcm);
-   clear_rvec(dxcm);
-   natoms = mols->index[n+1]-mols->index[n];
-
-   for(m=mols->index[n];m<mols->index[n+1];m++) {
-    for (d=0;d<DIM;d++)
-     xcm[d]+=x[m][d]/natoms;   /* get center of mass of one molecule  */
-   }
-   // if (cFREEZE)
-   //   g = cFREEZE[n];
-    
-  //  if (!nFreeze[g][XX])
-      dxcm[XX] = mu[XX][XX]*xcm[XX]+mu[YY][XX]*xcm[YY]+mu[ZZ][XX]*xcm[ZZ];
-  //  if (!nFreeze[g][YY])
-      dxcm[YY] = mu[YY][YY]*xcm[YY]+mu[ZZ][YY]*xcm[ZZ];
-  //  if (!nFreeze[g][ZZ])
-      dxcm[ZZ] = mu[ZZ][ZZ]*xcm[ZZ];
-   rvec_sub(dxcm,xcm,dxcm);
-   for(m=mols->index[n];m<mols->index[n+1];m++) {
-    rvec_add(dxcm,x[m],x[m]);
-   }
+  for(n=start;n<nr_atoms;n++)
+  {
+   copy_rvec(x[n],xs[n]);
   }
- /* for (n=start; n<start+nr_atoms; n++) {
-    if (cFREEZE)
-      g = cFREEZE[n];
-    
-    if (!nFreeze[g][XX])
-      x[n][XX] = mu[XX][XX]*x[n][XX]+mu[YY][XX]*x[n][YY]+mu[ZZ][XX]*x[n][ZZ];
-    if (!nFreeze[g][YY])
-      x[n][YY] = mu[YY][YY]*x[n][YY]+mu[ZZ][YY]*x[n][ZZ];
-    if (!nFreeze[g][ZZ])
-      x[n][ZZ] = mu[ZZ][ZZ]*x[n][ZZ];
-  }*/
-  /* compute final boxlengths */
-
-  
+  shift_self(graph,box,xs);
 
   for (d=0; d<DIM; d++) {
     box[d][XX] = mu[XX][XX]*box[d][XX]+mu[YY][XX]*box[d][YY]+mu[ZZ][XX]*box[d][ZZ];
     box[d][YY] = mu[YY][YY]*box[d][YY]+mu[ZZ][YY]*box[d][ZZ];
     box[d][ZZ] = mu[ZZ][ZZ]*box[d][ZZ];
   }      
-
   preserve_box_shape(ir,box_rel,box);
+
+  /* Scale the positions */
+
+  shift_self(graph,box,x);
+  for (n=0; n<mols->nr; n++) {
+   clear_rvec(dxcm);
+   natoms = mols->index[n+1]-mols->index[n];
+
+      dxcm[XX] = mu[XX][XX]*xcm[n][XX]+mu[YY][XX]*xcm[n][YY]+mu[ZZ][XX]*xcm[n][ZZ];
+      dxcm[YY] = mu[YY][YY]*xcm[n][YY]+mu[ZZ][YY]*xcm[n][ZZ];
+      dxcm[ZZ] = mu[ZZ][ZZ]*xcm[n][ZZ];
+
+
+   for(m=mols->index[n];m<mols->index[n+1];m++) {
+    //rvec_sub(x[m],xcm[n],dx);
+    rvec_sub(dxcm,xcm[n],dx);
+    rvec_add(xs[m],dx,x[m]);
+   }
+  }
+  unshift_self(graph,box,x);
+
+
+  /*for (n=start; n<start+nr_atoms; n++) {
+    
+      x[n][XX] = mu[XX][XX]*x[n][XX]+mu[YY][XX]*x[n][YY]+mu[ZZ][XX]*x[n][ZZ];
+      x[n][YY] = mu[YY][YY]*x[n][YY]+mu[ZZ][YY]*x[n][ZZ];
+      x[n][ZZ] = mu[ZZ][ZZ]*x[n][ZZ];
+  }*/
+
   /* (un)shifting should NOT be done after this,
    * since the box vectors might have changed
    */
   inc_nrnb(nrnb,eNR_PCOUPL,nr_atoms);
+
+  sfree(xs);
 }
 void berendsen_pscale(t_inputrec *ir,matrix mu,
 		      matrix box,matrix box_rel,

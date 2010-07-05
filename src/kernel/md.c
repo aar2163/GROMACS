@@ -1264,6 +1264,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
    init_enerd_mc(mc_move,top,mdatoms->homenr);
    snew(mc_move->group,MC_NR);
    snew(mc_move->bNS,top->cgs.nr+1);
+   snew(mc_move->xcm,top_global->mols.nr);
    mc_move->n_mc = FALSE;
    mc_move->cgsnr = top->cgs.nr;
    mc_move->homenr = mdatoms->homenr;
@@ -1737,6 +1738,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               }
               
             }
+            //printf("step %d %d\n",(int)step_rel,mc_move->mvgroup);
             do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,bMC ? mc_move : NULL,
                      f,force_vir,mdatoms,enerd,fcd,
@@ -1752,7 +1754,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               //epot_delta = enerd2->term[F_EPOT];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
-               printf("enerdp %f  %f %d %d %d\n",enerd->term[ii],enerdcopy->term[ii],ii,(int)step_rel,mc_move->mvgroup);
+               printf("enerdp %f  %f %d %d %d\n",enerd2->term[ii],enerdcopy->term[ii],ii,(int)step_rel,mc_move->mvgroup);
               }
             //printf("to aki %d %f\n",(int)step_rel,epot_delta);
               //if(!update_box)
@@ -1767,7 +1769,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
 
              deltaH = epot_delta;
-             //printf("epot %f %d\n",deltaH,step_rel);
              if(update_box) {
               volume_delta    = det(state->box) - det(boxcopy);
               deltaH += ir->ref_p[XX][XX]*volume_delta/PRESFAC;
@@ -1775,10 +1776,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
 
              bolt = gmx_rng_uniform_real(rng);
-             //printf("bolt %f %d\n",bolt,(int)step_rel);             
-             if(fr->bEwald) 
+             if(fr->bEwald && bMC) 
              {
-              if (step_rel && !update_box && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.5*bolt)))
+              if (step_rel && !update_box && 1 == 2 && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.5*bolt)))
               {
                bolt = 2;  /* Preliminary energy check (without recip PME) */
               }
@@ -1790,15 +1790,20 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                       &(top->atomtypes),bBornRadii,state->box,
                       state->lambda,graph,&(top->excls),fr->mu_tot,
                       force_flags,NULL,mc_move);
+              
+        if (force_flags & GMX_FORCE_VIRIAL)
+        {
+            virial_mc(fr,mdatoms,f,force_vir);
+        }
                deltaH += enerd->term[F_COUL_RECIP] - mc_move->enerd_prev[F_COUL_RECIP][0];
+              // deltaH += enerd->term[F_COUL_RECIP];
                enerd->term[F_EPOT] += enerd->term[F_COUL_RECIP];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
-               printf("enerd %f %d %d %d %d\n",enerd->term[ii],ii,mc_move->mvgroup,mc_move->start,(int)step_rel);
+               printf("enerd %f %f %d %d %d %f\n",enerd->term[ii],enerdcopy->term[ii],ii,mc_move->mvgroup,(int)step_rel,state->x[0][0]);
               }
               }
              }
-
 
              if(bBOXok) {
               if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > bolt) || !step_rel) {
@@ -1851,6 +1856,12 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              else
              {
               clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
+                for(ii=mdatoms->start; ii<(mdatoms->start+mdatoms->homenr); ii++) {
+                 copy_rvec(xcopy[ii],state->x[ii]);
+                }
+                copy_mat(boxcopy,state->box);
+                copy_enerdata(enerdcopy,enerd);
+                copy_mat(force_vircopy,force_vir);
              }
              if(PAR(cr))
              {
@@ -1867,7 +1878,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
             }
         }
-        
               if(bMC && !update_box && !do_ene && !do_vir) {
                set_bexclude_mc(top,mc_move,fr,FALSE);
               }
@@ -2005,7 +2015,14 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             ok=FALSE;
             do
             {
-             mc_move->mvgroup = uniform_int(rng,MC_NR);
+             if(mc_move->nr > 1)
+             {
+              mc_move->mvgroup = uniform_int(rng,MC_NR);
+             }
+             else
+             {
+              mc_move->mvgroup = MC_TRANSLATE;
+             }
              switch (mc_move->mvgroup)  
              {
               case MC_TRANSLATE:
@@ -2053,7 +2070,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               case MC_DIHEDRALS:
                if((mc_move->group[MC_DIHEDRALS].ilist)->nr > 0 && ir->dihedral_rot) 
                {
-                jj = uniform_int(rng,(mc_move->group[MC_DIHEDRALS].ilist)->nr/4);
+                jj = uniform_int(rng,(mc_move->group[MC_DIHEDRALS].ilist)->nr/2);
                 deltax=(2*gmx_rng_uniform_real(rng)-1.0)*ir->dihedral_rot*M_PI/180.0;
                 set_mcmove(&(mc_move->group[MC_DIHEDRALS]),rng,deltax,2,mc_move->start,jj);
                 ok=TRUE;

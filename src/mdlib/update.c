@@ -324,7 +324,7 @@ void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int sta
   }
  }
 }
-static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
+static void do_update_mc(rvec *x,real *massA,gmx_mc_move *mc_move,t_graph *graph)
 {
   int    n,i,k,start,end;
   int    ai,aj,ak;
@@ -332,6 +332,7 @@ static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
   bool   b_translate,b_rotate;
   vec4 xrot;
   rvec xcm;
+  real mass;
   start = mc_move->start;
   end = mc_move->end;
  
@@ -340,13 +341,15 @@ static void do_update_mc(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
    if(b_rotate) 
    {
     clear_rvec(xcm);
+    mass=0;
     for(k=start;k<end;k++) {
-     rvec_add(x[k],xcm,xcm);
+     svmul(massA[k],x[k],r1);
+     rvec_add(r1,xcm,xcm);
+     mass += massA[k];
     } 
-    svmul(1.0/(end-start),xcm,xcm);
-    copy_rvec(x[start],xcm);
+    svmul(1.0/mass,xcm,xcm);
+   //printf("xcm %f %d %f %f %f\n",xcm[0],b_rotate,x[0][0],x[1][0],x[2][0]);
    }
-
     for(n=start;n<end;n++) {
      if(b_rotate) 
      { 
@@ -1236,6 +1239,12 @@ void update(FILE         *fplog,
                                     state->box,state->box_rel,state->boxv,
                                     M,pcoupl_mu,bInitStep);
         }
+        if (inputrec->epc == epcMC && mc_move->update_box)
+        {
+            mc_pcoupl(fplog,step,inputrec,dtc,
+                             state->pres_prev,state->box,
+                             pcoupl_mu,mc_move,mols,state->x,md->massA);
+        }
     }
     else
     {
@@ -1325,7 +1334,7 @@ void update(FILE         *fplog,
       }
      }
      else {
-      do_update_mc(xprime,mc_move,graph);
+      do_update_mc(xprime,md->massA,mc_move,graph);
      }
     }
   } else {
@@ -1448,14 +1457,8 @@ void update(FILE         *fplog,
                          start,homenr,state->x,md->cFREEZE,nrnb);
     } else if(inputrec->epc == epcMC && state->mc_move->update_box) {
 
-     vnew = det(state->box) + state->mc_move->delta_v;
-     vfrac = pow(vnew,1.0/3.0)/pow(det(state->box),1.0/3.0);
-
-     pcoupl_mu[XX][XX]=vfrac;    pcoupl_mu[XX][YY] = 0;          pcoupl_mu[XX][ZZ] = 0;
-     pcoupl_mu[YY][XX]=0;        pcoupl_mu[YY][YY] = vfrac;      pcoupl_mu[YY][ZZ] = 0;
-     pcoupl_mu[ZZ][XX]=0;        pcoupl_mu[ZZ][YY] = 0;          pcoupl_mu[ZZ][ZZ] = vfrac;
      mc_pscale(inputrec,pcoupl_mu,state->box,state->box_rel,
-		       start,homenr,state->x,md->cFREEZE,nrnb,mols);
+		       start,homenr,state->x,md->cFREEZE,nrnb,mols,mc_move->xcm,graph);
     } else if (inputrec->epc == epcPARRINELLORAHMAN) {
       /* The box velocities were updated in do_pr_pcoupl in the update
        * iteration, but we dont change the box vectors until we get here

@@ -979,17 +979,6 @@ void nb_kernel312nf(
                   index = jnr**homenr - nbsum[jnr] + ii;
                  }
 
-                 /*if(enerd1[index] == enerd3[index])
-                 {
-                  //vctot         = vctot - enerd3[index];
-                  enerd1[index] = 0;
-                 }
-                 if(enerd2[index] == enerd4[index])
-                 {
-                  //Vvdwtot       = Vvdwtot - enerd4[index];
-                  enerd2[index] = 0;
-                 }*/
-
                  enerd1[index] = enerd1[index] - vctot;
                 }
 

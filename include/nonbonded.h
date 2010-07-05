@@ -67,6 +67,6 @@ do_listed_vdw_q(int ftype,int nbonds,
 		real lambda,real *dvdlambda,
 		const t_mdatoms *md,
 		const t_forcerec *fr,gmx_grppairener_t *grppener,
-		int *global_atom_index);
+		int *global_atom_index,gmx_mc_move *mc_move);
 
 #endif

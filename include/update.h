@@ -165,6 +165,9 @@ extern void parrinellorahman_pcoupl(FILE *fplog,gmx_step_t step,
 extern void berendsen_pcoupl(FILE *fplog,gmx_step_t step,
 			     t_inputrec *ir,real dt,tensor pres,matrix box,
 			     matrix mu);
+extern void mc_pcoupl(FILE *fplog,gmx_step_t step,
+			     t_inputrec *ir,real dt,tensor pres,matrix box,
+			     matrix mu,gmx_mc_move *mc_move,t_block *mols,rvec *x,real *massA);
 
 
 extern void berendsen_pscale(t_inputrec *ir,matrix mu,
@@ -177,7 +180,7 @@ extern void mc_pscale(t_inputrec *ir,matrix mu,
 			     matrix box,matrix box_rel,
 			     int start,int nr_atoms,
 			     rvec x[],unsigned short cFREEZE[],
-			     t_nrnb *nrnb,t_block *mols);
+			     t_nrnb *nrnb,t_block *mols,rvec *xcm,t_graph *graph);
 
 extern void correct_ekin(FILE *log,int start,int end,rvec v[],
 			 rvec vcm,real mass[],real tmass,tensor ekin);

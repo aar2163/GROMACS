@@ -1026,7 +1026,8 @@ put_in_list(bool              bHaveVdW[],
                     for(j=0; (j<nj); j++) 
                     {
                         jcg=jjcg[j];
-                        
+                        //if(i==0)
+                        //printf("icg %d %d\n",icg,jcg);
                         /* Check for large charge groups */
                         if (jcg == icg)
                         {
@@ -1895,7 +1896,7 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
     int     zsh_ty,zsh_tx,ysh_tx;
 #endif
     int     dx0,dx1,dy0,dy1,dz0,dz1;
-    int     Nx,Ny,Nz,shift=-1,j,nrj,nns,nn=-1;
+    int     Nx,Ny,Nz,shift=-1,j,nrj,nns,nn=-1,ii,kk;
     real    gridx,gridy,gridz,grid_x,grid_y,grid_z;
     real    *dcx2,*dcy2,*dcz2;
     int     zgi,ygi,xgi;
@@ -2297,7 +2298,8 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                                                         if (r2 < rs2)
                                                         { 
                                                             if (nsr[jgid] >= MAX_CG)
-                                                            { 
+                                                            {
+                                                              //if(!bExcludeMC[icg])
                                                                 put_in_list(bHaveVdW,ngid,md,icg,jgid,
                                                                             nsr[jgid],nl_sr[jgid],
                                                                             cgs->index,/* cgsatoms, */ bexcl,
@@ -2325,7 +2327,7 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                                                             nl_lr_ljc[jgid][nlr_ljc[jgid]++]=jjcg;
                                                         }
                                                         else
-                                                        { continue;
+                                                        {    //continue;
                                                             if (nlr_one[jgid] >= MAX_CG) {
                                                                 do_longrange(cr,top,fr,ngid,md,icg,jgid,
                                                                              nlr_one[jgid],
@@ -2355,6 +2357,18 @@ static int nsgrid_core(FILE *log,t_commrec *cr,t_forcerec *fr,
                     {
                         if (nsr[nn] > 0) 
                         {
+                         /*if(fr->n_mc)
+                         {
+                          for(kk=0,ii=0;kk<nsr[nn];kk++)
+                          {
+                            if(bExcludeMC[icg] || bExcludeMC[nl_sr[nn][kk]] || icg >= nsr[kk])
+                            {
+                             nl_sr[nn][ii++]=nl_sr[nn][kk];
+                            }
+                          }
+                          nsr[nn] -= ii;
+                         }*/
+                                        //                      printf("icg %d nn %d nsr %d\n",icg,nn,nsr[nn]);
                             put_in_list(bHaveVdW,ngid,md,icg,nn,nsr[nn],nl_sr[nn],
                                         cgs->index, /* cgsatoms, */ bexcl,
                                         shift,fr,FALSE,TRUE,TRUE,bMakeQMMMnblist,bExcludeMC);
@@ -2552,6 +2566,7 @@ void set_bexclude_mc(gmx_localtop_t *top,
  fr->n_mc=bExclude;
  //fr->n_mc=FALSE;
  mc_move->n_mc=bExclude;
+ //mc_move->n_mc=FALSE;
 
  if(bExclude)
  {

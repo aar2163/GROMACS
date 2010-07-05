@@ -1081,9 +1081,7 @@ real pdihs(int nbonds,
      {
       //return vtot;
      }
-     else if(mc_move->n_mc && (ai < mc_move->start || ai > mc_move->end) && 
-       (aj < mc_move->start || aj > mc_move->end) && (ak < mc_move->start || ak > mc_move->end)
-      && (al < mc_move->start || al > mc_move->end))
+     else if(mc_move->n_mc && !WITHIN_MOVE(ai) && !WITHIN_MOVE(aj) && !WITHIN_MOVE(ak) && !WITHIN_MOVE(al))
      {
       continue;
      }
@@ -1415,7 +1413,7 @@ real rbdihs(int nbonds,
 	    int *global_atom_index,int ftype,gmx_mc_move *mc_move)
 {
   const real c0=0.0,c1=1.0,c2=2.0,c3=3.0,c4=4.0,c5=5.0;
-  int  type,ai,aj,ak,al,i,j;
+  int  type,ai,aj,ak,al,i,j,k;
   int  t1,t2,t3;
   rvec r_ij,r_kj,r_kl,m,n;
   real parmA[NR_RBDIHS];
@@ -1428,12 +1426,24 @@ real rbdihs(int nbonds,
   real dvdl=0;
 
   vtot = 0.0;
-  for(i=0; (i<nbonds); ) {
+  for(i=0,k=0; (i<nbonds); k++) {
     type = forceatoms[i++];
     ai   = forceatoms[i++];
     aj   = forceatoms[i++];
     ak   = forceatoms[i++];
     al   = forceatoms[i++];
+
+    if(mc_move) 
+    {
+     if(!mc_move->group[MC_BONDS].ilist->nr)
+     {
+      //return vtot;
+     }
+     else if(mc_move->n_mc && !WITHIN_MOVE(ai) && !WITHIN_MOVE(aj) && !WITHIN_MOVE(ak) && !WITHIN_MOVE(al))
+     {
+      continue;
+     }
+    }
 
     phi=dih_angle(x[ai],x[aj],x[ak],x[al],pbc,r_ij,r_kj,r_kl,m,n,
 		  &cos_phi,&sign,&t1,&t2,&t3);			/*  84		*/
@@ -1497,6 +1507,10 @@ real rbdihs(int nbonds,
     do_dih_fup(ai,aj,ak,al,ddphi,r_ij,r_kj,r_kl,m,n,
 	       f,fshift,pbc,g,x,t1,t2,t3);		/* 112		*/
     vtot += v;
+    if(mc_move)
+    {
+     mc_move->enerd[ftype][k] = v;
+    }
   }  
   *dvdlambda += dvdl;
 
@@ -2565,7 +2579,7 @@ void calc_bonds(FILE *fplog,const gmx_multisim_t *ms,
 			      (const rvec*)x,f,fr->fshift,
 			      pbc_null,g,
 			      lambda,&dvdl,
-			      md,fr,&enerd->grpp,global_atom_index);
+			      md,fr,&enerd->grpp,global_atom_index,mc_move);
 	  if (bPrintSepPot) {
 	    fprintf(fplog,"  %-5s + %-15s #%4d                  dVdl %12.5e\n",
 		    interaction_function[ftype].longname,
@@ -2641,7 +2655,7 @@ void calc_bonds_lambda(FILE *fplog,
 				(const rvec*)x,f,fr->fshift,
 				pbc_null,g,
 				lambda,&dvdl,
-				md,fr,&enerd->grpp,global_atom_index);
+				md,fr,&enerd->grpp,global_atom_index,NULL);
 	  }
 	  if (ind != -1)
 	    inc_nrnb(nrnb,ind,nbonds/nat);

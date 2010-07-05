@@ -362,7 +362,27 @@ static void print_large_forces(FILE *fp,t_mdatoms *md,t_commrec *cr,
     }
   }
 }
-
+void virial_mc(t_forcerec *fr,t_mdatoms *mdatoms,rvec *f,tensor vir_force)
+{
+            /* Now add the forces, this is local */
+            if (fr->bDomDec)
+            {
+                sum_forces(0,fr->f_novirsum_n,f,fr->f_novirsum);
+            }
+            else
+            {
+                sum_forces(mdatoms->start,mdatoms->start+mdatoms->homenr,f,fr->f_novirsum);
+            }
+            if (EEL_FULL(fr->eeltype))
+            {
+                /* Add the mesh contribution to the virial */
+                m_add(vir_force,fr->vir_el_recip,vir_force);
+            }
+            if (debug)
+            {
+                pr_rvecs(debug,0,"vir_force",vir_force,DIM);
+            }
+}
 void do_force(FILE *fplog,t_commrec *cr,
               t_inputrec *inputrec,
               gmx_step_t step,t_nrnb *nrnb,gmx_wallcycle_t wcycle,
@@ -851,10 +871,10 @@ void do_force(FILE *fplog,t_commrec *cr,
     }
     
     /* Sum the potential energy terms from group contributions */
-    if(!mc_move || !mc_move->n_mc)
-    {
+   // if(!mc_move || !mc_move->n_mc)
+   // {
      sum_epot(&(inputrec->opts),enerd);
-    }
+   // }
     
     if (fr->print_force >= 0 && bDoForces)
     {

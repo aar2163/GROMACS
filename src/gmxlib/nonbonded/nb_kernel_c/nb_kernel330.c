@@ -100,6 +100,7 @@ void nb_kernel330(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -174,6 +175,19 @@ void nb_kernel330(
                 jnr              = jjnr[k];        
                 j3               = 3*jnr;          
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+
+                 enerd1[index] = enerd1[index] - vctot;
+                }
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
                 jy1              = pos[j3+1];      
@@ -242,6 +256,31 @@ void nb_kernel330(
                 Vvdwtot          = Vvdwtot+ Vvdw6 + Vvdw12;
                 fscal            = -((fijC+fijD+fijR)*tabscale)*rinv11;
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
                 /* Calculate temporary vectorial force */
                 tx               = fscal*dx11;     
                 ty               = fscal*dy11;     
@@ -354,6 +393,7 @@ void nb_kernel330nf(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -425,6 +465,19 @@ void nb_kernel330nf(
                 jnr              = jjnr[k];        
                 j3               = 3*jnr;          
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+
+                 enerd1[index] = enerd1[index] - vctot;
+                }
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
                 jy1              = pos[j3+1];      
@@ -486,6 +539,31 @@ void nb_kernel330nf(
                 Vvdw12           = c12*VV;         
                 Vvdwtot          = Vvdwtot+ Vvdw6 + Vvdw12;
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] + vctot;
+                }
+
+                if(enerd2)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                  enerd2[index]       = enerd2[index] + Vvdw12+Vvdw6;
+                }
                 /* Inner loop uses 42 flops/iteration */
             }
             
