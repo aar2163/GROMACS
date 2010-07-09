@@ -955,16 +955,11 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   real delta_bla;  /* this was for testing , delete it later */ 
   gmx_rng_t   rng;
   real        bolt;
-  int         gone[216];
 #ifdef GMX_FAHCORE
   /* Temporary addition for FAHCORE checkpointing */
   int chkpt_ret;
 #endif
 
-        for(ii=0;ii<216;ii++)
-        {
-         gone[ii]=0;
-        }
   
     /* Check for special mdrun options */
     bRerunMD = (Flags & MD_RERUN);
@@ -1692,7 +1687,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                        (bNStList ? GMX_FORCE_DOLR : 0) |
                        GMX_FORCE_SEPLRF);
         }
-
         if (shellfc)
         {
             /* Now is the time to relax the shells */
@@ -1723,7 +1717,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             {
               if(step_rel && !update_box && !do_ene && !do_vir) {
                set_bexclude_mc(top,mc_move,fr,TRUE);
-               gone[mc_move->cgs]++;
               }
               else
               {
@@ -1778,7 +1771,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              bolt = gmx_rng_uniform_real(rng);
              if(fr->bEwald && bMC) 
              {
-              if (step_rel && !update_box && 1 == 2 && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.5*bolt)))
+              if (step_rel && !update_box && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.4*bolt)))
               {
                bolt = 2;  /* Preliminary energy check (without recip PME) */
               }
@@ -2488,7 +2481,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             
             do_dr  = do_per_step(step,ir->nstdisreout);
             do_or  = do_per_step(step,ir->nstorireout);
-            
             print_ebin(fp_ene,do_ene,do_dr,do_or,do_log?fplog:NULL,step,t,
                        eprNORMAL,bCompact,mdebin,fcd,groups,&(ir->opts));
       
@@ -2575,19 +2567,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
 
     /* Stop the time */
     runtime_end(runtime);
-    real soma=0;
-        for(ii=0;ii<216;ii++)
-        {
-         soma+=gone[ii];
-        }
-        soma=soma/216;
-    real sigma=0;
-        for(ii=0;ii<216;ii++)
-        {
-         sigma+=sqr(gone[ii]-soma);
-        }
-    sigma=sqrt(sigma/216);
-    printf("av %f sigma %f\n",soma,sigma);
     if (bRerunMD)
     {
         close_trj(status);

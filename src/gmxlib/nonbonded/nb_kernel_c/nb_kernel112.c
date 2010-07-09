@@ -201,11 +201,22 @@ void nb_kernel112(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
+                j3               = 3*jnr;          
                 if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
                 {
-                 continue;
+                 //continue;
                 }
-                j3               = 3*jnr;          
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                }
 
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
@@ -269,14 +280,6 @@ void nb_kernel112(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] - vctot;
                 }
 
@@ -297,14 +300,6 @@ void nb_kernel112(
 
                 if(enerd2)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                   enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
                 }
 
@@ -517,14 +512,6 @@ void nb_kernel112(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] + vctot;
                 }
 
@@ -723,11 +710,22 @@ void nb_kernel112nf(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];
+                j3               = 3*jnr;          
                 if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
                 {
-                 continue;
+                 //continue;
                 }
-                j3               = 3*jnr;          
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                }
 
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
@@ -791,14 +789,6 @@ void nb_kernel112nf(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] - vctot;
                 }
                 /* Load parameters for j atom */
@@ -817,14 +807,6 @@ void nb_kernel112nf(
 
                 if(enerd2)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                   enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
                 }
 
@@ -886,14 +868,6 @@ void nb_kernel112nf(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] + vctot;
                 }
                 /* Inner loop uses 143 flops/iteration */

@@ -751,7 +751,6 @@ int gmx_fio_open(const char *fn,const char *mode)
 		fio  = &(FIO[nFIO-1]);
 		nfio = nFIO-1;
 	}
-
 	bRead = (newmode[0]=='r');
 	fio->fp  = NULL;
 	fio->xdr = NULL;
@@ -1081,7 +1080,6 @@ XDR *gmx_fio_getxdr(int fio)
 bool gmx_fio_getread(int fio)
 {
   gmx_fio_check(fio);
-  
   return FIO[fio].bRead;
 }
 

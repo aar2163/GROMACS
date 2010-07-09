@@ -654,6 +654,7 @@ void _range_check(int n,int n_min,int n_max,const char *var,const char *file,int
   char buf[1024];
   
   if ((n < n_min) || (n >= n_max)) {
+             printf("hey mb\n");
     if (strlen(warn_buf) > 0) {
       strcpy(buf,warn_buf);
       strcat(buf,"\n");

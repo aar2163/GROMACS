@@ -1128,7 +1128,6 @@ static void combine_forces(int nstlist,
         }
     }
 }
-
 void update(FILE         *fplog,
             gmx_step_t   step,
             real         *dvdlambda,    /* FEP stuff */
@@ -1176,6 +1175,7 @@ void update(FILE         *fplog,
         upd->xp_nalloc = state->nalloc;
         srenew(upd->xp,upd->xp_nalloc);
     }
+
     xprime = upd->xp;
     
     /* We need to update the NMR restraint history when time averaging is used */

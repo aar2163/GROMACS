@@ -1216,6 +1216,7 @@ void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int 
   t_nblists *nblists;
   t_nblist *nlist;
   t_idef *idef = &top->idef;
+  t_block *cgs = &top->cgs;
   bool *done;
 
   snew(done,homenr);
@@ -1280,49 +1281,40 @@ void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int 
   }
  }
  sum=0;
- for(i=0;i<fr->nnblists;i++)
- {
-  nblists = &fr->nblists[i];
-  for(j=0; (j<eNL_NR); j++)
+  for(ii=0;ii<cgs->nr;ii++)
   {
-   nlist = &(nblists->nlist_sr[j]);
-   for(k=0;k<nlist->nri;k++)
-   {
-    ii = nlist->iinr[k];
-    if(done[ii])
+    i=cgs->index[ii];
+    if(done[i] || i < mc_move->start || i >= mc_move->end)
     {
      continue;
     }
-    /*for(l=nlist->jindex[k];l<nlist->jindex[k+1];l++)
-    {
-     jj = nlist->jjnr[l];*/
-     for(jj=0;jj<homenr;jj++)
+     for(jj=0;jj<cgs->nr;jj++)
      {
-      if(done[jj] || jj == ii)
+      j=cgs->index[jj];
+      if(done[j] || j == i)
       {
        continue;
       }
 
-     index = ((ii < jj) ? ii*homenr-mc_move->sum_index[ii]+jj : jj*homenr - mc_move->sum_index[jj] + ii);
+     index = ((i < j) ? i*homenr-mc_move->sum_index[i]+j : j*homenr - mc_move->sum_index[j] + i);
+     
 
-      sum+=mc_move->enerd[F_COUL_SR][index];
+  //    sum+=mc_move->enerd[F_COUL_SR][index];
      if(copy)
      {
       //printf("%d %d\n",ii,jj);
       mc_move->enerd_prev[F_COUL_SR][index] = mc_move->enerd[F_COUL_SR][index];
       mc_move->enerd_prev[F_LJ][index] = mc_move->enerd[F_LJ][index];
-      mc_move->enerd_prev[F_LJ14][index] = mc_move->enerd[F_LJ14][index];
-      mc_move->enerd_prev[F_COUL14][index] = mc_move->enerd[F_COUL14][index];
+     // mc_move->enerd_prev[F_LJ14][index] = mc_move->enerd[F_LJ14][index];
+     // mc_move->enerd_prev[F_COUL14][index] = mc_move->enerd[F_COUL14][index];
      }
       mc_move->enerd[F_COUL_SR][index] = 0;
       mc_move->enerd[F_LJ][index] = 0;
-      mc_move->enerd[F_LJ14][index] = 0;
-      mc_move->enerd[F_COUL14][index] = 0;
+     // mc_move->enerd[F_LJ14][index] = 0;
+     // mc_move->enerd[F_COUL14][index] = 0;
     }
-    done[ii]=TRUE;
-   }
+    done[i]=TRUE;
   }
- }
   sfree(done);
 
  if(copy)
