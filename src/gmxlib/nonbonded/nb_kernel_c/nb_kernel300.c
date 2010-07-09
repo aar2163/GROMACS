@@ -162,6 +162,18 @@ void nb_kernel300(
             
             for(k=nj0; (k<nj1); k++)
             {
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
@@ -233,7 +245,6 @@ void nb_kernel300(
                  }
                  enerd1[index] = enerd1[index] + vctot;
                 }
-
                 /* Calculate temporary vectorial force */
                 tx               = fscal*dx11;     
                 ty               = fscal*dy11;     
@@ -341,7 +352,6 @@ void nb_kernel300nf(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     int           index;
-    real          teste;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -411,6 +421,19 @@ void nb_kernel300nf(
                 jnr              = jjnr[k];        
                 j3               = 3*jnr;          
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = ii**homenr - nbsum[ii] + jnr;
+                 }
+                 else
+                 {
+                  index = jnr**homenr - nbsum[jnr] + ii;
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
+
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
                 jy1              = pos[j3+1];      
@@ -474,7 +497,6 @@ void nb_kernel300nf(
                  }
                  enerd1[index] = enerd1[index] + vctot;
                 }
-
                 /* Inner loop uses 26 flops/iteration */
             }
             

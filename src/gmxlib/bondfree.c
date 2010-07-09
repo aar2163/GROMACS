@@ -360,7 +360,8 @@ real bonds(int nbonds,
 
     
     vtot  += vbond;/* 1*/
-
+    //if(ai==92 && aj == 95)
+     //printf("vbond %f dr %f %d %d %f %f %f\n",vbond,dr,ai,aj,x[ai][2],x[aj][2],x[ai][2]-x[aj][2]);
     if(mc_move)
     {
      mc_move->enerd[ftype][k] = vbond;

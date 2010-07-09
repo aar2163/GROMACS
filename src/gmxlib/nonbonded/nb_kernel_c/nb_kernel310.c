@@ -217,7 +217,6 @@ void nb_kernel310(
                  {
                   index = jnr**homenr - nbsum[jnr] + ii;
                  }
-
                  enerd1[index] = enerd1[index] - vctot;
                 }
 
@@ -240,7 +239,7 @@ void nb_kernel310(
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
                 fscal            = (12.0*Vvdw12-6.0*Vvdw6)*rinvsq-((fijC)*tabscale)*rinv11;
 
-                if(enerd1)
+                if(enerd2)
                 {
                  if(ii<jnr)
                  {
@@ -252,8 +251,7 @@ void nb_kernel310(
                  }
                  enerd1[index] = enerd1[index] + vctot;
                 }
-
-                if(enerd2)
+                if(enerd1)
                 {
                  if(ii<jnr)
                  {
@@ -381,7 +379,6 @@ void nb_kernel310nf(
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
     int           index;
-    real          teste=0;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -416,7 +413,6 @@ void nb_kernel310nf(
         
         for(n=nn0; (n<nn1); n++)
         {
-
             /* Load shift vector for this list */
             is3              = 3*shift[n];     
             shX              = shiftvec[is3];  
@@ -494,7 +490,6 @@ void nb_kernel310nf(
                  {
                   index = jnr**homenr - nbsum[jnr] + ii;
                  }
-
                  enerd1[index] = enerd1[index] - vctot;
                 }
 
