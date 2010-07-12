@@ -162,18 +162,6 @@ void nb_kernel300(
             
             for(k=nj0; (k<nj1); k++)
             {
-                if(enerd1)
-                {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
-                 enerd1[index] = enerd1[index] - vctot;
-                }
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
@@ -235,14 +223,6 @@ void nb_kernel300(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] + vctot;
                 }
                 /* Calculate temporary vectorial force */
@@ -439,19 +419,6 @@ void nb_kernel300nf(
                 jy1              = pos[j3+1];      
                 jz1              = pos[j3+2];      
 
-                if(enerd1)
-                {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
-
-                 enerd1[index] = enerd1[index] - vctot;
-                }
 
                 /* Calculate distance */
                 dx11             = ix1 - jx1;      
@@ -487,14 +454,6 @@ void nb_kernel300nf(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] + vctot;
                 }
                 /* Inner loop uses 26 flops/iteration */

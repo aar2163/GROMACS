@@ -1731,7 +1731,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               }
               
             }
-            //printf("step %d %d\n",(int)step_rel,mc_move->mvgroup);
             do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,bMC ? mc_move : NULL,
                      f,force_vir,mdatoms,enerd,fcd,
@@ -1741,7 +1740,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             if(bMC) {
              if(step_rel) {
 
-              epot_delta = delta_enerd_mc(enerd,enerdcopy,mc_move,&top->idef,fr,mdatoms->homenr);
+              epot_delta = delta_enerd_mc(enerd,enerdcopy,top,mc_move,&top->idef,fr,mdatoms->homenr);
 
               //sub_enerdata(enerd,enerdcopy,enerd2);
               //epot_delta = enerd2->term[F_EPOT];
@@ -2436,7 +2435,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                 exit(0);
             }
         }
-        
         if (bTCR)
         {
             /* Only do GCT when the relaxation of shells (minimization) has converged,

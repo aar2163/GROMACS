@@ -122,7 +122,7 @@ forcerec_set_ranges(t_forcerec *fr,
 /* Set the number of cg's and atoms for the force calculation */
 
 extern void init_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,int homenr);
-extern real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_mc_move *mc_move,t_idef *idef,t_forcerec *fr,int homenr);
+extern real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_localtop_t *top,gmx_mc_move *mc_move,t_idef *idef,t_forcerec *fr,int homenr);
 extern void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int homenr,bool copy);
 
 extern void init_forcerec(FILE       *fplog,     
