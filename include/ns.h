@@ -83,7 +83,7 @@ extern void init_ns(FILE *fplog,const t_commrec *cr,
 		    const gmx_mtop_t *mtop,
 		    matrix box);
 
-extern void init_ns_mc(gmx_ns_t *ns, const gmx_localtop_t *top);
+extern void init_ns_mc(gmx_ns_t *ns, const gmx_localtop_t *top,t_mdatoms *md,gmx_mc_move *mc_move);
 
 extern int search_neighbours(FILE *log,t_forcerec *fr,
 			     rvec x[],matrix box,

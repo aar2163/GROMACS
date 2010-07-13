@@ -207,12 +207,6 @@ void nb_kernel312(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];   
-     
-                /*if(start && (ii < *start || ii >= *end) && (jnr < *start || jnr >= *end))
-                {
-                 continue;
-                } */ 
-
                 j3               = 3*jnr;          
 
                 /* load j atom coordinates */
@@ -293,11 +287,11 @@ void nb_kernel312(
                 {
                  if(ii<jnr)
                  {
-                  index = ii**homenr - nbsum[ii] + jnr;
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
                  }
                  else
                  {
-                  index = jnr**homenr - nbsum[jnr] + ii;
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
                  }
                  enerd1[index] = enerd1[index] - vctot;
                 }
@@ -323,14 +317,6 @@ void nb_kernel312(
 
                 if(enerd2)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                   enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
                 }
 
@@ -679,14 +665,6 @@ void nb_kernel312(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] + vctot;
                 }
                 /* Inner loop uses 382 flops/iteration */
@@ -972,11 +950,11 @@ void nb_kernel312nf(
                 {
                  if(ii<jnr)
                  {
-                  index = ii**homenr - nbsum[ii] + jnr;
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
                  }
                  else
                  {
-                  index = jnr**homenr - nbsum[jnr] + ii;
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
                  }
 
                  enerd1[index] = enerd1[index] - vctot;
@@ -1000,14 +978,6 @@ void nb_kernel312nf(
 
                 if(enerd2)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                   enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
                 }
 
@@ -1196,17 +1166,7 @@ void nb_kernel312nf(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
-                 {
-                  index = ii**homenr - nbsum[ii] + jnr;
-                 }
-                 else
-                 {
-                  index = jnr**homenr - nbsum[jnr] + ii;
-                 }
                  enerd1[index] = enerd1[index] + vctot;
-                 teste += enerd1[index];
-                 teste2 += enerd3[index];
                 }
 
                 /* Inner loop uses 233 flops/iteration */

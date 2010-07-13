@@ -116,6 +116,7 @@ typedef struct
  int cgs;
  int cgsnr;
  int homenr;
+ int *cgindex;
  rvec delta_x;
  rvec delta_phi;
  real delta_v;

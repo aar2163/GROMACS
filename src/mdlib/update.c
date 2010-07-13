@@ -171,7 +171,7 @@ void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 {
   int    n,i,k,start,end;
-  int    ai,aj,ak,nr,list_r[200],*list;
+  int    ai,aj,ak,nr,list_r[400],*list;
   rvec   r_ij,r_kj,r1,r2,u1,u2,u3;
   vec4 xrot;
   rvec xcm;
@@ -366,7 +366,6 @@ static void do_update_mc(rvec *x,real *massA,gmx_mc_move *mc_move,t_graph *graph
     }
   
     /* INTERNAL COORDINATES */
-    
     if(mc_move->mvgroup == MC_DIHEDRALS) 
     {
      rotate_dihedral(x,mc_move,graph);

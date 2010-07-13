@@ -196,13 +196,13 @@ void nb_kernel111(
                 }
                 if(enerd1)
                 {
-                 if(ii<jnr)
+                 if(start[start[ii]]<start[start[jnr]])
                  {
-                  index = ii**homenr - nbsum[ii] + jnr;
+                  index = start[start[ii]]**homenr - nbsum[start[start[ii]]] + start[start[jnr]];
                  }
                  else
                  {
-                  index = jnr**homenr - nbsum[jnr] + ii;
+                  index = start[start[jnr]]**homenr - nbsum[start[start[jnr]]] + start[start[ii]];
                  }
                 }
 

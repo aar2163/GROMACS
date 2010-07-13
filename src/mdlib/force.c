@@ -1170,6 +1170,7 @@ void init_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,int homenr)
 {
   int nbonds,ftype,nra,i,s;
   t_idef *idef = &top->idef;
+  t_block *cgs = &top->cgs;
 
   snew(mc_move->enerd,F_NRE);
   snew(mc_move->enerd_prev,F_NRE);
@@ -1198,9 +1199,9 @@ void init_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,int homenr)
  snew(mc_move->enerd_prev[F_COUL14],homenr*homenr);
  snew(mc_move->enerd[F_COUL_RECIP],1);
  snew(mc_move->enerd_prev[F_COUL_RECIP],1);
- snew(mc_move->sum_index,homenr);
+ snew(mc_move->sum_index,cgs->nr);
  s=0;
- for(i=0;i<homenr;i++)
+ for(i=0;i<cgs->nr;i++)
  {
   s+=i;
   //s=0;
@@ -1281,22 +1282,20 @@ void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int 
   }
  }
  sum=0;
-  for(i=0;i<homenr;i++)
+  for(ii=0;ii<cgs->nr;ii++)
   {
-    //i=cgs->index[ii];
-    if(done[i] || i < mc_move->start || i >= mc_move->end)
+    if(done[ii] || cgs->index[ii] < mc_move->start || cgs->index[ii] >= mc_move->end)
     {
      continue;
     }
-     for(j=0;j<homenr;j++)
+     for(jj=0;jj<cgs->nr;jj++)
      {
-      //j=cgs->index[jj];
-      if(done[j] || j == i)
+      if(done[jj] || jj == ii)
       {
        continue;
       }
 
-     index = ((i < j) ? i*homenr-mc_move->sum_index[i]+j : j*homenr - mc_move->sum_index[j] + i);
+     index = ((ii < jj) ? ii*homenr-mc_move->sum_index[ii]+jj : jj*homenr - mc_move->sum_index[jj] + ii);
      
 
   //    sum+=mc_move->enerd[F_COUL_SR][index];
@@ -1313,7 +1312,7 @@ void clean_enerd_mc(gmx_mc_move *mc_move,gmx_localtop_t *top,t_forcerec *fr,int 
      // mc_move->enerd[F_LJ14][index] = 0;
      // mc_move->enerd[F_COUL14][index] = 0;
     }
-    done[i]=TRUE;
+    done[ii]=TRUE;
   }
   sfree(done);
 
@@ -1445,56 +1444,29 @@ real delta_enerd_mc(gmx_enerdata_t *enerd,gmx_enerdata_t *enerd_prev,gmx_localto
   }
 
  snew(done,homenr);
-   for(i=0;i<homenr;i++)
+   for(ii=0;ii<cgs->nr;ii++)
    {
-    iswater = FALSE;
-   // i = cgs->index[ii];
-    if(done[i] || i < mc_move->start || i >= mc_move->end )
+    if(done[ii] || cgs->index[ii] < mc_move->start || cgs->index[ii] >= mc_move->end )
     {
      continue;
     }
-  /*  inr = (iswater ?  cgs->index[ii] + 1 : cgs->index[ii+1]);
-    for(i=cgs->index[ii];i<inr;i++)
-    {*/
-     for(j=0;j<homenr;j++)
+     for(jj=0;jj<cgs->nr;jj++)
      {
-     // j = cgs->index[jj];
-      if(done[j] || j == i)
+      if(done[jj] || jj == ii)
       {
        continue;
       }
-      index = (cgs->index[ii] < j) ? cgs->index[ii]*homenr-mc_move->sum_index[cgs->index[ii]]+j : j*homenr - mc_move->sum_index[j] + cgs->index[ii];
-      index = (i < j) ? i*homenr-mc_move->sum_index[i]+j : j*homenr - mc_move->sum_index[j] + i;
+      index = (ii < jj) ? ii*homenr-mc_move->sum_index[ii]+jj : jj*homenr - mc_move->sum_index[jj] + ii;
 
-      /*jnr = (iswater ?  cgs->index[jj] + 1 : cgs->index[jj+1]);
       
-      for(j=cgs->index[jj]; !iswater && j<jnr; j++)
-      { 
-       index2 = ((i < j) ? i*homenr-mc_move->sum_index[i]+j : j*homenr - mc_move->sum_index[j] + i);
+       enerd->term[F_COUL_SR] -= mc_move->enerd_prev[F_COUL_SR][index];
+       enerd->term[F_LJ] -= mc_move->enerd_prev[F_LJ][index];
+       enerd->term[F_COUL_SR] += mc_move->enerd[F_COUL_SR][index];
+       enerd->term[F_LJ] += mc_move->enerd[F_LJ][index];
 
-       if(index2 != index)
-       {
-        mc_move->enerd[F_COUL_SR][index] += mc_move->enerd[F_COUL_SR][index2];
-        mc_move->enerd[F_COUL_SR][index2] = 0;
-        mc_move->enerd[F_LJ][index] += mc_move->enerd[F_LJ][index2];
-        mc_move->enerd[F_LJ][index2] = 0;
-       }
-      }*/
-     // if(i == inr - 1)
-     // {
-     enerd->term[F_COUL_SR] -= mc_move->enerd_prev[F_COUL_SR][index];
-     enerd->term[F_LJ] -= mc_move->enerd_prev[F_LJ][index];
- //    enerd->term[F_LJ14] -= mc_move->enerd_prev[F_COUL14][index];
-  //   enerd->term[F_COUL14] -= mc_move->enerd_prev[F_COUL14][index];
-     enerd->term[F_COUL_SR] += mc_move->enerd[F_COUL_SR][index];
-     enerd->term[F_LJ] += mc_move->enerd[F_LJ][index];
-   //  enerd->term[F_LJ14] += mc_move->enerd[F_LJ14][index];
-   //  enerd->term[F_COUL14] += mc_move->enerd[F_COUL14][index];
-     // }
      }
-     done[i]=TRUE;
-   // }
-  }
+     done[ii]=TRUE;
+    }
  sfree(done);
  }
 //printf("sum2 %f\n",sum);

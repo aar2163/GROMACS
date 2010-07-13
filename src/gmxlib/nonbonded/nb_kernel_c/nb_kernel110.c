@@ -96,6 +96,7 @@ void nb_kernel110(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -168,11 +169,20 @@ void nb_kernel110(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
-                if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
+                j3               = 3*jnr;    
+      
+                if(enerd1)
                 {
-                 continue;
+                 if(ii<jnr)
+                 {
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
+                 }
+                 else
+                 {
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
                 }
-                j3               = 3*jnr;          
 
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
@@ -222,6 +232,14 @@ void nb_kernel110(
                 faction[j3+2]    = faction[j3+2] - tz;
 
                 /* Inner loop uses 38 flops/iteration */
+                if(enerd1)
+                {
+                 enerd1[index] = enerd1[index] + vctot;
+                }
+                if(enerd2)
+		{
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
             }
             
 
@@ -317,6 +335,7 @@ void nb_kernel110nf(
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
     real          c6,c12;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -386,11 +405,20 @@ void nb_kernel110nf(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
-                if(start && end && (jnr < *start || jnr >= *end) && (ii < *start || ii >= *end))
+                j3               = 3*jnr; 
+         
+                if(enerd1)
                 {
-                 continue;
+                 if(ii<jnr)
+                 {
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
+                 }
+                 else
+                 {
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
                 }
-                j3               = 3*jnr;          
 
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
@@ -424,6 +452,14 @@ void nb_kernel110nf(
                 Vvdwtot          = Vvdwtot+Vvdw12-Vvdw6;
 
                 /* Inner loop uses 24 flops/iteration */
+                if(enerd1)
+                {
+                 enerd1[index] = enerd1[index] + vctot;
+                }
+                if(enerd2)
+		{
+                  enerd2[index]       = enerd2[index] + Vvdw12-Vvdw6;
+                }
             }
             
 

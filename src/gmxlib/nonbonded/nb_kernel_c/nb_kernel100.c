@@ -98,6 +98,7 @@ void nb_kernel100(
     real          ix1,iy1,iz1,fix1,fiy1,fiz1;
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -168,7 +169,20 @@ void nb_kernel100(
 
                 /* Get j neighbor index, and coordinate index */
                 jnr              = jjnr[k];        
-                j3               = 3*jnr;          
+                j3               = 3*jnr; 
+         
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
+                 }
+                 else
+                 {
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
 
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
@@ -209,6 +223,10 @@ void nb_kernel100(
                 faction[j3+2]    = faction[j3+2] - tz;
 
                 /* Inner loop uses 27 flops/iteration */
+                if(enerd1)
+                {
+                 enerd1[index] = enerd1[index] + vctot;
+                }
             }
             
 
@@ -304,6 +322,7 @@ void nb_kernel100nf(
     real          ix1,iy1,iz1;
     real          jx1,jy1,jz1;
     real          dx11,dy11,dz11,rsq11,rinv11;
+    int           index;
 
     nri              = *p_nri;         
     ntype            = *p_ntype;       
@@ -372,6 +391,19 @@ void nb_kernel100nf(
                 jnr              = jjnr[k];        
                 j3               = 3*jnr;          
 
+                if(enerd1)
+                {
+                 if(ii<jnr)
+                 {
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
+                 }
+                 else
+                 {
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
+                 }
+                 enerd1[index] = enerd1[index] - vctot;
+                }
+
                 /* load j atom coordinates */
                 jx1              = pos[j3+0];      
                 jy1              = pos[j3+1];      
@@ -394,6 +426,10 @@ void nb_kernel100nf(
                 vctot            = vctot+vcoul;    
 
                 /* Inner loop uses 16 flops/iteration */
+                if(enerd1)
+                {
+                 enerd1[index] = enerd1[index] + vctot;
+                }
             }
             
 

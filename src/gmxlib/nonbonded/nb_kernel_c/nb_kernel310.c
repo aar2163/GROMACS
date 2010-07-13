@@ -209,13 +209,13 @@ void nb_kernel310(
 
                 if(enerd1)
                 {
-                 if(ii<jnr)
+                 if(start[ii]<start[jnr])
                  {
-                  index = ii**homenr - nbsum[ii] + jnr;
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
                  }
                  else
                  {
-                  index = jnr**homenr - nbsum[jnr] + ii;
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
                  }
                  enerd1[index] = enerd1[index] - vctot;
                 }
@@ -468,11 +468,11 @@ void nb_kernel310nf(
                 {
                  if(ii<jnr)
                  {
-                  index = ii**homenr - nbsum[ii] + jnr;
+                  index = start[ii]**homenr - nbsum[start[ii]] + start[jnr];
                  }
                  else
                  {
-                  index = jnr**homenr - nbsum[jnr] + ii;
+                  index = start[jnr]**homenr - nbsum[start[jnr]] + start[ii];
                  }
                  enerd1[index] = enerd1[index] - vctot;
                 }

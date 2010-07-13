@@ -2453,12 +2453,22 @@ void ns_realloc_natoms(gmx_ns_t *ns,int natoms)
     }
 }
 
-void init_ns_mc(gmx_ns_t *ns, const gmx_localtop_t *top)
+void init_ns_mc(gmx_ns_t *ns, const gmx_localtop_t *top,t_mdatoms *md,gmx_mc_move *mc_move)
 {
  t_block *cgs = &(top->cgs);
- int i;
+ int ii,i;
 
  snew(ns->bExcludeMC,cgs->nr);
+ snew(mc_move->cgindex,md->homenr);
+   for(ii=0;ii<md->homenr;ii++)
+   {
+    for(i=0; i<cgs->nr; i++) {
+     if(ii >= cgs->index[i] && ii < cgs->index[i+1])
+     {
+      mc_move->cgindex[ii] = i;
+     } 
+    }
+   }
     for(i=0; i<cgs->nr; i++) {
       ns->bExcludeMC[i] = FALSE;
     }

@@ -1112,11 +1112,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     }
   }
 
-    if(bMC) 
-    {
-     init_ns_mc(&fr->ns,top);
-     fr->n_mc = FALSE;
-    }
     if (DOMAINDECOMP(cr))
     {
         /* Distribute the charge groups over the nodes from the master node */
@@ -1263,6 +1258,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
    mc_move->n_mc = FALSE;
    mc_move->cgsnr = top->cgs.nr;
    mc_move->homenr = mdatoms->homenr;
+   init_ns_mc(&fr->ns,top,mdatoms,mc_move);
+
    for(ii=0;ii<top->cgs.nr;ii++)
     mc_move->bNS[ii]=TRUE;
 
@@ -1271,6 +1268,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
    mc_move->group[MC_DIHEDRALS].ilist = &top_global->moltype[0].mc_dihedrals;
   
    mc_move->xprev = xcopy;
+   fr->n_mc = FALSE;
   }
     if (MASTER(cr))
     {
@@ -1731,6 +1729,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               }
               
             }
+            //printf("step %d\n",(int)step_rel);
             do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,bMC ? mc_move : NULL,
                      f,force_vir,mdatoms,enerd,fcd,
@@ -2015,6 +2014,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              {
               mc_move->mvgroup = MC_TRANSLATE;
              }
+              //mc_move->mvgroup = MC_DIHEDRALS;
              switch (mc_move->mvgroup)  
              {
               case MC_TRANSLATE:
@@ -2064,6 +2064,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                {
                 jj = uniform_int(rng,(mc_move->group[MC_DIHEDRALS].ilist)->nr/2);
                 deltax=(2*gmx_rng_uniform_real(rng)-1.0)*ir->dihedral_rot*M_PI/180.0;
+                //deltax=30*M_PI/180.0;
                 set_mcmove(&(mc_move->group[MC_DIHEDRALS]),rng,deltax,2,mc_move->start,jj);
                 ok=TRUE;
                }
