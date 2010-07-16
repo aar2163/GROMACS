@@ -52,6 +52,7 @@ typedef struct {
   t_ilist       mc_bonds;       /* Active bonds in MC simulations       */
   t_ilist       mc_angles;      /* Active angles in MC simulations      */
   t_ilist       mc_dihedrals;   /* Active dihedrals in MC simulations   */
+  t_ilist       mc_cra;         /* Active CRA in MC simulations   */
 } gmx_moltype_t;
 
 typedef struct {

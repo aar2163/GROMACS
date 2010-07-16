@@ -869,7 +869,25 @@ static void set_nlistheuristics(gmx_nlheur_t *nlh,bool bReset,gmx_step_t step)
         nlh->scale_tot[d][d] = 1.0;
     }
 }
+bool accept_mc(real deltaH,real bolt,real t,gmx_mc_move *mc_move)
+{
+ bool ok=FALSE;
+ real prob=1;
 
+ prob = mc_move->bias*exp(-deltaH/(BOLTZ*t));
+ prob = mc_move->bias;
+
+ if(prob >= 1)
+ {
+  ok = TRUE;
+ }
+ else if( prob > bolt)
+ {
+  ok = TRUE;
+ }
+
+ return ok;
+}
 double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              bool bVerbose,bool bCompact,int nstglobalcomm,
              gmx_vsite_t *vsite,gmx_constr_t constr,
@@ -952,7 +970,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   int         seed,ai,aj,ak,a,b,c,d;
   int         jj;
   real        deltax;
-  real delta_bla;  /* this was for testing , delete it later */ 
   gmx_rng_t   rng;
   real        bolt;
 #ifdef GMX_FAHCORE
@@ -1266,6 +1283,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
    mc_move->group[MC_BONDS].ilist = &top_global->moltype[0].mc_bonds;
    mc_move->group[MC_ANGLES].ilist = &top_global->moltype[0].mc_angles;
    mc_move->group[MC_DIHEDRALS].ilist = &top_global->moltype[0].mc_dihedrals;
+   mc_move->group[MC_CRA].ilist = &top_global->moltype[0].mc_cra;
   
    mc_move->xprev = xcopy;
    fr->n_mc = FALSE;
@@ -1714,7 +1732,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             if(bMC)
             {
               if(step_rel && !update_box && !do_ene && !do_vir) {
-               set_bexclude_mc(top,mc_move,fr,TRUE);
+               set_bexclude_mc(top,mc_move,fr,FALSE);
               }
               else
               {
@@ -1730,19 +1748,19 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               
             }
             //printf("step %d\n",(int)step_rel);
-            do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
+            /*do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,bMC ? mc_move : NULL,
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
+                     (bNS ? GMX_FORCE_NS : 0) | force_flags);*/
             if(bMC) {
              if(step_rel) {
 
-              epot_delta = delta_enerd_mc(enerd,enerdcopy,top,mc_move,&top->idef,fr,mdatoms->homenr);
+              //epot_delta = delta_enerd_mc(enerd,enerdcopy,top,mc_move,&top->idef,fr,mdatoms->homenr);
 
-              //sub_enerdata(enerd,enerdcopy,enerd2);
-              //epot_delta = enerd2->term[F_EPOT];
+              sub_enerdata(enerd,enerdcopy,enerd2);
+              epot_delta = enerd2->term[F_EPOT];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
                printf("enerdp %f  %f %d %d %d\n",enerd2->term[ii],enerdcopy->term[ii],ii,(int)step_rel,mc_move->mvgroup);
@@ -1767,7 +1785,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
 
              bolt = gmx_rng_uniform_real(rng);
-             if(fr->bEwald && bMC) 
+             if(fr->bEwald && bMC && 1 == 2) 
              {
               if (step_rel && !update_box && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.4*bolt)))
               {
@@ -1787,7 +1805,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             virial_mc(fr,mdatoms,f,force_vir);
         }
                deltaH += enerd->term[F_COUL_RECIP] - mc_move->enerd_prev[F_COUL_RECIP][0];
-              // deltaH += enerd->term[F_COUL_RECIP];
+               //deltaH += enerd->term[F_COUL_RECIP];
                enerd->term[F_EPOT] += enerd->term[F_COUL_RECIP];
               for(ii=0;ii<F_NRE;ii++) {
                if(enerd->term[ii] && 1 == 2)
@@ -1797,7 +1815,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
 
              if(bBOXok) {
-              if (deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > bolt) || !step_rel) {
+              if (!step_rel || accept_mc(deltaH,bolt,ir->opts.ref_t[0],mc_move)) {
                mc_move->bNS[mc_move->cgs] = TRUE;
                if(update_box) {
                 state->vol_ac++;
@@ -1820,7 +1838,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                      (bNS ? GMX_FORCE_NS : 0) | force_flags);
                }*/
                copy_enerdata(enerd,enerdcopy);
-               clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,TRUE);
+               //clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,TRUE);
                if(do_vir)
                {
                 copy_mat(force_vir,force_vircopy);
@@ -1831,7 +1849,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                }
               }
               else {
-               clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
+               //clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
                if (DOMAINDECOMP(cr)) {
                }
                else {
@@ -2014,7 +2032,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              {
               mc_move->mvgroup = MC_TRANSLATE;
              }
-              //mc_move->mvgroup = MC_DIHEDRALS;
+              mc_move->mvgroup = MC_CRA;
              switch (mc_move->mvgroup)  
              {
               case MC_TRANSLATE:
@@ -2069,14 +2087,21 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                 ok=TRUE;
                }
                break;
+              case MC_CRA:
+               if((mc_move->group[MC_CRA].ilist)->nr > 0) 
+               {
+                ok=TRUE;
+               }
+               break;
             }
            } while(!ok);
            }
+           mc_move->bias = 1;
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,
                    f,fr->bTwinRange && bNStList,fr->f_twin,fcd,
                    &top->idef,ekind,ir->nstlist==-1 ? &nlh.scale_tot : NULL,
                    cr,fr,nrnb,&top_global->mols,wcycle,upd,constr,bCalcEner,shake_vir,
-                   bNEMD,bFirstStep && bStateFromTPX);
+                   bNEMD,bFirstStep && bStateFromTPX,rng);
             if(bMC) 
             {
              if(update_box) {

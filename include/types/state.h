@@ -132,6 +132,7 @@ typedef struct
  rvec *xcm;
  real **enerd;
  real **enerd_prev;
+ real bias;
 } gmx_mc_move;
 typedef struct
 {

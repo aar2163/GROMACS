@@ -144,7 +144,7 @@ void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      ai = mc_move->group[MC_BONDS].ai;
      aj = mc_move->group[MC_BONDS].aj;
      nr = 0;
-     bond_rot(graph,ai,aj,list_r,&nr);
+     bond_rot(graph,ai,aj,list_r,&nr,-1);
      list=list_r;
      copy_rvec(x[aj],r1);
      rvec_sub(x[aj],x[ai],r_ij);
@@ -158,7 +158,7 @@ void stretch_bonds(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
       rvec_add(x[ak],v,x[ak]);
      }
 
-     bond_rot(graph,aj,ai,list_r,&nr);
+     bond_rot(graph,aj,ai,list_r,&nr,-1);
      list=list_r;
 
      svmul(-mc_move->group[MC_BONDS].value/2,u1,v);
@@ -181,7 +181,7 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      aj = mc_move->group[MC_DIHEDRALS].aj;
 
      nr = 0;
-     bond_rot(graph,ai,aj,list_r,&nr);
+     bond_rot(graph,ai,aj,list_r,&nr,-1);
 
      list = list_r;
 
@@ -221,6 +221,504 @@ void rotate_dihedral(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      }
 }
 
+void cholesky(real **a,real **b,real **c,real coef,int n1,int n)
+{
+ int i,j,k;
+ real sum;
+
+ for(i=0;i<n;i++)
+ {
+  for(j=0;j<n;j++)
+  {
+   b[i][j]=c[i][j]=0;
+  }
+ }
+ 
+ for(i=0;i<n;i++)
+ {
+  for(j=i;j<n;j++)
+  {
+   for (sum=a[i][j],k=i-1;k>=0;k--)
+   {
+    sum -= b[i][k]*b[j][k];
+   }
+   if(i == j)
+   {
+    if (sum <= 0.0)
+    {
+     gmx_fatal(FARGS,"Cholesky decomposition in CRA movement failed");
+    }
+    b[i][i]=sqrt(sum);
+    c[i][i]=b[i][i];
+   }
+   else
+   {
+    b[j][i]=sum/b[i][i];
+    c[i][j]=b[j][i];
+   }
+  }
+ }
+ for(i=n1;i<n;i++)
+ {
+  for(j=i;j<n;j++)
+  {
+   c[i][j] = c[i][j]*coef;
+  }
+ }
+ /*sum=0;
+ for(i=0;i<n;i++)
+ {
+  sum += b[11][i]*c[i][15];
+ }
+ printf("sum %f %f\n",sum,a[11][15]);*/
+}
+void mk_basis(matrix basis,matrix basis_inv,rvec u1,rvec u2,rvec u3)
+{
+     basis[XX][XX] = u1[XX]; basis[XX][YY] = u2[XX]; basis[XX][ZZ] = u3[XX]; 
+     basis[YY][XX] = u1[YY]; basis[YY][YY] = u2[YY]; basis[YY][ZZ] = u3[YY]; 
+     basis[ZZ][XX] = u1[ZZ]; basis[ZZ][YY] = u2[ZZ]; basis[ZZ][ZZ] = u3[ZZ]; 
+
+     basis_inv[XX][XX] = basis[XX][XX]; basis_inv[XX][YY] = basis[YY][XX]; basis_inv[XX][ZZ] = basis[ZZ][XX]; 
+     basis_inv[YY][XX] = basis[XX][YY]; basis_inv[YY][YY] = basis[YY][YY]; basis_inv[YY][ZZ] = basis[ZZ][YY]; 
+     basis_inv[ZZ][XX] = basis[XX][ZZ]; basis_inv[ZZ][YY] = basis[YY][ZZ]; basis_inv[ZZ][ZZ] = basis[ZZ][ZZ]; 
+}
+void mk_rot(rvec *x,rvec *xprime,rvec xcm,rvec delta_phi,matrix basis,matrix basis_inv,int aj,int aa)
+{
+ rvec r_aaj,r1,r2;
+ vec4 xrot;
+ int  i;
+
+       rvec_sub(x[aa],x[aj],r_aaj);
+       mvmul(basis_inv,r_aaj,r1);
+       rand_rot_mc(r1,xrot,delta_phi,xcm);
+       for(i=0;i<DIM;i++)
+        r1[i]=xrot[i];
+       mvmul(basis,r1,r2);
+       rvec_add(x[aj],r2,xprime[aa]);
+}
+
+void mk_cra_angle_list(int *angle_i,int *angle_j,int *angle_k,gmx_mc_move *mc_move,int jj)
+{
+     angle_i[0] = (mc_move->group[MC_CRA].ilist)->iatoms[jj];
+     angle_j[0] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+1];
+     angle_k[0] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+2];
+     angle_i[1] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+1];
+     angle_j[1] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+2];
+     angle_k[1] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+3];
+     angle_i[2] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+2];
+     angle_j[2] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+3];
+     angle_k[2] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+4];
+     angle_i[3] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+3];
+     angle_j[3] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+4];
+     angle_k[3] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+5];
+     angle_i[4] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+4];
+     angle_j[4] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+5];
+     angle_k[4] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+6];
+     angle_i[5] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+5];
+     angle_j[5] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+6];
+     angle_k[5] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+7];
+     angle_i[6] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+6];
+     angle_j[6] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+7];
+     angle_k[6] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+8];
+     angle_i[7] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+7];
+     angle_j[7] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+8];
+     angle_k[7] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+9];
+     angle_i[8] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+8];
+     angle_j[8] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+9];
+     angle_k[8] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+10];
+     angle_i[9] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+9];
+     angle_j[9] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+10];
+     angle_k[9] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+11];
+}
+void  chi_to_psi(real ** matrix_lt,gmx_rng_t rng,real *delta_chi,real *delta_psi,int nn)
+{
+ int i,j;
+ real gauss,sum;
+
+ for(i=nn-1;i>=0;i--)
+ {
+  sum=0;
+  gauss = gmx_rng_gaussian_real(rng);
+  delta_chi[i] = gauss;
+  for(j=i+1;j<nn;j++)
+  {
+   sum+=matrix_lt[i][j]*delta_psi[j];
+  }
+   delta_psi[i] = (gauss-sum)/matrix_lt[i][i];
+ }
+}
+void psi_to_chi(real ** matrix_lt,real *delta_chi,real *delta_psi,int nn)
+{
+ int i,j;
+ for(i=0;i<nn;i++)
+ {
+  delta_chi[i] = 0;
+  for (j=0;j<nn;j++)
+  {
+   delta_chi[i] += matrix_lt[i][j]*delta_psi[j];
+  }
+ }
+}
+real bias_prob(real **matrix,real *delta_chi,int nn)
+{
+ int ii;
+ real det=1,d2=0,prob;
+  for(ii=0;ii<nn;ii++)
+  {
+   det *= matrix[ii][ii];
+   d2 += delta_chi[ii]*delta_chi[ii];
+  }
+  prob = det*exp(-d2);
+ return prob;
+}
+void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr)
+{
+  int    n,i,k,start,end;
+  int    ai,aj,ak,nr,*list_r,jj,ii,aa,kk;
+  int    dihedral_nr = 7;
+  int    angle_nr = 10;
+  int    coord_nr;
+  int    *dihedral_i,*dihedral_j,*dihedral_k,*angle_i,*angle_j,*angle_k;
+  real   delta = 0.001;
+  rvec   r_ij,r_kj,r_aaj,r1,r2,u1,u2,u3;
+  rvec  *xprime,xaa[2],dvec[17];
+  real  **matrix_i,**matrix_j,**matrix_l,**matrix_lt,**matrix_ltinv;
+  real *delta_psi,*delta_chi;
+  real cos;
+  vec4 xrot;
+  rvec xcm;
+  matrix basis,basis_inv;
+  rvec delta_phi;
+  real coef1=3.0,coef2=0.2,coef3=10.0;
+  real bias1,bias2;
+
+  snew(list_r,homenr);
+  snew(xprime,homenr);
+  snew(dihedral_i,dihedral_nr);
+  snew(dihedral_j,dihedral_nr);
+  snew(dihedral_k,dihedral_nr);
+  snew(angle_i,angle_nr);
+  snew(angle_j,angle_nr);
+  snew(angle_k,angle_nr);
+
+
+  coord_nr = angle_nr + dihedral_nr;
+
+  snew(matrix_i,coord_nr);
+  snew(matrix_j,coord_nr);
+  snew(matrix_l,coord_nr);
+  snew(matrix_lt,coord_nr);
+  snew(matrix_ltinv,coord_nr);
+  snew(delta_psi,coord_nr);
+  snew(delta_chi,coord_nr);
+ 
+  for(ii=0;ii<coord_nr;ii++)
+  {
+   snew(matrix_i[ii],coord_nr);
+   snew(matrix_j[ii],coord_nr);
+   snew(matrix_l[ii],coord_nr);
+   snew(matrix_lt[ii],coord_nr);
+   snew(matrix_ltinv[ii],coord_nr);
+  }
+
+     jj = uniform_int(rng,(mc_move->group[MC_CRA].ilist)->nr/13);
+
+
+     /* PREROTATION */
+     dihedral_i[0] = (mc_move->group[MC_CRA].ilist)->iatoms[jj];
+     dihedral_j[0] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+1];
+     dihedral_k[0] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+2];
+     dihedral_i[1] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+1];
+     dihedral_j[1] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+2];
+     dihedral_k[1] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+3];
+     dihedral_i[2] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+3];
+     dihedral_j[2] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+4];
+     dihedral_k[2] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+5];
+     dihedral_i[3] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+4];
+     dihedral_j[3] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+5];
+     dihedral_k[3] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+6];
+     dihedral_i[4] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+6];
+     dihedral_j[4] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+7];
+     dihedral_k[4] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+8];
+     dihedral_i[5] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+7];
+     dihedral_j[5] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+8];
+     dihedral_k[5] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+9];
+     dihedral_i[6] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+9];
+     dihedral_j[6] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+10];
+     dihedral_k[6] = (mc_move->group[MC_CRA].ilist)->iatoms[jj+11];
+
+     aa = (mc_move->group[MC_CRA].ilist)->iatoms[jj+12];
+   for(ii=0;ii<dihedral_nr;ii++)
+   {
+     nr = 0;
+     ai = dihedral_i[ii];
+     aj = dihedral_j[ii];
+     ak = dihedral_k[ii];
+
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u1);
+     unitv(r1,u2);
+     unitv(r2,u3);
+    
+     mk_basis(basis,basis_inv,u1,u2,u3);
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+
+     for(kk=0;kk<2;kk++)
+     {
+      delta_phi[XX] = (!kk ? delta : -delta);
+      clear_rvec(xaa[kk]);
+
+      /*rvec_sub(x[26],x[29],r_ij);
+      rvec_sub(x[31],x[29],r_kj);
+      cos = acos(cos_angle(r_ij,r_kj));
+      printf("hey %f\n",cos);*/
+      mk_rot(x,xprime,xcm,delta_phi,basis,basis_inv,aj,aa);
+      copy_rvec(xprime[aa],xaa[kk]);
+     }
+     rvec_sub(xaa[0],xaa[1],dvec[ii]);
+     svmul(1/(2*delta),dvec[ii],dvec[ii]);
+  }
+   mk_cra_angle_list(angle_i,angle_j,angle_k,mc_move,jj);
+   for(ii=0;ii<angle_nr;ii++)
+   {
+     nr = 0;
+     ai = angle_i[ii];
+     aj = angle_j[ii];
+     ak = angle_k[ii];
+
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u2);
+     unitv(r1,u1);
+     unitv(r2,u3);
+    
+     mk_basis(basis,basis_inv,u1,u2,u3);
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+
+     for(kk=0;kk<2;kk++)
+     {
+      delta_phi[XX] = (!kk ? delta : -delta);
+      clear_rvec(xaa[kk]);
+      mk_rot(x,xprime,xcm,delta_phi,basis,basis_inv,aj,aa);
+      copy_rvec(xprime[aa],xaa[kk]);
+     }
+     rvec_sub(xaa[0],xaa[1],dvec[ii+dihedral_nr]);
+     svmul(1/(2*delta),dvec[ii+dihedral_nr],dvec[ii+dihedral_nr]);
+  }
+
+  for(ii=0;ii<coord_nr;ii++)
+  {
+   for(kk=ii;kk<coord_nr;kk++)
+   {
+    matrix_i[ii][kk] = iprod(dvec[ii],dvec[kk]);
+    matrix_i[kk][ii] = matrix_i[ii][kk];
+   }
+  }
+  for(ii=0;ii<coord_nr;ii++)
+  {
+   for(kk=0;kk<coord_nr;kk++)
+   {
+    matrix_j[ii][kk] = coef1*coef2*matrix_i[ii][kk];
+    if(ii==kk)
+    {
+     matrix_j[ii][kk] += coef1;
+    }
+   }
+  }
+  cholesky(matrix_j,matrix_l,matrix_lt,coef3,dihedral_nr,coord_nr);
+  chi_to_psi(matrix_lt,rng,delta_chi,delta_psi,coord_nr);
+  bias1= bias_prob(matrix_l,delta_chi,coord_nr);
+
+   for(ii=0;ii<dihedral_nr;ii++)
+   {
+     ai = dihedral_i[ii];
+     aj = dihedral_j[ii];
+     ak = dihedral_k[ii];
+
+     nr = 0;
+     bond_rot(graph,ai,aj,list_r,&nr,aa);
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u1);
+     unitv(r1,u2);
+     unitv(r2,u3);
+    
+     mk_basis(basis,basis_inv,u1,u2,u3);
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+
+     for(k=0;k<nr;k++) {
+      delta_phi[XX] = delta_psi[ii];
+      mk_rot(x,x,xcm,delta_phi,basis,basis_inv,aj,list_r[k]);
+     }
+  }
+   for(ii=0;ii<angle_nr;ii++)
+   {
+     nr = 0;
+     ai = angle_i[ii];
+     aj = angle_j[ii];
+     ak = angle_k[ii];
+     bond_rot(graph,aj,ak,list_r,&nr,aa);
+     list_r[nr++]=ak;
+
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u2);
+     unitv(r1,u1);
+     unitv(r2,u3);
+    
+     mk_basis(basis,basis_inv,u1,u2,u3);
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+
+     for(k=0;k<nr;k++) 
+     {
+      delta_phi[XX] = delta_psi[dihedral_nr+ii];
+      mk_rot(x,x,xcm,delta_phi,basis,basis_inv,aj,list_r[k]);
+     }
+  }
+   for(ii=0;ii<dihedral_nr;ii++)
+   {
+     nr = 0;
+     ai = dihedral_i[ii];
+     aj = dihedral_j[ii];
+     ak = dihedral_k[ii];
+
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u1);
+     unitv(r1,u2);
+     unitv(r2,u3);
+    
+     mk_basis(basis,basis_inv,u1,u2,u3);
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+
+     for(kk=0;kk<2;kk++)
+     {
+      delta_phi[XX] = (!kk ? delta : -delta);
+      clear_rvec(xaa[kk]);
+      mk_rot(x,xprime,xcm,delta_phi,basis,basis_inv,aj,aa);
+      copy_rvec(xprime[aa],xaa[kk]);
+     }
+     rvec_sub(xaa[0],xaa[1],dvec[ii]);
+     svmul(1/(2*delta),dvec[ii],dvec[ii]);
+  }
+   for(ii=0;ii<angle_nr;ii++)
+   {
+     nr = 0;
+     ai = angle_i[ii];
+     aj = angle_j[ii];
+     ak = angle_k[ii];
+
+
+     rvec_sub(x[aj],x[ai],r_ij);
+     rvec_sub(x[aj],x[ak],r_kj);
+     cprod(r_ij,r_kj,r1);
+     cprod(r_ij,r1,r2);
+
+     unitv(r_ij,u2);
+     unitv(r1,u1);
+     unitv(r2,u3);
+    
+     mk_basis(basis,basis_inv,u1,u2,u3);
+
+
+     clear_rvec(xcm);
+     clear_rvec(delta_phi);
+
+     for(kk=0;kk<2;kk++)
+     {
+      delta_phi[XX] = (!kk ? delta : -delta);
+      clear_rvec(xaa[kk]);
+      mk_rot(x,xprime,xcm,delta_phi,basis,basis_inv,aj,aa);
+      copy_rvec(xprime[aa],xaa[kk]);
+     }
+     rvec_sub(xaa[0],xaa[1],dvec[ii+dihedral_nr]);
+     svmul(1/(2*delta),dvec[ii+dihedral_nr],dvec[ii+dihedral_nr]);
+  }
+
+  for(ii=0;ii<coord_nr;ii++)
+  {
+   for(kk=ii;kk<coord_nr;kk++)
+   {
+    matrix_i[ii][kk] = iprod(dvec[ii],dvec[kk]);
+    matrix_i[kk][ii] = matrix_i[ii][kk];
+   }
+  }
+  for(ii=0;ii<coord_nr;ii++)
+  {
+   for(kk=0;kk<coord_nr;kk++)
+   {
+    matrix_j[ii][kk] = coef1*coef2*matrix_i[ii][kk];
+    if(ii==kk)
+    {
+     matrix_j[ii][kk] += coef1;
+    }
+   }
+  }
+
+  cholesky(matrix_j,matrix_l,matrix_lt,coef3,dihedral_nr,coord_nr);
+  psi_to_chi(matrix_lt,delta_chi,delta_psi,coord_nr);
+  bias2=bias_prob(matrix_l,delta_chi,coord_nr);
+  mc_move->bias = bias2/bias1;
+  for(ii=0;ii<coord_nr;ii++)
+  {
+   sfree(matrix_i[ii]);
+   sfree(matrix_j[ii]);
+   sfree(matrix_l[ii]);
+   sfree(matrix_lt[ii]);
+   sfree(matrix_ltinv[ii]);
+  }
+  sfree(list_r);
+  sfree(xprime);
+  sfree(dihedral_i);
+  sfree(dihedral_j);
+  sfree(dihedral_k);
+  sfree(angle_i);
+  sfree(angle_j);
+  sfree(angle_k);
+  sfree(matrix_i);
+  sfree(matrix_j);
+  sfree(matrix_l);
+  sfree(matrix_lt);
+  sfree(matrix_ltinv);
+  sfree(delta_psi);
+  sfree(delta_chi);
+}
 void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
 {
   int    n,i,k,start,end;
@@ -236,7 +734,7 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      ak = mc_move->group[MC_ANGLES].ak;
 
      nr = 0;
-     bond_rot(graph,aj,ak,list_r,&nr);
+     bond_rot(graph,aj,ak,list_r,&nr,-1);
      list=list_r;
 
      rvec_sub(x[aj],x[ai],r_ij);
@@ -277,7 +775,7 @@ void bend_angles(rvec *x,gmx_mc_move *mc_move,t_graph *graph)
      }
 
      nr = 0;
-     bond_rot(graph,aj,ai,list_r,&nr);
+     bond_rot(graph,aj,ai,list_r,&nr,-1);
      list=list_r;
 
      clear_rvec(delta_phi);
@@ -324,7 +822,7 @@ void set_mcmove(gmx_mc_movegroup *group,gmx_rng_t rng,real fac,int delta,int sta
   }
  }
 }
-static void do_update_mc(rvec *x,real *massA,gmx_mc_move *mc_move,t_graph *graph)
+static void do_update_mc(rvec *x,real *massA,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr)
 {
   int    n,i,k,start,end;
   int    ai,aj,ak;
@@ -380,6 +878,12 @@ static void do_update_mc(rvec *x,real *massA,gmx_mc_move *mc_move,t_graph *graph
     {
      bend_angles(x,mc_move,graph);
     }
+    /* CRA */
+    if(mc_move->mvgroup == MC_CRA) 
+    {
+     do_cra(x,mc_move,graph,rng,homenr);
+    }
+   
   //sfree(list_r);
   //sfree(list_l);
 }
@@ -467,7 +971,7 @@ static void do_update_md(int start,int homenr,double dt,
   }
 }
 
-void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr)
+void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr,int afix)
 {
   int i,k;
   for(i=0;i<graph->nedge[aj];i++)
@@ -481,8 +985,11 @@ void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr)
     }
     if(k == *nr)
     { 
-     list[(*nr)++] = graph->edge[aj][i];
-     bond_rot(graph,aj,graph->edge[aj][i],list,nr);
+     if(afix == -1 ||graph->edge[aj][i] != afix)
+     { 
+      list[(*nr)++] = graph->edge[aj][i];
+      bond_rot(graph,aj,graph->edge[aj][i],list,nr,afix);
+     }
     }
    }
   }
@@ -1151,7 +1658,8 @@ void update(FILE         *fplog,
             bool         bCalcVir,
             tensor       vir_part,
             bool         bNEMD,
-            bool         bInitStep)
+            bool         bInitStep,
+            gmx_rng_t    rng)
 {
     bool             bCouple,bNH,bPR,bLastStep,bLog=FALSE,bEner=FALSE;
     double           dt,eph;
@@ -1333,7 +1841,7 @@ void update(FILE         *fplog,
       }
      }
      else {
-      do_update_mc(xprime,md->massA,mc_move,graph);
+      do_update_mc(xprime,md->massA,mc_move,graph,rng,md->homenr);
      }
     }
   } else {
@@ -1429,7 +1937,7 @@ void update(FILE         *fplog,
   /* We must always unshift here, also if we did not shake
    * x was shifted in do_force */
   
-  if (graph && (graph->nnodes > 0)) {
+  if (graph && (graph->nnodes > 0)) { 
     unshift_x(graph,state->box,state->x,xprime);
     if (TRICLINIC(state->box))
       inc_nrnb(nrnb,eNR_SHIFTX,2*graph->nnodes);

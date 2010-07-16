@@ -1448,29 +1448,39 @@ static bool default_params(int ftype,t_params bt[],
 
 void push_mcmove(directive d,char *line,t_ilist *ilist,int count)
 {
-  const char *aaformat[MAXATOMLIST]= {
+
+  const char *aaformat[13]= {
     "%d%d",
     "%d%d%d",
     "%d%d%d%d",
     "%d%d%d%d%d",
     "%d%d%d%d%d%d",
-    "%d%d%d%d%d%d%d"
+    "%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d%d%d%d%d%d",
+    "%d%d%d%d%d%d%d%d%d%d%d%d%d%d"
   };
-  int      aa[MAXATOMLIST+1];
+  int      aa[13+1];
   int nread,j;
 
-  for(j=0; j<MAXATOMLIST; j++)
+  for(j=0; j<13; j++)
     aa[j]=NOTSET;
 
   nread = sscanf(line,aaformat[count-2],
-		 &aa[0],&aa[1],&aa[2],&aa[3]);
+		 &aa[0],&aa[1],&aa[2],&aa[3],&aa[4],&aa[5],&aa[6],&aa[7],&aa[8],&aa[9],&aa[10],&aa[11],&aa[12]);
   if(nread != count)
    gmx_fatal(FARGS,"You are supposed to enter %d atom numbers in field %s",count,dir2str(d));
   
   srenew(ilist->iatoms,ilist->nr+(count == 4 ? 2 : count));
   if(count != 4) {
-  for(j=0;j<count;j++)
-   ilist->iatoms[ilist->nr++]=aa[j]-1;
+   for(j=0;j<count;j++)
+   {
+    ilist->iatoms[ilist->nr++]=aa[j]-1;
+   }
   }
   else {
    ilist->iatoms[ilist->nr++]=aa[1]-1;

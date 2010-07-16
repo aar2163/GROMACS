@@ -679,6 +679,8 @@ void print_mc_ratio(FILE *log,int *a,int *b,int c,int d)
      fprintf(log,"%s of Accepted Steps %s:   %12.5f\n",
             "%", "[DIHEDRAL ROTATION]",(real)a[MC_DIHEDRALS]/((real)b[MC_DIHEDRALS]));
      fprintf(log,"%s of Accepted Steps %s:   %12.5f\n",
+            "%", "[CRA]",(real)a[MC_CRA]/((real)b[MC_CRA]));
+     fprintf(log,"%s of Accepted Steps %s:   %12.5f\n",
             "%", "[VOLUME]",(real)c/((real)d));
     }
 }

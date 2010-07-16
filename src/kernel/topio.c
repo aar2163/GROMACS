@@ -551,6 +551,10 @@ static char **read_topol(char *infile,char *outfile,
           case d_mcdihedrals:
            push_mcmove(d,pline,&(mi0->mc_dihedrals),4);
            break;
+
+          case d_mccra:
+           push_mcmove(d,pline,&(mi0->mc_cra),13);
+           break;
 			  
 	  case d_moleculetype: {
 	    if (!bReadMolType) {
@@ -586,6 +590,7 @@ static char **read_topol(char *infile,char *outfile,
             mi0->mc_bonds.nr=0;
             mi0->mc_angles.nr=0;
             mi0->mc_dihedrals.nr=0;
+            mi0->mc_cra.nr=0;
 	    break;
 	  }
 	  case d_atoms: 

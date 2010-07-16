@@ -97,6 +97,7 @@ typedef struct {
   t_ilist       mc_bonds;
   t_ilist       mc_angles;
   t_ilist       mc_dihedrals;
+  t_ilist       mc_cra;
 } t_molinfo;
 
 typedef struct {
@@ -167,6 +168,7 @@ typedef enum {
   d_mcbonds,
   d_mcangles,
   d_mcdihedrals,
+  d_mccra,
   d_maxdir,
   d_invalid,
   d_none
@@ -214,6 +216,7 @@ static const char *ds[d_maxdir+1] = {
   "MC_bonds",
   "MC_angles",
   "MC_dihedrals",
+  "MC_CRA",
   "invalid"
   };
 

@@ -270,6 +270,7 @@ static void molinfo2mtop(int nmi,t_molinfo *mi,gmx_mtop_t *mtop)
     molt->mc_bonds = mi[m].mc_bonds;
     molt->mc_angles = mi[m].mc_angles;
     molt->mc_dihedrals = mi[m].mc_dihedrals;
+    molt->mc_cra = mi[m].mc_cra;
   }
 }
 
