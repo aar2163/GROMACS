@@ -875,8 +875,8 @@ bool accept_mc(real deltaH,real bolt,real t,gmx_mc_move *mc_move)
  real prob=1;
 
  prob = mc_move->bias*exp(-deltaH/(BOLTZ*t));
- prob = mc_move->bias;
-
+ //prob = mc_move->bias;
+ //printf("prob %f bolt %f bias %f delta %f\n",prob,bolt,mc_move->bias,deltaH);
  if(prob >= 1)
  {
   ok = TRUE;
@@ -885,7 +885,6 @@ bool accept_mc(real deltaH,real bolt,real t,gmx_mc_move *mc_move)
  {
   ok = TRUE;
  }
-
  return ok;
 }
 double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
@@ -988,7 +987,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     if(bMC) 
     {
      seed = make_seed();
-     seed = 24030;  ///*******************
+     //seed = 24030;  ///*******************
      rng=gmx_rng_init(seed);
     } 
     if (bRerunMD)
@@ -1748,12 +1747,12 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               
             }
             //printf("step %d\n",(int)step_rel);
-            /*do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
+            do_force(fplog,cr,ir,step,nrnb,wcycle,top,top_global,groups,
                      state->box,state->x,&state->hist,bMC ? mc_move : NULL,
                      f,force_vir,mdatoms,enerd,fcd,
                      state->lambda,graph,
                      fr,vsite,mu_tot,t,fp_field,ed,bBornRadii,
-                     (bNS ? GMX_FORCE_NS : 0) | force_flags);*/
+                     (bNS ? GMX_FORCE_NS : 0) | force_flags);
             if(bMC) {
              if(step_rel) {
 
@@ -1785,9 +1784,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
 
              bolt = gmx_rng_uniform_real(rng);
-             if(fr->bEwald && bMC && 1 == 2) 
+             if(fr->bEwald && bMC) 
              {
-              if (step_rel && !update_box && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.4*bolt)))
+              if (step_rel && !update_box && 1 == 2 && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.4*bolt)))
               {
                bolt = 2;  /* Preliminary energy check (without recip PME) */
               }
@@ -1864,7 +1863,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
              else
              {
-              clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
+             // clean_enerd_mc(mc_move,top,fr,mdatoms->homenr,FALSE);
                 for(ii=mdatoms->start; ii<(mdatoms->start+mdatoms->homenr); ii++) {
                  copy_rvec(xcopy[ii],state->x[ii]);
                 }
@@ -2036,28 +2035,40 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              switch (mc_move->mvgroup)  
              {
               case MC_TRANSLATE:
-               for (ii=0;ii<DIM;ii++) {
-                mc_move->delta_x[ii] = (2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_translate;
+               if(ir->cm_translate)
+               {
+                for (ii=0;ii<DIM;ii++) {
+                 mc_move->delta_x[ii] = (2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_translate;
+                }
+                ok=TRUE;
                }
-               ok=TRUE;
               break;
               case MC_ROTATEX:
-               mc_move->delta_phi[XX] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_rot/180.0;
-               mc_move->delta_phi[YY] = 0.0;
-               mc_move->delta_phi[ZZ] = 0.0;
-               ok=TRUE;
+               if(ir->cm_rot)
+               {
+                mc_move->delta_phi[XX] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_rot/180.0;
+                mc_move->delta_phi[YY] = 0.0;
+                mc_move->delta_phi[ZZ] = 0.0;
+                ok=TRUE;
+               }
               break;
               case MC_ROTATEY:
-               mc_move->delta_phi[YY] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_rot/180.0;
-               mc_move->delta_phi[XX] = 0.0;
-               mc_move->delta_phi[ZZ] = 0.0;
-               ok=TRUE;
+               if(ir->cm_rot)
+               {
+                mc_move->delta_phi[YY] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_rot/180.0;
+                mc_move->delta_phi[XX] = 0.0;
+                mc_move->delta_phi[ZZ] = 0.0;
+                ok=TRUE;
+               }
               break;
               case MC_ROTATEZ:
-               mc_move->delta_phi[ZZ] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_rot/180.0;
-               mc_move->delta_phi[YY] = 0.0;
-               mc_move->delta_phi[XX] = 0.0;
-               ok=TRUE;
+               if(ir->cm_rot)
+               {
+                mc_move->delta_phi[ZZ] = M_PI*(2.0*gmx_rng_uniform_real(rng)-1.0)*ir->cm_rot/180.0;
+                mc_move->delta_phi[YY] = 0.0;
+                mc_move->delta_phi[XX] = 0.0;
+                ok=TRUE;
+               }
               break;
               case MC_BONDS:
                if((mc_move->group[MC_BONDS].ilist)->nr > 0 && ir->bond_stretch)  
