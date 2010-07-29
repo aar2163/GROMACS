@@ -91,7 +91,8 @@ extern void update(FILE         *fplog,
 		   tensor       vir_part,
 		   bool         bNEMD,
 		   bool         bInitStep,
-                   gmx_rng_t    rng);
+                   gmx_rng_t    rng,
+                   gmx_mc_move  *mc_move);
 /* Return TRUE if OK, FALSE in case of Shake Error */
      
 void bond_rot(t_graph *graph,int ai,int aj,int *list,int *nr,int afix);

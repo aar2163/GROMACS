@@ -2108,11 +2108,18 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
            } while(!ok);
            }
            mc_move->bias = 1;
+            rvec v1;
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,
                    f,fr->bTwinRange && bNStList,fr->f_twin,fcd,
                    &top->idef,ekind,ir->nstlist==-1 ? &nlh.scale_tot : NULL,
                    cr,fr,nrnb,&top_global->mols,wcycle,upd,constr,bCalcEner,shake_vir,
-                   bNEMD,bFirstStep && bStateFromTPX,rng);
+                   bNEMD,bFirstStep && bStateFromTPX,rng,mc_move);
+            //rvec_sub(state->x[73],state->x[75],v1);
+            //printf("heyb %f\n",norm(v1));
+            if(mc_move->bias == 0)
+            {
+             printf("step %d\n",step_rel);
+            }
             if(bMC) 
             {
              if(update_box) {

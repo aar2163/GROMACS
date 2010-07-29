@@ -1464,17 +1464,16 @@ void push_mcmove(directive d,char *line,t_ilist *ilist,int count)
     "%d%d%d%d%d%d%d%d%d%d%d%d%d",
     "%d%d%d%d%d%d%d%d%d%d%d%d%d%d",
     "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d",
-    "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d",
-    "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d"
+    "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d"
   };
-  int      aa[16+1];
+  int      aa[15+1];
   int nread,j;
 
-  for(j=0; j<16; j++)
+  for(j=0; j<15; j++)
     aa[j]=NOTSET;
 
   nread = sscanf(line,aaformat[count-2],
-		 &aa[0],&aa[1],&aa[2],&aa[3],&aa[4],&aa[5],&aa[6],&aa[7],&aa[8],&aa[9],&aa[10],&aa[11],&aa[12],&aa[13],&aa[14],&aa[15]);
+		 &aa[0],&aa[1],&aa[2],&aa[3],&aa[4],&aa[5],&aa[6],&aa[7],&aa[8],&aa[9],&aa[10],&aa[11],&aa[12],&aa[13],&aa[14]);
   if(nread != count)
    gmx_fatal(FARGS,"You are supposed to enter %d atom numbers in field %s",count,dir2str(d));
   

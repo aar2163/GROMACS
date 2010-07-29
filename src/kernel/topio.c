@@ -553,7 +553,7 @@ static char **read_topol(char *infile,char *outfile,
            break;
 
           case d_mccra:
-           push_mcmove(d,pline,&(mi0->mc_cra),16);
+           push_mcmove(d,pline,&(mi0->mc_cra),15);
            break;
 			  
 	  case d_moleculetype: {

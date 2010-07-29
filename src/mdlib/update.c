@@ -69,6 +69,8 @@
 #include "3dview.h"
 #include "bondf.h"
 
+#define DIFFERENT(a,b) ((a >= 0 && b < 0) || ( a <= 0 && b > 0) || (isnan(a) && !isnan(b)) || (!isnan(a) && isnan(b)))
+
 typedef struct {
   double gdt;
   double eph;
@@ -377,7 +379,7 @@ void eval_r(real omega1,matrix t0inv,matrix r1inv,rvec sq0,rvec r)
  mvmul(r1inv,r1,r);
 }
 
-void eval_t1invq1(rvec r,matrix t1,rvec q1,real p2x,real p3x,bool first)
+bool eval_t1invq1(rvec r,matrix t1,rvec q1,real p2x,real p3x,bool first)
 {
  real r2,rx2,ry2,p2x2,p3x2;
  real w,u,v;
@@ -392,7 +394,7 @@ void eval_t1invq1(rvec r,matrix t1,rvec q1,real p2x,real p3x,bool first)
  w = r2 + p2x2 - p3x2; 
 
  u = 4*p2x2*(rx2+ry2)-sqr(w);
- u = sqrt(4*p2x2*(rx2+ry2)-sqr(w));
+ u = sqrt(u);
  v = (1/(2*p2x*(rx2+ry2)));
 
  if(first) 
@@ -412,6 +414,14 @@ void eval_t1invq1(rvec r,matrix t1,rvec q1,real p2x,real p3x,bool first)
 
  mvmul(t1,r,q1);
  
+ if(isnan(u))
+ {
+  return FALSE;
+ }
+ else
+ {
+  return TRUE;
+ }
 }
 void eval_t2r2(rvec q1,real p2x,real p3x,matrix t2,matrix r2)
 {
@@ -450,7 +460,7 @@ real eval_gw(rvec u,matrix t0inv,matrix r1inv,matrix t1inv,matrix r2inv,matrix t
 
  return m6[2];
 }
-void eval_x(rvec *x,rvec *xprime,matrix basis,matrix basis_inv,real cos_a3,real sin_a3,rvec u,rvec v,matrix t0,matrix t0inv,matrix r3inv,matrix t2inv,matrix r2inv,matrix t1inv,matrix r1inv,int ah,int ai,int aj,int ak,int aa,int bb,int cc,real p0x,real p1x,real p2x,real p3x)
+void eval_x(rvec *x,rvec *xprime,matrix basis,matrix basis_inv,rvec u,matrix t0,matrix t0inv,matrix t1inv,matrix r1inv,int ah,int ai,int aj,int ak,int aa,int bb,int cc,real p0x,real p1x,real p2x,real p3x)
 {
  matrix r2,t2,t1,r1,r3,r4,t3,t3inv;
  int i,j;
@@ -469,33 +479,11 @@ void eval_x(rvec *x,rvec *xprime,matrix basis,matrix basis_inv,real cos_a3,real 
   {
    t1[j][i] = t1inv[i][j];
    r1[j][i] = r1inv[i][j];
-   r2[j][i] = r2inv[i][j];
-   t2[j][i] = t2inv[i][j];
-   r3[j][i] = r3inv[i][j];
+ //  r2[j][i] = r2inv[i][j];
+ //  t2[j][i] = t2inv[i][j];
+ //  r3[j][i] = r3inv[i][j];
   }
  }
-
-
- t3[0][0] =  cos_a3;   t3[0][1] = -sin_a3;  t3[0][2] = 0;
- t3[1][0] =  sin_a3;   t3[1][1] =  cos_a3;  t3[1][2] = 0;
- t3[2][0] =  0;        t3[2][1] =  0;       t3[2][2] = 1;
-
- t3inv[0][0] =   cos_a3;   t3inv[0][1] =  sin_a3;  t3inv[0][2] = 0;
- t3inv[1][0] =  -sin_a3;   t3inv[1][1] =  cos_a3;  t3inv[1][2] = 0;
- t3inv[2][0] =   0;        t3inv[2][1] =  0;       t3inv[2][2] = 1;
-
- mvmul(t0inv,v,v1);
- mvmul(r1inv,v1,v2);
- mvmul(t1inv,v2,v3);
- mvmul(r2inv,v3,v4);
- mvmul(t2inv,v4,v5);
- mvmul(r3inv,v5,v6);
- mvmul(t3inv,v6,v7);
-
- r4[0][0] =  1;    r4[0][1] = 0;       r4[0][2] =  0;
- r4[1][0] =  0;    r4[1][1] = v7[1];   r4[1][2] = -v7[2];
- r4[2][0] =  0;    r4[2][1] = v7[2];   r4[2][2] =  v7[1];
-
 
  /* Find out xak in coordinate system 0*/
  x21[0]=p2x;
@@ -539,85 +527,9 @@ void eval_x(rvec *x,rvec *xprime,matrix basis,matrix basis_inv,real cos_a3,real 
  mk_basis(basis3,basis_inv3,u1,u2,u3);
  mvmul(basis3,v6,xprime[cc]);
  rvec_add(xprime[cc],xprime[ak],xprime[cc]);
-/* rvec_sub(xprime[cc],xprime[ak],v1);
- rvec_sub(xprime[aa],xprime[ak],v2);
- rvec_sub(xprime[aa],xprime[bb],v3);
- cprod(v1,v2,v4);
- cprod(v2,v3,v5);
- unitv(v5,v5);
- rvec_sub(x[cc],x[ak],v1);
- mvmul(basis_inv3,v1,v2);
-
- /*
- x4[0] = iprod(v1,v2)/(norm(v2));
- x4[1] = -sqrt(sqr(norm(v1)) - sqr(x4[0]));
- x4[2] = 0;*/
-
- /*rvec_sub(x[aa],xprime[ak],u1);
- rvec_sub(x[bb],x[aa],v2);
- cprod(v2,u1,u3);
- cprod(u1,u3,u2);
- unitv(u3,u3);
- unitv(u2,u2);
- unitv(u1,u1);
- mk_basis(basis3,basis_inv3,u1,u2,u3);
- mvmul(basis_inv3,v1,x3);
- mvmul(r3,x3,x3b);
- mvmul(t2,x3b,x2);
- x2[0] += p2x;
- mvmul(r2,x2,x2b);
- mvmul(t1,x2b,x1);
- x1[0] += p1x;
- mvmul(r1,x1,x1b);
- mvmul(t0,x1b,x0);
- x0[0] += p0x;
- mvmul(basis,x0,xprime[cc]);
- rvec_add(xprime[cc],xprime[ah],xprime[cc]);
- /*mvmul(basis,x0,v1);
- rvec_add(v1,xprime[ah],v1);
- /*rvec_sub(v1,xprime[ak],v2);
- rvec_sub(x[aa],x[ak],v3);
-
- /* Find out xcc in coordinate system 0*/
- /*rvec_sub(x[ak],x[cc],v1);
- rvec_sub(x[aa],x[ak],v2);
- x3[0] = iprod(v1,v2)/norm(v2);
- x3[1] = sqrt(sqr(norm(v1)) - sqr(x3[0]));
- x3[2] = 0;
-
- mvmul(t2,x3,x2);
- x2[0] += p2x;
- mvmul(r2,x2,x2b);
- mvmul(t1,x2b,x1);
- x1[0] += p1x;
- mvmul(r1,x1,x0);
- mvmul(t0,x0,x0b);
- x0b[0] += p0x;
-
- mvmul(basis,x0b,xprime[cc]);
- rvec_add(xprime[cc],xprime[ah],xprime[cc]);
- //rvec_add(xai,xcc,xcc);
-
- /*x33[0]=p3x;
- x33[1]=x33[2]=0;
- mvmul(r3,x33,x33b);
- mvmul(t2,x33b,x23);
- x23[0] += p2x;
- mvmul(r2,x23,x23b);
- mvmul(t1,x23b,x13);
- x13[0] += p1x;
- mvmul(r1,x13,x03);
- mvmul(t0,x03,x03b);
- x03b[0] += p0x;
- mvmul(basis,x03b,xkk);
- rvec_add(xprime[kk],xprime[ah],xprime[kk]);
- //rvec_add(xai,xkk,xkk);*/
-
- /*rvec_sub(xak,xkk,teste1);
- rvec_sub(xcc,xak,teste2);*/
 }
 
-bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int bb,int cc,int dd)
+bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int bb,int cc)
 {
  rvec q0,s;
  rvec xij,xka,xha,xab;
@@ -627,7 +539,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
  real alpha1,omega1,p2x,p3x;
  matrix basis,basis_inv;
  matrix t0,t0inv,r1inv,t1inv,t2inv,r2inv,r3inv;
- real gw1,gw2,gwm,o1,o2,om;
+ real gw1,gw2,gwm,o1,o2,o10,o20,om;
  rvec teste1,teste2;
  real cos_a0,sin_a0,cos_a3,sin_a3,dij,dhi;
  real delta_a1,delta_o1;
@@ -637,8 +549,9 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
  real f1,f2;
  real djk,dka,dac,dkc;
  int i1,i2,i3;
- bool found_root;
+ bool found_root,ok;
  bool branch2;
+ real conv_cr = 0.001;
 
      /* We need to store the dihedral ah-ai-aj-ak (omega1) */
      /* for the root search in the chain closure routine */
@@ -711,76 +624,174 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
  rvec_sub(xprime[bb],xprime[aa],xab);
  mvmul(basis_inv,xab,u);
  unitv(u,u);
- rvec_sub(xprime[dd],xprime[bb],u1);
+
+ /*rvec_sub(xprime[dd],xprime[bb],u1);
  cprod(u,u1,u2);
  cprod(u2,u,v);
- unitv(v,v);
-
+ unitv(v,v);*/
 
 
  /* Search for roots of G(omega1) = 0 */
- o1=omega1_0 - 20*M_PI/180; 
- o2 = omega1_0 + 20*M_PI/180;
- //o1=-180*M_PI/180; 
- //o2 =180*M_PI/180;
- om=o1;
+ o10=omega1_0 - 20*M_PI/180; 
+ o20 = omega1_0 + 20*M_PI/180;
 
- eval_r(o1,t0inv,r1inv,sq0,r);
- eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
- eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+ om = o10;
+
+ ok = FALSE;
+ do
+ {
+  eval_r(o10,t0inv,r1inv,sq0,r);
+  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
+  if(!ok)
+  {
+   o10 += 0.01*M_PI/180;
+  }
+ } while(!ok && o10 < o20);
+ if(!ok)
+ {
+  return FALSE;
+ }
+ ok = FALSE;
+ do
+ {
+  eval_r(o20,t0inv,r1inv,sq0,r);
+  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
+  if(!ok)
+  {
+   o20 -= 0.01*M_PI/180;
+  }
+ } while(!ok);
+
+ /*eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
  gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
- eval_r(o2,t0inv,r1inv,sq0,r);
- eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
+
+ om += 0.0001*180/M_PI;
+ eval_r(om,t0inv,r1inv,sq0,r);
+ ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
  gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+
+ if(abs(gw2) > abs(gw1))
+ {
+  o1 = o10;
+  o2 = om;
+ }
+ else
+ {
+  o1 = om;
+  o2 = o20;
+ }*/
 
  found_root = FALSE;
  branch2 = FALSE;
 
+ om=(o1+o2)/2;
+
+ o1=o10;
+ o2=o20;
+ om=(o1+o2)/2;
+ eval_r(o1,t0inv,r1inv,sq0,r);
+ ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
+ eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+ gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ eval_r(o2,t0inv,r1inv,sq0,r);
+ ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
+ eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+ gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ 
+
+ //printf("o1a %f %f o2 %f %f %d\n",o1,gw1,o2,gw2,ok);
  do
  {
-  /*if((gw2 > 0 && gw1 > 0) || (gw2 < 0 && gw1 < 0))
+  if((!DIFFERENT(gw1,gw2)))
   {
    o2 = o1;
    continue;
-  }*/
+  }
   eval_r(om,t0inv,r1inv,sq0,r);
-  eval_t1invq1(r,t1inv,q1,p2[0],p3[0],branch2);
+  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
   eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
   gwm = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ //printf("o1b %f %f o2 %f %f om %f %f\n",o1,gw1,o2,gw2,om,gwm);
 
-  /*if((gwm > 0 && gw1 > 0) || (gwm < 0 && gw1 < 0))
+  if(!DIFFERENT(gwm,gw1))
   {
    o1 = om;
    gw1 = gwm;
   }
-  if((gwm > 0 && gw2 > 0) || (gwm < 0 && gw2 < 0))
+  if(!DIFFERENT(gwm,gw2))
   {
    o2 = om;
    gw2 = gwm;
-  }*/
-  if(gwm >= 0)
-  {
-  // printf("gwm %f %f\n",gwm,om*180/M_PI);
   }
-  if(gwm >= 0 && gwm < 0.01)
+  if((gwm >= 0 && gwm < conv_cr) || (gwm < 0 && gwm > -conv_cr))
   {
    found_root = TRUE;
    break;
   }
-  if(!branch2)
-  {
-   branch2 = TRUE;
-  }
-  else
-  {
-   branch2 = FALSE;
-   om += 0.05*M_PI/180;
-  }
- } while(!found_root && om <= o2);
- //} while(!found_root && (o2 - o1) > 0.1*M_PI/180);
+ //printf("o1c %f %f o2 %f %f om %f %f\n",o1,gw1,o2,gw2,om,gwm);
+  om = (o1+o2)/2;
+ } while(!found_root && fabs(o2 - o1) > 0.001*M_PI/180);
  if(!found_root)
  {
+ o1=o10;
+ o2=o20;
+ om=(o1+o2)/2;
+ eval_r(o1,t0inv,r1inv,sq0,r);
+ ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
+ eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+ gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ eval_r(o2,t0inv,r1inv,sq0,r);
+ ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
+ eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+ gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ /* if((!DIFFERENT(gw1,gw2)))
+  {
+   do
+   {
+    o1 += 0.05*180/M_PI;
+    eval_r(o1,t0inv,r1inv,sq0,r);
+    ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
+    eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+    gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+   } while(!DIFFERENT(gw1,gw2) && o1 < o2);
+  }
+  om = (o1+o2)/2;*/
+ do
+ {
+  if((!DIFFERENT(gw1,gw2)))
+  {
+   o2 = o1;
+   continue;
+  }
+  eval_r(om,t0inv,r1inv,sq0,r);
+  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
+  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+  gwm = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+
+  if(!DIFFERENT(gwm,gw1))
+  {
+   o1 = om;
+   gw1 = gwm;
+  }
+  if(!DIFFERENT(gwm,gw2))
+  {
+   o2 = om;
+   gw2 = gwm;
+  }
+  if((gwm >= 0 && gwm < conv_cr) || (gwm < 0 && gwm > -conv_cr))
+  {
+   found_root = TRUE;
+   break;
+  }
+  om = (o1+o2)/2;
+ } while(!found_root && fabs(o2 - o1) > 0.001*M_PI/180);
+ }
+
+ if(!found_root)
+ {
+ printf("o1 %10.10f %f o2 %10.10f %f\n",o1,gw1,o2,gw2);
+  printf("not found\n");
   return FALSE;
  }
  else
@@ -788,7 +799,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
   //printf("\n\nfound %f %f %d\n\n",om*180/M_PI,gwm,branch2);
  }
 
- eval_x(x,xprime,basis,basis_inv,cos_a3,sin_a3,u,v,t0,t0inv,r3inv,t2inv,r2inv,t1inv,r1inv,ah,ai,aj,ak,aa,bb,cc,p0[0],p1[0],p2[0],p3[0]);
+ eval_x(x,xprime,basis,basis_inv,u,t0,t0inv,t1inv,r1inv,ah,ai,aj,ak,aa,bb,cc,p0[0],p1[0],p2[0],p3[0]);
 
  return TRUE;
 
@@ -811,7 +822,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   rvec xcm;
   matrix basis,basis_inv;
   rvec delta_phi;
-  real coef1=100,coef2=8,coef3=20.0;
+  real coef1=1000,coef2=8,coef3=20.0;
   real bias1,bias2;
   rvec xab,xdelta;
   real dij,djk,dka,dac,dkc;
@@ -887,7 +898,6 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
      aa = (mc_move->group[MC_CRA].ilist)->iatoms[jj+12];
      bb = (mc_move->group[MC_CRA].ilist)->iatoms[jj+13];
      cc = (mc_move->group[MC_CRA].ilist)->iatoms[jj+14];
-     dd = (mc_move->group[MC_CRA].ilist)->iatoms[jj+15];
 
      /* We need to store the dihedral ah-ai-aj-ak (omega1) */
      /* for the root search in the chain closure routine */
@@ -1013,8 +1023,6 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
 
    for(ii=0;ii<dihedral_nr-1;ii++)
    {
-   if(ii>0)
-    continue;
      ai = dihedral_i[ii];
      aj = dihedral_j[ii];
      ak = dihedral_k[ii];
@@ -1045,7 +1053,6 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   }
    for(ii=0;ii<angle_nr-1;ii++)
    {
-     continue;
      nr = 0;
      ai = angle_i[ii];
      aj = angle_j[ii];
@@ -1092,21 +1099,27 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
      aj = (mc_move->group[MC_CRA].ilist)->iatoms[jj+10];
      ak = (mc_move->group[MC_CRA].ilist)->iatoms[jj+11];
 
-  if(!chain_closure(x,xprime,ah,ai,aj,ak,aa,bb,cc,dd))
+  if(!chain_closure(x,xprime,ah,ai,aj,ak,aa,bb,cc))
   {
    mc_move->bias = 0;
   }
      omega3 = dih_angle(xprime[cc],xprime[ak],xprime[aa],xprime[bb],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      omega3 = dih_angle(xprime[aj],xprime[ak],xprime[aa],xprime[bb],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+    // printf("omega3b %f\n",omega3*180/M_PI);
      alpha1 = bond_angle(xprime[ai],xprime[aj],xprime[ak],NULL,v1,v2,&f1,&i1,&i2);
 
-  rvec_sub(x[ak],x[cc],u1);
+  rvec_sub(x[ak],x[aa],u1);
+  //printf("p3 %f\n",norm(u1));
+
+     omega3 = dih_angle(x[aj],x[ak],x[aa],x[bb],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+    // printf("omega3 %f\n",omega3*180/M_PI);
 
   for(ii=0;ii<homenr;ii++)
   {
    copy_rvec(xprime[ii],x[ii]);
   }
-  rvec_sub(x[ak],x[cc],u1);
+  rvec_sub(x[ak],x[aa],u1);
+  //printf("p3b %f\n",norm(u1));
      omega1 = dih_angle(x[ah],x[ai],x[aj],x[ak],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      //printf("omega1b %f\n",omega1*180/M_PI);
      
@@ -1203,7 +1216,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   cholesky(matrix_j,matrix_l,matrix_lt,coef3,dihedral_nr,coord_nr);
   psi_to_chi(matrix_lt,delta_chi,delta_psi,coord_nr);
   bias2=bias_prob(matrix_l,delta_chi,coord_nr);
-  mc_move->bias = bias2/bias1;
+  mc_move->bias *= bias2/bias1;
   for(ii=0;ii<coord_nr;ii++)
   {
    sfree(matrix_i[ii]);
@@ -2167,7 +2180,8 @@ void update(FILE         *fplog,
             tensor       vir_part,
             bool         bNEMD,
             bool         bInitStep,
-            gmx_rng_t    rng)
+            gmx_rng_t    rng,
+            gmx_mc_move  *mc_move)
 {
     bool             bCouple,bNH,bPR,bLastStep,bLog=FALSE,bEner=FALSE;
     double           dt,eph;
@@ -2178,10 +2192,8 @@ void update(FILE         *fplog,
     tensor           vir_con;
     rvec             *xprime;
     real             vnew,vfrac;
-    gmx_mc_move      *mc_move;
     rvec             v1;
 
-   mc_move = state->mc_move;
     
     start  = md->start;
     homenr = md->homenr;
@@ -2360,7 +2372,6 @@ void update(FILE         *fplog,
   inc_nrnb(nrnb, (bNH || bPR) ? eNR_EXTUPDATE : eNR_UPDATE, homenr);
   dump_it_all(fplog,"After update",
 	      state->natoms,state->x,xprime,state->v,force);
-
   /* 
    *  Steps (7C, 8C)
    *  APPLY CONSTRAINTS:
