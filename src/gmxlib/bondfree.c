@@ -1140,6 +1140,10 @@ real idihs(int nbonds,
     
     phi=dih_angle(x[ai],x[aj],x[ak],x[al],pbc,r_ij,r_kj,r_kl,m,n,
 		  &cos_phi,&sign,&t1,&t2,&t3);			/*  84		*/
+    if(ai==4)
+    {
+     printf("phi %f\n",phi*180/M_PI);
+    }
     
     /* phi can jump if phi0 is close to Pi/-Pi, which will cause huge
      * force changes if we just apply a normal harmonic.

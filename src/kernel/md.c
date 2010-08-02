@@ -873,7 +873,8 @@ bool accept_mc(real deltaH,real bolt,real t,gmx_mc_move *mc_move)
 {
  bool ok=FALSE;
  real prob=1;
-
+ //if(mc_move->bias)
+ //mc_move->bias=1;
  prob = mc_move->bias*exp(-deltaH/(BOLTZ*t));
  //prob = mc_move->bias;
  //printf("prob %f bolt %f bias %f delta %f\n",prob,bolt,mc_move->bias,deltaH);
@@ -1950,8 +1951,14 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                     update_energyhistory(&state_global->enerhist,mdebin);
                 }
             }
+     rvec v1,v2,v3,v4,v5;
+     real f1,f2;
+     int i1,i2,i3;
+     real dih1;
             write_traj(fplog,cr,fp_trn,bX,bV,bF,fp_xtc,bXTC,ir->xtcprec,fn_cpt,bCPT,
                        top_global,ir->eI,ir->simulation_part,step,t,state,state_global,f,f_global,&n_xtc,&x_xtc);
+     dih1 = dih_angle(state->x[4],state->x[19],state->x[17],state->x[18],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     //printf("dih1 %f\n",dih1*180/M_PI);
             debug_gmx();
             if (bLastStep && step_rel == ir->nsteps &&
                 (Flags & MD_CONFOUT) && MASTER(cr) &&
@@ -2108,7 +2115,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
            } while(!ok);
            }
            mc_move->bias = 1;
-            rvec v1;
             update(fplog,step,&dvdl,ir,mdatoms,state,graph,
                    f,fr->bTwinRange && bNStList,fr->f_twin,fcd,
                    &top->idef,ekind,ir->nstlist==-1 ? &nlh.scale_tot : NULL,

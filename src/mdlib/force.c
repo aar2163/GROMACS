@@ -2481,7 +2481,6 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
             inc_nrnb(nrnb,eNR_SHIFTX,graph->nnodes);
         }
     }
-    //printf("force %f %f\n",x[92][2],x[95][2]);
     /* Check whether we need to do bondeds or correct for exclusions */
     if (fr->bMolPBC &&
         ((flags & GMX_FORCE_BONDED)
