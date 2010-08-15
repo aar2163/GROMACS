@@ -2382,13 +2382,13 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
     {
         donb_flags |= GMX_DONB_FORCES;
     }
-    do_nonbonded(cr,fr,x,f,md,
+    /*do_nonbonded(cr,fr,x,f,md,
                  fr->bBHAM ?
                  enerd->grpp.ener[egBHAMSR] :
                  enerd->grpp.ener[egLJSR],
                  enerd->grpp.ener[egCOULSR],
 				 enerd->grpp.ener[egGB],box_size,nrnb,
-                 lambda,&dvdlambda,-1,-1,donb_flags,mc_move);
+                 lambda,&dvdlambda,-1,-1,donb_flags,mc_move);*/
     /* If we do foreign lambda and we have soft-core interactions
      * we have to recalculate the (non-linear) energies contributions.
      */

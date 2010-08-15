@@ -875,8 +875,8 @@ bool accept_mc(real deltaH,real bolt,real t,gmx_mc_move *mc_move)
  real prob=1;
  //if(mc_move->bias)
  //mc_move->bias=1;
- prob = mc_move->bias*exp(-deltaH/(BOLTZ*t));
- //prob = mc_move->bias;
+ //prob = mc_move->bias*exp(-deltaH/(BOLTZ*t));
+ prob = mc_move->bias;
  //printf("prob %f bolt %f bias %f delta %f\n",prob,bolt,mc_move->bias,deltaH);
  if(prob >= 1)
  {
@@ -988,7 +988,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     if(bMC) 
     {
      seed = make_seed();
-     //seed = 24030;  ///*******************
+     seed = 24030;  ///*******************
      rng=gmx_rng_init(seed);
     } 
     if (bRerunMD)
@@ -1336,10 +1336,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   wallcycle_start(wcycle,ewcRUN);
   if (fplog)
     fprintf(fplog,"\n");
-             for(ii=0;ii<0;ii++){
-              mc_move->start=(int)(gmx_rng_uniform_real(rng)*top_global->mols.nr);
-              printf("%d %d\n",mc_move->start*3,ii);
-             }
   /* safest point to do file checkpointing is here.  More general point would be immediately before integrator call */
   #ifdef GMX_FAHCORE
 	chkpt_ret=fcCheckPointParallel( (MASTER(cr)==0),
@@ -1785,7 +1781,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
 
              bolt = gmx_rng_uniform_real(rng);
-             if(fr->bEwald && bMC) 
+             if(fr->bEwald && bMC && 1 == 2) 
              {
               if (step_rel && !update_box && 1 == 2 && !(deltaH <= 0 || (deltaH > 0 && exp(-deltaH/(BOLTZ*ir->opts.ref_t[0])) > 0.4*bolt)))
               {
@@ -1991,7 +1987,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
          */
         copy_mat(state->box,lastbox);
         
-        
         GMX_MPE_LOG(ev_update_start);
         /* This is also parallellized, but check code in update.c */
         /* bOK = update(nsb->natoms,START(nsb),HOMENR(nsb),step,state->lambda,&ener[F_DVDL], */
@@ -2038,7 +2033,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              {
               mc_move->mvgroup = MC_TRANSLATE;
              }
-              mc_move->mvgroup = MC_CRA;
+              //mc_move->mvgroup = MC_CRA;
+
              switch (mc_move->mvgroup)  
              {
               case MC_TRANSLATE:

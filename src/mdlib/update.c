@@ -69,7 +69,7 @@
 #include "3dview.h"
 #include "bondf.h"
 
-#define DIFFERENT(a,b) ((a >= 0 && b < 0) || ( a <= 0 && b > 0) || (isnan(a) && !isnan(b)) || (!isnan(a) && isnan(b)))
+#define DIFFERENT(a,b) ((a >= 0 && b < 0) || ( a <= 0 && b > 0))
 
 typedef struct {
   double gdt;
@@ -339,6 +339,7 @@ void  chi_to_psi(real ** matrix_lt,gmx_rng_t rng,real *delta_chi,real *delta_psi
    sum+=matrix_lt[i][j]*delta_psi[j];
   }
    delta_psi[i] = (gauss-sum)/matrix_lt[i][i];
+   //printf("psi %f %d\n",delta_psi[i]*180/M_PI,i);
  }
 }
 void psi_to_chi(real ** matrix_lt,real *delta_chi,real *delta_psi,int nn)
@@ -377,6 +378,24 @@ void eval_r(real omega1,matrix t0inv,matrix r1inv,rvec sq0,rvec r)
 
  mvmul(t0inv,sq0,r1);
  mvmul(r1inv,r1,r);
+}
+real eval_u(rvec r,matrix t1,rvec q1,real p2x,real p3x,bool first)
+{
+ real r2,rx2,ry2,p2x2,p3x2;
+ real w,u,v;
+ real sin_a,cos_a;
+
+ p2x2 = sqr(p2x);
+ p3x2 = sqr(p3x);
+ r2 = sqr(norm(r));
+ rx2 = sqr(r[0]);
+ ry2 = sqr(r[1]);
+
+ w = r2 + p2x2 - p3x2; 
+
+ u = 4*p2x2*(rx2+ry2)-sqr(w);
+
+ return u;
 }
 
 bool eval_t1invq1(rvec r,matrix t1,rvec q1,real p2x,real p3x,bool first)
@@ -529,13 +548,15 @@ void eval_x(rvec *x,rvec *xprime,matrix basis,matrix basis_inv,rvec u,matrix t0,
  rvec_add(xprime[cc],xprime[ak],xprime[cc]);
 }
 
-void ludcm(real **a,int n,int *indx,real *d)
+void ludcm(real **a,int n,real *d)
 {
  int i,imax,j,k;
  real big,dum,sum,temp;
  real *vv;
+ int *indx;
 
  snew(vv,n);
+ snew(indx,n);
 
  for(i=0;i<n;i++)
  {
@@ -597,6 +618,7 @@ void ludcm(real **a,int n,int *indx,real *d)
   }
  }
  sfree(vv);
+ sfree(indx);
 
  for(j=0;j<n;j++)
  {
@@ -604,11 +626,47 @@ void ludcm(real **a,int n,int *indx,real *d)
  }
 }
 
-void eval_j(rvec r1,rvec r2,rvec r3,rvec r4,rvec r5)
+real eval_j(const rvec p0,const rvec p1,const rvec p2,const rvec p3,const rvec p4,const rvec p5)
 {
  rvec u1,u2,u3,u4;
  rvec w1,w2,w3,w4;
+ rvec r1,r2,r3,r4,r5;
+ rvec rl1,rl2;
+ rvec v,xij;
+ rvec e1,e2;
+ real **mat;
+ real determinant = 1.0;
+ matrix basis,basis_inv;
  int i;
+
+ snew(mat,5);
+ for(i=0;i<5;i++)
+ {
+  snew(mat[i],5);
+ }
+
+ e1[0]=1;e1[1]=0;e1[2]=0;
+ e2[0]=0;e2[1]=1;e2[2]=0;
+
+ rvec_sub(p1,p0,u1);
+ rvec_sub(p2,p1,xij);
+ cprod(u1,xij,u3);
+ unitv(u3,u3);
+ cprod(u3,u1,u2);
+ unitv(u2,u2);
+ unitv(u1,u1);
+ mk_basis(basis,basis_inv,u1,u2,u3);
+
+ rvec_sub(p1,p0,v);
+ mvmul(basis_inv,v,r1);
+ rvec_sub(p2,p0,v);
+ mvmul(basis_inv,v,r2);
+ rvec_sub(p3,p0,v);
+ mvmul(basis_inv,v,r3);
+ rvec_sub(p4,p0,v);
+ mvmul(basis_inv,v,r4);
+ rvec_sub(p5,p0,v);
+ mvmul(basis_inv,v,r5);
  
  rvec_sub(r2,r1,u1);
  unitv(u1,u1);
@@ -625,6 +683,62 @@ void eval_j(rvec r1,rvec r2,rvec r3,rvec r4,rvec r5)
  unitv(w2,w2);
  cprod(u4,u3,w3);
  unitv(w3,w3);
+
+ rvec_sub(r4,r2,rl1);
+ rvec_sub(r4,r3,rl2);
+
+ cprod(u1,rl1,v);
+ mat[0][0] = v[0];
+ mat[1][0] = v[1];
+ mat[2][0] = v[2];
+
+ cprod(u2,rl2,v);
+ mat[0][1] = v[0];
+ mat[1][1] = v[1];
+ mat[2][1] = v[2];
+
+ cprod(w1,rl1,v);
+ mat[0][2] = v[0];
+ mat[1][2] = v[1];
+ mat[2][2] = v[2];
+
+ cprod(w2,rl2,v);
+ mat[0][3] = v[0];
+ mat[1][3] = v[1];
+ mat[2][3] = v[2];
+
+ mat[0][4] = 0;
+ mat[1][4] = 0;
+ mat[2][4] = 0;
+
+ cprod(u1,u4,v);
+ mat[3][0] = iprod(v,e1);
+ mat[4][0] = iprod(v,e2);
+
+ cprod(u2,u4,v);
+ mat[3][1] = iprod(v,e1);
+ mat[4][1] = iprod(v,e2);
+
+ cprod(w1,u4,v);
+ mat[3][2] = iprod(v,e1);
+ mat[4][2] = iprod(v,e2);
+
+ cprod(w2,u4,v);
+ mat[3][3] = iprod(v,e1);
+ mat[4][3] = iprod(v,e2);
+
+ cprod(w3,u4,v);
+ mat[3][4] = iprod(v,e1);
+ mat[4][4] = iprod(v,e2);
+
+ 
+ ludcm(mat,5,&determinant);
+ for(i=0;i<5;i++)
+ {
+  sfree(mat[i]);
+ }
+ sfree(mat);
+ return (1/fabs(determinant));
 
  
 }
@@ -651,7 +765,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
  int i1,i2,i3;
  bool found_root,ok;
  bool branch2;
- real conv_cr = 0.0001;
+ real conv_cr = 0.0001,step = 0.001;
 
      /* We need to store the dihedral ah-ai-aj-ak (omega1) */
      /* for the root search in the chain closure routine */
@@ -732,64 +846,87 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
 
 
  /* Search for roots of G(omega1) = 0 */
- o10=omega1_0 - 20*M_PI/180; 
- o20 = omega1_0 + 20*M_PI/180;
+ o10=omega1_0 - 30*M_PI/180; 
+ o20 = omega1_0 + 30*M_PI/180;
+ real u10,u20,um;
+  eval_r(o10,t0inv,r1inv,sq0,r);
+  u10 = eval_u(r,t1inv,q1,p2[0],p3[0],TRUE);
+  eval_r(o20,t0inv,r1inv,sq0,r);
+  u20 = eval_u(r,t1inv,q1,p2[0],p3[0],TRUE);
+ printf("u1 %f %f u2 %f %f\n",u10,o10,u20,o20); 
 
- om = o10;
-
- ok = FALSE;
- do
+ o1 = o10;
+ o2 = o20;
+ om = (o10 + o20)/2;
+ if(DIFFERENT(u10,u20))
  {
+  do
+  {
+   if((!DIFFERENT(u10,u20)))
+   {
+    o2 = o1;
+    continue;
+   }
+   eval_r(om,t0inv,r1inv,sq0,r);
+   um = eval_u(r,t1inv,q1,p2[0],p3[0],TRUE);
+
+   if(!DIFFERENT(um,u10))
+   {
+    u10 = um;
+    o1 = om;
+   }
+   if(!DIFFERENT(um,u20))
+   {
+    o2 = om;
+    u20 = um;
+   }
+   if(um >=  0 && um < conv_cr/10000)
+   {
+    found_root = TRUE;
+    break;
+   }
+   om = (o1+o2)/2;
+  } while(!found_root && fabs(o2 - o1) > 0.0001*M_PI/180);
+  if(!found_root)
+   printf("bla\n");
+
+  found_root = FALSE;
+  printf("bum %f om %f\n",um,om); 
+   if(DIFFERENT(um,u10))
+   {
+    o10 = om;
+   }
+   if(DIFFERENT(um,u20))
+   {
+    o20 = om;
+   }
+ }
+
   eval_r(o10,t0inv,r1inv,sq0,r);
   ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
-  if(!ok)
-  {
-   o10 += 0.01*M_PI/180;
-  }
- } while(!ok && o10 < o20);
- if(!ok)
- {
-  return FALSE;
- }
- ok = FALSE;
- do
- {
+  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+  gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+
   eval_r(o20,t0inv,r1inv,sq0,r);
   ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
-  if(!ok)
-  {
-   o20 -= 0.01*M_PI/180;
-  }
- } while(!ok);
+  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+  gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ printf("hey o1 %10.10f %f o2 %10.10f %f\n",o10,gw1,o20,gw2);
 
- /*eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
- gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+  eval_r(o10,t0inv,r1inv,sq0,r);
+  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
+  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+  gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
 
- om += 0.0001*180/M_PI;
- eval_r(om,t0inv,r1inv,sq0,r);
- ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
- eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
- gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
-
- if(abs(gw2) > abs(gw1))
- {
-  o1 = o10;
-  o2 = om;
- }
- else
- {
-  o1 = om;
-  o2 = o20;
- }*/
-
- found_root = FALSE;
- branch2 = FALSE;
-
- om=(o1+o2)/2;
+  eval_r(o20,t0inv,r1inv,sq0,r);
+  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
+  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
+  gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ printf("hey2 o1 %10.10f %f o2 %10.10f %f\n",o10,gw1,o20,gw2);
+  
 
  o1=o10;
  o2=o20;
- om=(o1+o2)/2;
  eval_r(o1,t0inv,r1inv,sq0,r);
  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
@@ -798,9 +935,10 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
  gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+
+  om = (o1+o2)/2;
  
 
- //printf("o1a %f %f o2 %f %f %d\n",o1,gw1,o2,gw2,ok);
  do
  {
   if((!DIFFERENT(gw1,gw2)))
@@ -812,7 +950,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
   ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
   eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
   gwm = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
- //printf("o1b %f %f o2 %f %f om %f %f\n",o1,gw1,o2,gw2,om,gwm);
+ //printf("a o1 %10.10f %f o2 %10.10f %f om %10.10f %f\n",o1,gw1,o2,gw2,om,gwm);
 
   if(!DIFFERENT(gwm,gw1))
   {
@@ -831,7 +969,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
   }
  //printf("o1c %f %f o2 %f %f om %f %f\n",o1,gw1,o2,gw2,om,gwm);
   om = (o1+o2)/2;
- } while(!found_root && fabs(o2 - o1) > 0.001*M_PI/180);
+ } while(!found_root && fabs(o2 - o1) > 0.0001*M_PI/180);
  if(!found_root)
  {
  o1=o10;
@@ -845,18 +983,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
  ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
  eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
  gw2 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
- /* if((!DIFFERENT(gw1,gw2)))
-  {
-   do
-   {
-    o1 += 0.05*180/M_PI;
-    eval_r(o1,t0inv,r1inv,sq0,r);
-    ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],TRUE);
-    eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
-    gw1 = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
-   } while(!DIFFERENT(gw1,gw2) && o1 < o2);
-  }
-  om = (o1+o2)/2;*/
+  om = (o1+o2)/2;
  do
  {
   if((!DIFFERENT(gw1,gw2)))
@@ -868,6 +995,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
   ok = eval_t1invq1(r,t1inv,q1,p2[0],p3[0],FALSE);
   eval_t2r2(q1,p2[0],p3[0],t2inv,r2inv);
   gwm = eval_gw(u,t0inv,r1inv,t1inv,r2inv,t2inv,r3inv,&cos_a3,&sin_a3);
+ //printf("o1 %10.10f %f o2 %10.10f %f om %10.10f %f\n",o1,gw1,o2,gw2,om,gwm);
 
   if(!DIFFERENT(gwm,gw1))
   {
@@ -885,7 +1013,7 @@ bool chain_closure(rvec *x,rvec *xprime,int ah,int ai,int aj,int ak,int aa,int b
    break;
   }
   om = (o1+o2)/2;
- } while(!found_root && fabs(o2 - o1) > 0.001*M_PI/180);
+ } while(!found_root && fabs(o2 - o1) > 0.0001*M_PI/180);
  }
 
  if(!found_root)
@@ -932,7 +1060,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   rvec xcm;
   matrix basis,basis_inv;
   rvec delta_phi;
-  real coef1=500,coef2=8,coef3=20.0;
+  real coef1=500,coef2=100,coef3=20.0;
   real bias1,bias2;
   rvec xab,xdelta;
   real dij,djk,dka,dac,dkc;
@@ -940,6 +1068,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   real f1,f2;
   rvec v1,v2,v3,v4,v5;
   real alpha1,omega1,omega3,p1,p2,p3;
+  real jac1,jac2;
   int i1,i2,i3;
 
   snew(list_r,homenr);
@@ -1134,6 +1263,24 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
 
    for(ii=0;ii<dihedral_nr-1;ii++)
    {
+    if(fabs(delta_psi[ii]) > 50*M_PI/180)
+    {
+     printf("veto %d %f %f\n",delta_psi[ii],50*M_PI/180);
+     mc_move->bias = 0;
+    }
+   }
+
+   for(ii=0;ii<angle_nr-1;ii++)
+   {
+    if(fabs(delta_psi[ii+dihedral_nr]) > 20*M_PI/180)
+    {
+     printf("veto %d %f %f\n",delta_psi[ii+dihedral_nr],20*M_PI/180);
+     mc_move->bias = 0;
+    }
+   }
+
+   for(ii=0;ii<dihedral_nr-1;ii++)
+   {
      ai = dihedral_i[ii];
      aj = dihedral_j[ii];
      ak = dihedral_k[ii];
@@ -1157,16 +1304,16 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
 
      for(k=0;k<nr;k++) {
       clear_rvec(delta_phi);
-      delta_phi[XX] = delta_psi[ii];
+      delta_phi[XX] = -delta_psi[ii];
       clear_rvec(xcm);
       mk_rot(xprime[list_r[k]],xprime[aj],xprime[list_r[k]],xcm,delta_phi,basis,basis_inv);
      }
      real dih1,dih2;
      int hey1,hey2,hey3,hey4;
-     hey1=57;hey2=75;hey3=73;hey4=74;
+     hey1=36;hey2=38;hey3=53;hey4=55;
      dih1 = dih_angle(x[hey1],x[hey2],x[hey3],x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      dih2 = dih_angle(xprime[hey1],xprime[hey2],xprime[hey3],xprime[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
-    // printf("%f %f %f %f %d %d\n",dih1*180/M_PI,dih2*180/M_PI,delta_psi[ii],dih2-dih1,ai,aj);
+     //printf("%f %f %f %f\n",(dih2-dih1),delta_psi[5],dih1,dih2);
   }
    for(ii=0;ii<angle_nr-1;ii++)
    {
@@ -1196,7 +1343,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
      for(k=0;k<nr;k++) 
      {
       delta_phi[XX] = delta_psi[dihedral_nr+ii];
-      //mk_rot(xprime[list_r[k]],xprime[aj],xprime[list_r[k]],xcm,delta_phi,basis,basis_inv);
+      mk_rot(xprime[list_r[k]],xprime[aj],xprime[list_r[k]],xcm,delta_phi,basis,basis_inv);
      }
   }
 
@@ -1215,13 +1362,22 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
      ai = (mc_move->group[MC_CRA].ilist)->iatoms[jj+9];
      aj = (mc_move->group[MC_CRA].ilist)->iatoms[jj+10];
      ak = (mc_move->group[MC_CRA].ilist)->iatoms[jj+11];
-
   if(!chain_closure(x,xprime,ah,ai,aj,ak,aa,bb,cc))
   {
    mc_move->bias = 0;
   }
 
-  eval_j(x[ai],x[aj],x[ak],x[aa],x[bb]);
+  jac1 = eval_j(x[ah],x[ai],x[aj],x[ak],x[aa],x[bb]);
+  jac2 = eval_j(xprime[ah],xprime[ai],xprime[aj],xprime[ak],xprime[aa],xprime[bb]);
+
+  mc_move->bias *= jac2/jac1;
+  
+     real dih1,dih2;
+     int hey1,hey2,hey3,hey4;
+     hey1=53;hey2=55;hey3=57;hey4=73;
+     dih1 = dih_angle(x[hey1],x[hey2],x[hey3],x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     dih2 = dih_angle(xprime[hey1],xprime[hey2],xprime[hey3],xprime[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+    // printf("%f %f %f %f\n",(dih2-dih1),delta_psi[5],dih1,dih2);
      omega3 = dih_angle(xprime[cc],xprime[ak],xprime[aa],xprime[bb],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      //printf("omega3b %f\n",omega3*180/M_PI);
      omega3 = dih_angle(xprime[aj],xprime[ak],xprime[aa],xprime[bb],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
@@ -1336,7 +1492,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   cholesky(matrix_j,matrix_l,matrix_lt,coef3,dihedral_nr,coord_nr);
   psi_to_chi(matrix_lt,delta_chi,delta_psi,coord_nr);
   bias2=bias_prob(matrix_l,delta_chi,coord_nr);
-  mc_move->bias *= bias2/bias1;
+  //mc_move->bias *= bias2/bias1;
   for(ii=0;ii<coord_nr;ii++)
   {
    sfree(matrix_i[ii]);
