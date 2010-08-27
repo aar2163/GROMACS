@@ -133,6 +133,8 @@ typedef struct
  real **enerd;
  real **enerd_prev;
  real bias;
+ real gauss; //teste
+ real d2; //teste
 } gmx_mc_move;
 typedef struct
 {

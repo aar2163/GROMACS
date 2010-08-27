@@ -877,7 +877,7 @@ bool accept_mc(real deltaH,real bolt,real t,gmx_mc_move *mc_move)
  //mc_move->bias=1;
  //prob = mc_move->bias*exp(-deltaH/(BOLTZ*t));
  prob = mc_move->bias;
- //printf("prob %f bolt %f bias %f delta %f\n",prob,bolt,mc_move->bias,deltaH);
+ printf("prob %f bolt %f bias %f delta %f\n",prob,bolt,mc_move->bias,deltaH);
  if(prob >= 1)
  {
   ok = TRUE;
@@ -971,7 +971,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
   int         jj;
   real        deltax;
   gmx_rng_t   rng;
+  gmx_rng_t   rng2;
   real        bolt;
+  real        deltadih; //teste
 #ifdef GMX_FAHCORE
   /* Temporary addition for FAHCORE checkpointing */
   int chkpt_ret;
@@ -988,8 +990,11 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     if(bMC) 
     {
      seed = make_seed();
-     seed = 24030;  ///*******************
+     //seed = 24030;  ///*******************
      rng=gmx_rng_init(seed);
+     seed = make_seed();
+     //seed = 24030;  ///*******************
+     rng2=gmx_rng_init(seed);
     } 
     if (bRerunMD)
     {
@@ -1526,7 +1531,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
             /* Determine whether or not to do Neighbour Searching and LR */
             if(bMC)
             {
-             ir->nstlist = 1;
+             ir->nstlist = 1000;
              //ir->nst_p= 1000;
             }
             bNStList = (ir->nstlist > 0  && step % ir->nstlist == 0);
@@ -1809,10 +1814,25 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               }
               }
              }
-
+ printf("bias md %f\n",mc_move->bias);
              if(bBOXok) {
               if (!step_rel || accept_mc(deltaH,bolt,ir->opts.ref_t[0],mc_move)) {
                mc_move->bNS[mc_move->cgs] = TRUE;
+     real dih1,dih2;
+     rvec v1,v2,v3,v4,v5;
+     real f1,f2,f3;
+     int i1,i2,i3;
+     int hey1,hey2,hey3,hey4;
+     hey1=75;hey2=77;hey3=89;hey4=91;
+     dih1 = dih_angle(xcopy[hey1],xcopy[hey2],xcopy[hey3],xcopy[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     dih2 = dih_angle(state->x[hey1],state->x[hey2],state->x[hey3],state->x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     deltadih = dih2;
+     enerd->term[F_EPOT]=deltadih*180/M_PI;
+     enerd->term[F_BONDS]=mc_move->gauss;
+     enerd->term[F_ANGLES]=mc_move->d2;
+     printf("deltadih %f\n",deltadih);
+     if(dih2-dih1 < 0)
+     printf("\n\n\ntatatatata %f %f %f\n\n\n",(dih2-dih1),dih1,dih2);
                if(update_box) {
                 state->vol_ac++;
                }
@@ -2115,13 +2135,14 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
                    f,fr->bTwinRange && bNStList,fr->f_twin,fcd,
                    &top->idef,ekind,ir->nstlist==-1 ? &nlh.scale_tot : NULL,
                    cr,fr,nrnb,&top_global->mols,wcycle,upd,constr,bCalcEner,shake_vir,
-                   bNEMD,bFirstStep && bStateFromTPX,rng,mc_move);
+                   bNEMD,bFirstStep && bStateFromTPX,rng,rng2,mc_move);
             //rvec_sub(state->x[73],state->x[75],v1);
             //printf("heyb %f\n",norm(v1));
             if(mc_move->bias == 0)
             {
              printf("step %d\n",step_rel);
             }
+             printf("step %d\n",step_rel);
             if(bMC) 
             {
              if(update_box) {

@@ -2498,10 +2498,10 @@ void do_force_lowlevel(FILE       *fplog,   gmx_step_t step,
 
         if(!mc_move || !mc_move->n_mc || mc_move->mvgroup >= MC_BONDS)
         {
-         calc_bonds(fplog,cr->ms,
+         /*calc_bonds(fplog,cr->ms,
                    idef,x,hist,mc_move,f,fr,&pbc,graph,enerd,nrnb,lambda,md,fcd,
                    DOMAINDECOMP(cr) ? cr->dd->gatindex : NULL, atype, born, &(mtop->cmap_grid),
-                   fr->bSepDVDL && do_per_step(step,ir->nstlog),step);
+                   fr->bSepDVDL && do_per_step(step,ir->nstlog),step);*/
         }
         
         /* Check if we have to determine energy differences
