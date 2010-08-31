@@ -1823,14 +1823,14 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
      real f1,f2,f3;
      int i1,i2,i3;
      int hey1,hey2,hey3,hey4;
-     hey1=75;hey2=77;hey3=89;hey4=91;
+     hey1=77;hey2=89;hey3=91;hey4=93;
      dih1 = dih_angle(xcopy[hey1],xcopy[hey2],xcopy[hey3],xcopy[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      dih2 = dih_angle(state->x[hey1],state->x[hey2],state->x[hey3],state->x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
-     deltadih = dih2;
+     deltadih = dih2-dih1;
      enerd->term[F_EPOT]=deltadih*180/M_PI;
      enerd->term[F_BONDS]=mc_move->gauss;
      enerd->term[F_ANGLES]=mc_move->d2;
-     printf("deltadih %f\n",deltadih);
+     printf("deltadih %f %f %f\n",deltadih,dih1,dih2);
      if(dih2-dih1 < 0)
      printf("\n\n\ntatatatata %f %f %f\n\n\n",(dih2-dih1),dih1,dih2);
                if(update_box) {

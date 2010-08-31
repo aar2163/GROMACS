@@ -340,6 +340,7 @@ void  chi_to_psi(real ** matrix_lt,gmx_rng_t rng,real *delta_chi,real *delta_psi
    sum+=matrix_lt[i][j]*delta_psi[j];
   }
    delta_psi[i] = (gauss-sum)/matrix_lt[i][i];
+   //delta_psi[i] = gauss/300;
    //printf("psi %f %d\n",delta_psi[i]*180/M_PI,i);
  }
 }
@@ -1023,7 +1024,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   rvec xcm;
   matrix basis,basis_inv;
   rvec delta_phi;
-  real coef1=1000,coef2=8.0,coef3=5.0;
+  real coef1=100,coef2=8.0,coef3=20.0;
   real bias1,bias2;
   rvec xab,xdelta;
   real dij,djk,dka,dac,dkc;
@@ -1033,6 +1034,8 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   real alpha1,omega1,omega3,p1,p2,p3;
   real jac1,jac2;
   int i1,i2,i3;
+  real dih1,dih2;
+  int hey1,hey2,hey3,hey4;
 
   snew(list_r,homenr);
   snew(xprime,homenr);
@@ -1237,7 +1240,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
     if(fabs(delta_psi[ii]) > 50*M_PI/180)
     {
      printf("veto %d %f %f\n",delta_psi[ii],50*M_PI/180);
-     //mc_move->bias = 0;
+     mc_move->bias = 0;
     }
    }
 
@@ -1246,7 +1249,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
     if(fabs(delta_psi[ii+dihedral_nr]) > 20*M_PI/180)
     {
      printf("veto %d %f %f\n",delta_psi[ii+dihedral_nr],20*M_PI/180);
-     //mc_move->bias = 0;
+     mc_move->bias = 0;
     }
    }
 
@@ -1255,6 +1258,8 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
      bi = dihedral_i[ii];
      bj = dihedral_j[ii];
      bk = dihedral_k[ii];
+
+     printf("bi %d bj %d bk %d\n",bi,bj,bk);
 
      nr = 0;
      bond_rot(graph,bi,bj,list_r,&nr,ak);
@@ -1272,10 +1277,8 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
 
      clear_rvec(delta_phi);
 
-     real dih1,dih2;
-     int hey1,hey2,hey3,hey4;
-     hey1=75;hey2=77;hey3=89;hey4=91;
-      dih1 = dih_angle(xprime[hey1],xprime[hey2],xprime[hey3],xprime[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     hey1=77;hey2=89;hey3=91;hey4=93;
+      dih1 = dih_angle(x[hey1],x[hey2],x[hey3],x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
 
      for(k=0;k<nr;k++) {
       clear_rvec(delta_phi);
@@ -1284,8 +1287,11 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
       mk_rot(xprime[list_r[k]],xprime[bj],xprime[list_r[k]],xcm,delta_phi,basis,basis_inv);
      }
       dih2 = dih_angle(xprime[hey1],xprime[hey2],xprime[hey3],xprime[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
-   //  printf("dihb%f %f %f %f\n",(dih2-dih1),delta_psi[1],dih1,dih2);
+     printf("dihb%f %f %f %f\n",(dih2-dih1),delta_psi[1],dih1,dih2);
   }
+     hey1=77;hey2=89;hey3=91;hey4=93;
+      dih2 = dih_angle(xprime[hey1],xprime[hey2],xprime[hey3],xprime[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     printf("dihbla %f\n",dih2);
    for(ii=0;ii<angle_nr;ii++)
    {
      nr = 0;
@@ -1293,7 +1299,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
      bj = angle_j[ii];
      bk = angle_k[ii];
      bond_rot(graph,bj,bk,list_r,&nr,ak);
-     list_r[nr++]=ak;
+     list_r[nr++]=bk;
 
 
      rvec_sub(xprime[bi],xprime[bj],r_ij);
@@ -1344,8 +1350,6 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   jac2 = eval_j(xprime[ah],xprime[ai],xprime[aj],xprime[ak],xprime[aa],xprime[bb]);
   //mc_move->bias *= jac1/jac2;
   printf("bias2 %f %10.10f %10.10f\n",mc_move->bias,jac1,jac2);
-     real dih1,dih2;
-     int hey1,hey2,hey3,hey4;
      hey1=75;hey2=77;hey3=89;hey4=91;
      dih1 = dih_angle(x[hey1],x[hey2],x[hey3],x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      dih2 = dih_angle(xprime[hey1],xprime[hey2],xprime[hey3],xprime[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
@@ -1471,6 +1475,7 @@ void do_cra(rvec *x,gmx_mc_move *mc_move,t_graph *graph,gmx_rng_t rng,int homenr
   if(dih2-dih1<0)
    printf("lalala\n");
   printf("bias3 %f\n",mc_move->bias);
+
   for(ii=0;ii<coord_nr;ii++)
   {
    sfree(matrix_i[ii]);
