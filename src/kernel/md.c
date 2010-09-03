@@ -991,6 +991,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     {
      seed = make_seed();
      //seed = 24030;  ///*******************
+     seed = 1226842470;
      rng=gmx_rng_init(seed);
      seed = make_seed();
      //seed = 24030;  ///*******************
@@ -1408,6 +1409,12 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
     }
     bLastStep = (bRerunMD || step_rel > ir->nsteps);
 
+     real dih1,dih2;
+     rvec v1,v2,v3,v4,v5;
+     real f1,f2,f3;
+     int i1,i2,i3;
+     int hey1,hey2,hey3,hey4;
+
     while (!bLastStep || (bRerunMD && bNotLastFrame)) {
         
         wallcycle_start(wcycle,ewcSTEP);
@@ -1730,6 +1737,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              * This is parallellized as well, and does communication too. 
              * Check comments in sim_util.c
              */
+     hey1=127;hey2=129;hey3=144;hey4=146;
+     dih1 = dih_angle(state->x[hey1],state->x[hey2],state->x[hey3],state->x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     printf("\ndih1_0 %f\n\n",dih1*180/M_PI);
             if(bMC)
             {
               if(step_rel && !update_box && !do_ene && !do_vir) {
@@ -1816,14 +1826,16 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
              }
  printf("bias md %f\n",mc_move->bias);
              if(bBOXok) {
+              /*if (accept_mc(deltaH,bolt,ir->opts.ref_t[0],mc_move)) {
+                for(ii=mdatoms->start; ii<(mdatoms->start+mdatoms->homenr); ii++) {
+                 copy_rvec(xcopy[ii],state->x[ii]);
+                }
+                copy_mat(boxcopy,state->box);
+                copy_enerdata(enerdcopy,enerd);
+                copy_mat(force_vircopy,force_vir);
+              }*/
               if (!step_rel || accept_mc(deltaH,bolt,ir->opts.ref_t[0],mc_move)) {
                mc_move->bNS[mc_move->cgs] = TRUE;
-     real dih1,dih2;
-     rvec v1,v2,v3,v4,v5;
-     real f1,f2,f3;
-     int i1,i2,i3;
-     int hey1,hey2,hey3,hey4;
-     hey1=77;hey2=89;hey3=91;hey4=93;
      dih1 = dih_angle(xcopy[hey1],xcopy[hey2],xcopy[hey3],xcopy[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      dih2 = dih_angle(state->x[hey1],state->x[hey2],state->x[hey3],state->x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
      deltadih = dih2-dih1;
@@ -1971,6 +1983,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
      real f1,f2;
      int i1,i2,i3;
      real dih1;
+     dih1 = dih_angle(state->x[hey1],state->x[hey2],state->x[hey3],state->x[hey4],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
+     printf("\ndih1_2 %f\n\n",dih1*180/M_PI);
             write_traj(fplog,cr,fp_trn,bX,bV,bF,fp_xtc,bXTC,ir->xtcprec,fn_cpt,bCPT,
                        top_global,ir->eI,ir->simulation_part,step,t,state,state_global,f,f_global,&n_xtc,&x_xtc);
      dih1 = dih_angle(state->x[4],state->x[19],state->x[17],state->x[18],NULL,v1,v2,v3,v4,v5,&f1,&f2,&i1,&i2,&i3);
