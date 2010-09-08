@@ -1827,9 +1827,11 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
  printf("bias md %f\n",mc_move->bias);
              if(bBOXok) {
               /*if (accept_mc(deltaH,bolt,ir->opts.ref_t[0],mc_move)) {
+                printf("\n\n\nto aki\n\n\n");
                 for(ii=mdatoms->start; ii<(mdatoms->start+mdatoms->homenr); ii++) {
                  copy_rvec(xcopy[ii],state->x[ii]);
                 }
+                state->step_ac[mc_move->mvgroup]++;
                 copy_mat(boxcopy,state->box);
                 copy_enerdata(enerdcopy,enerd);
                 copy_mat(force_vircopy,force_vir);
