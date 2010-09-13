@@ -2130,6 +2130,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,t_filenm fnm[],
               case MC_DIHEDRALS:
                if((mc_move->group[MC_DIHEDRALS].ilist)->nr > 0 && ir->dihedral_rot) 
                {
+             printf("step2 %d\n",step_rel);
                 jj = uniform_int(rng,(mc_move->group[MC_DIHEDRALS].ilist)->nr/2);
                 deltax=(2*gmx_rng_uniform_real(rng)-1.0)*ir->dihedral_rot*M_PI/180.0;
                 //deltax=30*M_PI/180.0;
